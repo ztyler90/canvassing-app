@@ -1,0 +1,94 @@
+/**
+ * SessionContext
+ * Holds all live state for an active canvassing session:
+ * - GPS trail points
+ * - Door knock / interaction list
+ * - Running stats (doors, revenue, etc.)
+ * - Current pending knock (for auto-prompting the interaction modal)
+ */
+import { createContext, useContext, useReducer, useRef } from 'react'
+
+const SessionContext = createContext(null)
+
+const initialState = {
+  session:          null,         // Supabase session row
+  gpsTrail:         [],           // [{ lat, lng }]
+  interactions:     [],           // logged interactions
+  pendingKnock:     null,         // { lat, lng, address } — triggers modal
+  stats: {
+    doors:         0,
+    conversations: 0,
+    estimates:     0,
+    bookings:      0,
+    revenue:       0,
+    startedAt:     null,
+  },
+  isRunning:        false,
+}
+
+function reducer(state, action) {
+  switch (action.type) {
+    case 'START_SESSION':
+      return {
+        ...initialState,
+        session:   action.session,
+        isRunning: true,
+        stats: { ...initialState.stats, startedAt: Date.now() },
+      }
+
+    case 'STOP_SESSION':
+      return { ...state, isRunning: false }
+
+    case 'ADD_GPS_POINT':
+      return { ...state, gpsTrail: [...state.gpsTrail, action.point] }
+
+    case 'SET_PENDING_KNOCK':
+      return { ...state, pendingKnock: action.knock }
+
+    case 'CLEAR_PENDING_KNOCK':
+      return { ...state, pendingKnock: null }
+
+    case 'LOG_INTERACTION': {
+      const interaction = action.interaction
+      const isConversation = ['not_interested', 'estimate_requested', 'booked'].includes(interaction.outcome)
+      const isEstimate     = interaction.outcome === 'estimate_requested'
+      const isBooked       = interaction.outcome === 'booked'
+      return {
+        ...state,
+        interactions: [...state.interactions, interaction],
+        pendingKnock: null,
+        stats: {
+          ...state.stats,
+          doors:         state.stats.doors + 1,
+          conversations: state.stats.conversations + (isConversation ? 1 : 0),
+          estimates:     state.stats.estimates     + (isEstimate ? 1 : 0),
+          bookings:      state.stats.bookings      + (isBooked ? 1 : 0),
+          revenue:       state.stats.revenue       + (isBooked ? (Number(interaction.estimated_value) || 0) : 0),
+        },
+      }
+    }
+
+    case 'RESET':
+      return initialState
+
+    default:
+      return state
+  }
+}
+
+export function SessionProvider({ children }) {
+  const [state, dispatch] = useReducer(reducer, initialState)
+  const doorKnockRef = useRef(null)   // DoorKnockDetector instance
+
+  return (
+    <SessionContext.Provider value={{ state, dispatch, doorKnockRef }}>
+      {children}
+    </SessionContext.Provider>
+  )
+}
+
+export function useSession() {
+  const ctx = useContext(SessionContext)
+  if (!ctx) throw new Error('useSession must be used within SessionProvider')
+  return ctx
+}
