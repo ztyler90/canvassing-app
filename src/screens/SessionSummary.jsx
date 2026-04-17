@@ -4,7 +4,7 @@ import { CheckCircle, Home, Clock, DollarSign, Target, BarChart2 } from 'lucide-
 import { useSession } from '../contexts/SessionContext.jsx'
 import { format } from 'date-fns'
 
-const BRAND_GREEN = '#1A6B3A'
+const BRAND_GREEN = '#1B4FCC'  // KnockIQ blue
 const DAILY_GOAL  = 1000
 
 export default function SessionSummary() {
@@ -49,7 +49,7 @@ export default function SessionSummary() {
           <CheckCircle className="w-9 h-9 text-white" />
         </div>
         <h1 className="text-white text-2xl font-bold">Session Complete!</h1>
-        <p className="text-green-200 text-sm mt-1">{format(new Date(), 'EEEE, MMMM d')}</p>
+        <p className="text-blue-200 text-sm mt-1">{format(new Date(), 'EEEE, MMMM d')}</p>
       </div>
 
       <div className="flex-1 px-5 py-6 space-y-5 pb-24">

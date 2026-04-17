@@ -1,12 +1,19 @@
 /**
  * InteractionModal
  * The core UX moment — fires when a door knock is detected (or manually triggered).
- * Designed to complete in < 10 seconds for simple outcomes (no answer, not interested)
- * and < 30 seconds for estimate/booked with contact capture.
+ *
+ * Steps: 'outcome' → 'details' (estimate/booked) → 'followup'
+ * Extras: editable address, photo attachments, booking celebration animation
  */
-import { useState, useEffect } from 'react'
-import { X, User, Phone, Mail, DollarSign, MapPin } from 'lucide-react'
-import { logInteraction, createBooking } from '../lib/supabase.js'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { X, User, Phone, Mail, DollarSign, MapPin, Edit2, Check, Camera } from 'lucide-react'
+import {
+  logInteraction,
+  createBooking,
+  uploadInteractionPhoto,
+  updateInteractionPhotos,
+  flagInteractionFollowUp,
+} from '../lib/supabase.js'
 import { reverseGeocode } from '../lib/geocoding.js'
 
 const OUTCOMES = [
@@ -25,6 +32,8 @@ const SERVICES = [
   'Holiday Lights',
 ]
 
+const CONFETTI_COLORS = ['#10B981', '#F59E0B', '#3B82F6', '#EC4899', '#8B5CF6', '#EF4444', '#14B8A6', '#F97316']
+
 export default function InteractionModal({
   knock,
   sessionId,
@@ -33,16 +42,24 @@ export default function InteractionModal({
   onSave,
   isAuto = false,
 }) {
-  const [step, setStep]             = useState('outcome')  // 'outcome' | 'details'
+  const [step, setStep]               = useState('outcome')   // 'outcome' | 'details' | 'followup'
   const [selectedOutcome, setOutcome] = useState(null)
-  const [address, setAddress]       = useState(knock?.address || '')
-  const [contactName, setContactName] = useState('')
+  const [address, setAddress]         = useState(knock?.address || '')
+  const [editingAddress, setEditingAddress] = useState(false)
+  const [addressDraft, setAddressDraft]     = useState('')
+  const [contactName, setContactName]   = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [selectedServices, setServices] = useState([])
-  const [estimatedValue, setEstValue] = useState('')
-  const [saving, setSaving]         = useState(false)
-  const [error, setError]           = useState('')
+  const [estimatedValue, setEstValue]   = useState('')
+  const [photos, setPhotos]             = useState([])        // File[]
+  const [photoPreviews, setPhotoPreviews] = useState([])      // data URLs
+  const [saving, setSaving]             = useState(false)
+  const [error, setError]               = useState('')
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [savedInteractionId, setSavedInteractionId] = useState(null)
+  const [followUpFlagged, setFollowUpFlagged]       = useState(false)
+  const fileInputRef = useRef(null)
 
   // Geocode address if not already provided
   useEffect(() => {
@@ -53,12 +70,37 @@ export default function InteractionModal({
     }
   }, [knock])
 
-  const needsDetails = selectedOutcome === 'estimate_requested' || selectedOutcome === 'booked'
+  // Generate photo preview data-URLs whenever selected photos change
+  useEffect(() => {
+    if (!photos.length) { setPhotoPreviews([]); return }
+    const readers = photos.map(
+      (file) => new Promise((resolve) => {
+        const r = new FileReader()
+        r.onload = (e) => resolve(e.target.result)
+        r.readAsDataURL(file)
+      })
+    )
+    Promise.all(readers).then(setPhotoPreviews)
+  }, [photos])
+
+  // Confetti particles — stable across renders
+  const confetti = useMemo(() =>
+    Array.from({ length: 28 }, (_, i) => ({
+      id:       i,
+      color:    CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      left:     `${(i * 3.7 + Math.sin(i) * 12 + 50) % 100}%`,
+      delay:    `${((i * 0.09) % 0.7).toFixed(2)}s`,
+      size:     `${8 + (i % 5) * 2}px`,
+      duration: `${(0.75 + (i % 4) * 0.15).toFixed(2)}s`,
+      shape:    i % 3 === 0 ? '50%' : i % 3 === 1 ? '2px' : '0%', // circle, rect, diamond
+    })),
+  [])
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
 
   const handleOutcomeSelect = async (outcomeId) => {
     setOutcome(outcomeId)
     if (outcomeId === 'no_answer' || outcomeId === 'not_interested') {
-      // Immediate save — no extra fields needed
       await saveInteraction(outcomeId, {})
     } else {
       setStep('details')
@@ -97,7 +139,25 @@ export default function InteractionModal({
     const { data, error: err } = await logInteraction(payload)
     if (err) { setError(err.message); setSaving(false); return }
 
-    // Also create a booking record if booked
+    const interactionId = data?.id
+    setSavedInteractionId(interactionId)
+
+    // Upload photos (best-effort — failure doesn't block saving)
+    if (photos.length > 0 && interactionId) {
+      try {
+        const urls = (
+          await Promise.all(photos.map((f) => uploadInteractionPhoto(interactionId, f)))
+        ).filter(Boolean)
+        if (urls.length > 0) {
+          await updateInteractionPhotos(interactionId, urls)
+          payload.photo_urls = urls
+        }
+      } catch (photoErr) {
+        console.warn('[Photos] Upload failed:', photoErr)
+      }
+    }
+
+    // Create booking record
     if (outcome === 'booked' && data) {
       await createBooking({
         interaction_id:  data.id,
@@ -112,39 +172,192 @@ export default function InteractionModal({
       })
     }
 
-    onSave?.({ ...payload, id: data?.id })
+    onSave?.({ ...payload, id: interactionId })
     setSaving(false)
+
+    if (outcome === 'booked') {
+      setShowCelebration(true)
+      setTimeout(() => {
+        setShowCelebration(false)
+        setStep('followup')
+      }, 2600)
+    } else {
+      setStep('followup')
+    }
   }
 
-  const toggleService = (svc) => {
-    setServices((prev) =>
-      prev.includes(svc) ? prev.filter((s) => s !== svc) : [...prev, svc]
+  const handleFollowUpFlag = async () => {
+    if (savedInteractionId) await flagInteractionFollowUp(savedInteractionId)
+    setFollowUpFlagged(true)
+  }
+
+  const handleSetAppointment = () => {
+    const title    = encodeURIComponent(`Follow Up${address ? ` – ${address}` : ''}${contactName ? ` (${contactName})` : ''}`)
+    const details  = encodeURIComponent(
+      [
+        contactName  ? `Customer: ${contactName}`  : '',
+        contactPhone ? `Phone: ${contactPhone}`    : '',
+        contactEmail ? `Email: ${contactEmail}`    : '',
+        address      ? `Address: ${address}`       : '',
+      ].filter(Boolean).join('\n')
+    )
+    const location = encodeURIComponent(address || '')
+    window.open(
+      `https://calendar.google.com/calendar/r/eventedit?text=${title}&details=${details}&location=${location}`,
+      '_blank'
     )
   }
 
+  const handlePhotoSelect = (e) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length) setPhotos((prev) => [...prev, ...files].slice(0, 5))
+    e.target.value = ''
+  }
+
+  const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i))
+
+  const toggleService = (svc) =>
+    setServices((prev) => prev.includes(svc) ? prev.filter((s) => s !== svc) : [...prev, svc])
+
+  const confirmAddress = () => { setAddress(addressDraft); setEditingAddress(false) }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
   return (
-    // Backdrop
     <div className="fixed inset-0 z-50 flex items-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-      {/* Sheet */}
-      <div className="w-full bg-white rounded-t-3xl shadow-2xl overflow-hidden"
-        style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+
+      {/* Keyframe definitions */}
+      <style>{`
+        @keyframes confetti-fall {
+          0%   { transform: translateY(-12px) rotate(0deg)   scale(1);   opacity: 1; }
+          100% { transform: translateY(300px) rotate(540deg) scale(0.3); opacity: 0; }
+        }
+        @keyframes cel-bounce {
+          0%   { transform: scale(0.15); opacity: 0; }
+          55%  { transform: scale(1.22); opacity: 1; }
+          75%  { transform: scale(0.91); }
+          90%  { transform: scale(1.06); }
+          100% { transform: scale(1);    opacity: 1; }
+        }
+        @keyframes cel-fade-up {
+          0%   { transform: translateY(18px); opacity: 0; }
+          100% { transform: translateY(0);    opacity: 1; }
+        }
+      `}</style>
+
+      {/* Bottom sheet */}
+      <div
+        className="w-full bg-white rounded-t-3xl shadow-2xl relative"
+        style={{ maxHeight: '92vh', overflowY: 'auto' }}
+      >
+
+        {/* ── Celebration overlay ───────────────────────────────────────── */}
+        {showCelebration && (
+          <div
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-t-3xl overflow-hidden cursor-pointer select-none"
+            style={{ backgroundColor: '#ECFDF5' }}
+            onClick={() => { setShowCelebration(false); setStep('followup') }}
+          >
+            {/* Confetti pieces */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {confetti.map((p) => (
+                <div
+                  key={p.id}
+                  className="absolute"
+                  style={{
+                    left:            p.left,
+                    top:             '-14px',
+                    width:           p.size,
+                    height:          p.size,
+                    backgroundColor: p.color,
+                    borderRadius:    p.shape,
+                    animation:       `confetti-fall ${p.duration} ${p.delay} ease-in both`,
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Main celebration content */}
+            <div style={{ animation: 'cel-bounce 0.75s ease-out both' }} className="text-8xl mb-5 leading-none">
+              🎉
+            </div>
+            <div
+              className="text-3xl font-extrabold text-green-700 mb-2 tracking-tight"
+              style={{ animation: 'cel-fade-up 0.45s 0.3s ease-out both' }}
+            >
+              Job Booked!
+            </div>
+            <div
+              className="text-green-500 text-base font-medium"
+              style={{ animation: 'cel-fade-up 0.45s 0.5s ease-out both' }}
+            >
+              🏆 Great work!
+            </div>
+            <div
+              className="text-gray-400 text-sm mt-6"
+              style={{ animation: 'cel-fade-up 0.45s 0.7s ease-out both' }}
+            >
+              Tap to continue
+            </div>
+          </div>
+        )}
 
         {/* Handle bar */}
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
         </div>
 
-        {/* Address */}
-        <div className="px-5 pt-2 pb-3 border-b flex items-center gap-2">
-          <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
-          <span className="text-sm text-gray-600 truncate">
-            {address || 'Detecting address…'}
-          </span>
-          <button onClick={onClose} className="ml-auto p-1">
-            <X className="w-5 h-5 text-gray-400" />
-          </button>
+        {/* Address row — always visible */}
+        <div className="px-5 pt-2 pb-3 border-b">
+          {editingAddress ? (
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+              <input
+                autoFocus
+                type="text"
+                value={addressDraft}
+                onChange={(e) => setAddressDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter')  confirmAddress()
+                  if (e.key === 'Escape') setEditingAddress(false)
+                }}
+                placeholder="Enter address"
+                className="flex-1 text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400"
+              />
+              <button
+                onClick={confirmAddress}
+                className="p-1.5 rounded-lg bg-green-50 text-green-600 active:bg-green-100"
+              >
+                <Check className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setEditingAddress(false)}
+                className="p-1.5 rounded-lg bg-gray-50 text-gray-400"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+              <span className="text-sm text-gray-600 truncate flex-1">
+                {address || 'Detecting address…'}
+              </span>
+              <button
+                onClick={() => { setAddressDraft(address); setEditingAddress(true) }}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Edit address"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={onClose} className="ml-0.5 p-1">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+          )}
         </div>
 
+        {/* ── Step: outcome ─────────────────────────────────────────────── */}
         {step === 'outcome' && (
           <div className="px-5 py-4">
             {isAuto && (
@@ -172,13 +385,14 @@ export default function InteractionModal({
           </div>
         )}
 
+        {/* ── Step: details ─────────────────────────────────────────────── */}
         {step === 'details' && (
           <form onSubmit={handleDetailsSave} className="px-5 py-4 space-y-4">
             <h3 className="font-bold text-gray-900 text-base">
               {selectedOutcome === 'booked' ? '🎉 Book the Job' : '📋 Estimate Details'}
             </h3>
 
-            {/* Name */}
+            {/* Customer name */}
             <div className="relative">
               <User className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
               <input
@@ -186,7 +400,7 @@ export default function InteractionModal({
                 placeholder="Customer name"
                 value={contactName}
                 onChange={(e) => setContactName(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:border-brand-700 focus:outline-none"
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none"
               />
             </div>
 
@@ -199,11 +413,11 @@ export default function InteractionModal({
                 placeholder="Phone number"
                 value={contactPhone}
                 onChange={(e) => setContactPhone(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:border-brand-700 focus:outline-none"
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none"
               />
             </div>
 
-            {/* Email (optional) */}
+            {/* Email */}
             <div className="relative">
               <Mail className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
               <input
@@ -212,7 +426,7 @@ export default function InteractionModal({
                 placeholder="Email (optional)"
                 value={contactEmail}
                 onChange={(e) => setContactEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:border-brand-700 focus:outline-none"
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none"
               />
             </div>
 
@@ -241,7 +455,7 @@ export default function InteractionModal({
               </div>
             </div>
 
-            {/* Estimated Value */}
+            {/* Estimated value */}
             <div className="relative">
               <DollarSign className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
               <input
@@ -250,14 +464,58 @@ export default function InteractionModal({
                 placeholder={selectedOutcome === 'booked' ? 'Job value (required)' : 'Estimated value'}
                 value={estimatedValue}
                 onChange={(e) => setEstValue(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:border-brand-700 focus:outline-none"
+                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none"
                 required={selectedOutcome === 'booked'}
               />
             </div>
 
-            {error && (
-              <p className="text-red-600 text-sm">{error}</p>
-            )}
+            {/* Photo attachments */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
+                Photos {photos.length > 0 && <span className="normal-case text-gray-400 font-normal">({photos.length}/5)</span>}
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handlePhotoSelect}
+              />
+              {/* Thumbnails */}
+              {photoPreviews.length > 0 && (
+                <div className="flex gap-2 mb-2.5 flex-wrap">
+                  {photoPreviews.map((src, i) => (
+                    <div key={i} className="relative">
+                      <img
+                        src={src}
+                        alt={`Photo ${i + 1}`}
+                        className="w-16 h-16 rounded-xl object-cover border-2 border-gray-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(i)}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center text-xs font-bold shadow-sm"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {photos.length < 5 && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 text-sm font-medium hover:border-blue-400 hover:text-blue-500 transition-colors active:bg-gray-50"
+                >
+                  <Camera className="w-4 h-4" />
+                  {photoPreviews.length > 0 ? 'Add More Photos' : 'Add Photos'}
+                </button>
+              )}
+            </div>
+
+            {error && <p className="text-red-600 text-sm">{error}</p>}
 
             <div className="flex gap-3 pt-1 pb-4">
               <button
@@ -277,6 +535,59 @@ export default function InteractionModal({
               </button>
             </div>
           </form>
+        )}
+
+        {/* ── Step: followup ────────────────────────────────────────────── */}
+        {step === 'followup' && (
+          <div className="px-5 py-5 pb-8 space-y-3">
+            <div className="text-center mb-5">
+              <span className="text-2xl">✓</span>
+              <h3 className="font-bold text-gray-900 text-lg mt-1">Saved!</h3>
+              <p className="text-gray-500 text-sm mt-1">Anything else for this contact?</p>
+            </div>
+
+            {/* Flag for follow-up */}
+            {followUpFlagged ? (
+              <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-amber-50 border-2 border-amber-200">
+                <span className="text-xl shrink-0">🏴</span>
+                <div>
+                  <p className="font-semibold text-amber-800 text-sm">Flagged for Follow Up</p>
+                  <p className="text-amber-600 text-xs mt-0.5">Visible to managers in the Bookings view.</p>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={handleFollowUpFlag}
+                className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl border-2 border-amber-200 bg-amber-50 active:bg-amber-100 transition-colors text-left"
+              >
+                <span className="text-2xl shrink-0">🏴</span>
+                <div>
+                  <p className="font-semibold text-amber-800 text-sm">Flag for Follow Up</p>
+                  <p className="text-amber-600 text-xs mt-0.5">Mark this contact as worth reconnecting with</p>
+                </div>
+              </button>
+            )}
+
+            {/* Set appointment */}
+            <button
+              onClick={handleSetAppointment}
+              className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl border-2 border-blue-200 bg-blue-50 active:bg-blue-100 transition-colors text-left"
+            >
+              <span className="text-2xl shrink-0">📅</span>
+              <div>
+                <p className="font-semibold text-blue-800 text-sm">Set an Appointment</p>
+                <p className="text-blue-600 text-xs mt-0.5">Open Google Calendar with contact pre-filled</p>
+              </div>
+            </button>
+
+            {/* Done */}
+            <button
+              onClick={onClose}
+              className="w-full py-3.5 rounded-2xl border-2 border-gray-200 text-gray-600 font-semibold text-sm active:bg-gray-50 mt-1"
+            >
+              Done
+            </button>
+          </div>
         )}
       </div>
     </div>

@@ -9,8 +9,14 @@ import { insertGpsPoints } from './supabase.js'
 const GPS_OPTIONS = {
   enableHighAccuracy: true,
   timeout: 15000,
-  maximumAge: 5000,
+  maximumAge: 3000,   // accept cached position up to 3s old (tightened from 5s)
 }
+
+// Discard any reading with accuracy worse than this (meters).
+// 50m is intentionally generous — it filters GPS "jumps" (e.g. sudden 200m
+// teleports when switching from cell-tower to GPS fix) without dropping
+// legitimate readings in tree-heavy or urban environments.
+const MAX_ACCURACY_M = 50
 
 const FLUSH_INTERVAL_MS = 30_000   // flush buffer to DB every 30s
 const TRACK_INTERVAL_MS = 5_000    // target a new position every 5s
@@ -71,6 +77,12 @@ class GPSTracker {
   }
 
   _handlePosition(pos) {
+    // Discard low-accuracy readings (GPS "jumps" during cell-tower→GPS transitions)
+    if (pos.coords.accuracy > MAX_ACCURACY_M) {
+      console.debug(`[GPS] Discarding low-accuracy reading: ${pos.coords.accuracy.toFixed(0)}m`)
+      return
+    }
+
     const point = {
       session_id:  this.sessionId,
       rep_id:      this.repId,

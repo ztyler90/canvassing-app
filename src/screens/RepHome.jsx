@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, formatDistanceToNow } from 'date-fns'
-import { MapPin, Clock, DollarSign, Target, ChevronRight, LogOut } from 'lucide-react'
+import { MapPin, Clock, DollarSign, Target, ChevronRight, LogOut, Settings } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import { startSession, getRepSessions, getActiveSession, signOut, updateSessionStats } from '../lib/supabase.js'
@@ -9,7 +9,8 @@ import { requestGPSPermission } from '../lib/gps.js'
 import { gpsTracker } from '../lib/gps.js'
 import { DoorKnockDetector } from '../lib/doorKnock.js'
 
-const BRAND_GREEN = '#1A6B3A'
+const BRAND_GREEN = '#1B4FCC'  // KnockIQ blue
+const BRAND_LIME  = '#7DC31E'  // KnockIQ lime (accent)
 const DAILY_GOAL  = 1000
 
 export default function RepHome() {
@@ -107,12 +108,17 @@ export default function RepHome() {
       <div className="px-5 pt-12 pb-5" style={{ backgroundColor: BRAND_GREEN }}>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-green-200 text-sm">Welcome back</p>
+            <p className="text-blue-200 text-sm">Welcome back</p>
             <h1 className="text-white text-xl font-bold">{user?.full_name || 'Rep'}</h1>
           </div>
-          <button onClick={handleSignOut} className="p-2 rounded-full bg-white/20">
-            <LogOut className="w-5 h-5 text-white" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/profile')} className="p-2 rounded-full bg-white/20">
+              <Settings className="w-5 h-5 text-white" />
+            </button>
+            <button onClick={handleSignOut} className="p-2 rounded-full bg-white/20">
+              <LogOut className="w-5 h-5 text-white" />
+            </button>
+          </div>
         </div>
 
         {/* Today's Goal Progress */}
@@ -120,7 +126,7 @@ export default function RepHome() {
           <div className="flex justify-between items-center mb-2">
             <span className="text-white font-semibold text-sm">Today's Goal</span>
             <span className="text-white font-bold">
-              ${todayRevenue.toFixed(0)} <span className="text-green-200 font-normal">/ $1,000</span>
+              ${todayRevenue.toFixed(0)} <span className="text-blue-200 font-normal">/ $1,000</span>
             </span>
           </div>
           <div className="h-2.5 bg-white/30 rounded-full overflow-hidden">
@@ -130,7 +136,7 @@ export default function RepHome() {
             />
           </div>
           {todayDoors > 0 && (
-            <p className="text-green-200 text-xs mt-2">{todayDoors} doors knocked today</p>
+            <p className="text-blue-200 text-xs mt-2">{todayDoors} doors knocked today</p>
           )}
         </div>
       </div>
@@ -175,7 +181,7 @@ export default function RepHome() {
             <h2 className="text-gray-700 font-semibold text-base mb-3">Recent Sessions</h2>
             <div className="space-y-2">
               {pastSessions.slice(0, 5).map((s) => (
-                <SessionRow key={s.id} session={s} />
+                <SessionRow key={s.id} session={s} onClick={() => navigate('/session/' + s.id)} />
               ))}
             </div>
           </div>
@@ -208,13 +214,15 @@ function StatCard({ icon, label, value, color }) {
   )
 }
 
-function SessionRow({ session }) {
+function SessionRow({ session, onClick }) {
   const elapsed = session.ended_at
     ? ((new Date(session.ended_at) - new Date(session.started_at)) / 60000).toFixed(0)
     : null
 
   return (
-    <div className="bg-white rounded-xl px-4 py-3 flex items-center justify-between shadow-sm">
+    <button
+      onClick={onClick}
+      className="w-full bg-white rounded-xl px-4 py-3 flex items-center justify-between shadow-sm active:bg-gray-50 text-left">
       <div>
         <p className="font-medium text-gray-900 text-sm">
           {format(new Date(session.started_at), 'EEE, MMM d')}
@@ -223,10 +231,13 @@ function SessionRow({ session }) {
           {session.doors_knocked} doors · {elapsed ? `${elapsed} min` : '—'}
         </p>
       </div>
-      <div className="text-right">
-        <p className="font-bold text-gray-900">${(session.revenue_booked || 0).toFixed(0)}</p>
-        <p className="text-xs text-green-600">{session.bookings || 0} booked</p>
+      <div className="flex items-center gap-2">
+        <div className="text-right">
+          <p className="font-bold text-gray-900">${(session.revenue_booked || 0).toFixed(0)}</p>
+          <p className="text-xs text-green-600">{session.bookings || 0} booked</p>
+        </div>
+        <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
       </div>
-    </div>
+    </button>
   )
 }
