@@ -12,7 +12,7 @@ async function buildProfile(sessionUser) {
   try {
     const { data: row } = await supabase
       .from('users')
-      .select('id, email, full_name, role, plan, organization_id, is_super_admin')
+      .select('id, email, full_name, role, organization_id, is_super_admin')
       .eq('id', sessionUser.id)
       .single()
     if (row) {
@@ -20,7 +20,7 @@ async function buildProfile(sessionUser) {
       if (row.organization_id) {
         const { data: org } = await supabase
           .from('organizations')
-          .select('id, name, tier, status, seat_count, created_at')
+          .select('id, name, tier, status, created_at')
           .eq('id', row.organization_id)
           .single()
         organization = org || null

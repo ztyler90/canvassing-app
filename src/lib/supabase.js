@@ -239,7 +239,7 @@ export async function getMyOrganization() {
 export async function getAllOrganizations() {
   const { data } = await supabase
     .from('organizations')
-    .select('id, name, tier, status, seat_count, created_at')
+    .select('id, name, tier, status, created_at')
     .order('created_at', { ascending: false })
   return data || []
 }

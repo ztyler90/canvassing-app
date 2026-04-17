@@ -68,8 +68,8 @@ export default function SuperAdminDashboard() {
 
   // ── Derived totals ─────────────────────────────────────────────────────────
   const billingByOrg = Object.fromEntries(billing.map(b => [b.id, b]))
-  const totalMRR     = billing.reduce((s, b) => s + (Number(b.monthly_revenue) || 0), 0)
-  const totalSeats   = billing.reduce((s, b) => s + (Number(b.seat_count)      || 0), 0)
+  const totalMRR     = billing.reduce((s, b) => s + (Number(b.monthly_price)    || 0), 0)
+  const totalSeats   = billing.reduce((s, b) => s + (Number(b.active_seat_count) || 0), 0)
   const totalOrgs    = orgs.length
 
   // Guard: non super-admins should never see this page
@@ -156,8 +156,8 @@ export default function SuperAdminDashboard() {
             )}
             {orgs.map(org => {
               const bill   = billingByOrg[org.id]
-              const seats  = bill?.seat_count ?? memberCounts[org.id] ?? 0
-              const mrr    = Number(bill?.monthly_revenue) || seats * (SEAT_PRICE[org.tier] || 0)
+              const seats  = bill?.active_seat_count ?? memberCounts[org.id] ?? 0
+              const mrr    = Number(bill?.monthly_price) || seats * (SEAT_PRICE[org.tier] || 0)
               const isPro  = org.tier === 'pro'
               const active = org.status === 'active'
               return (
