@@ -59,7 +59,11 @@ export default function InteractionModal({
   const [showCelebration, setShowCelebration] = useState(false)
   const [savedInteractionId, setSavedInteractionId] = useState(null)
   const [followUpFlagged, setFollowUpFlagged]       = useState(false)
-  const fileInputRef = useRef(null)
+  const [slideVisible, setSlideVisible] = useState(false)  // drives slide-in/out
+  const fileInputRef       = useRef(null)
+  const celebrationTimeout = useRef(null)
+  const slideDownTimer     = useRef(null)
+  const dismissTimer       = useRef(null)
 
   // Geocode address if not already provided
   useEffect(() => {
@@ -69,6 +73,35 @@ export default function InteractionModal({
       })
     }
   }, [knock])
+
+  // Slide in on mount; clean up all timers on unmount
+  useEffect(() => {
+    requestAnimationFrame(() => setSlideVisible(true))
+    return () => {
+      clearTimeout(celebrationTimeout.current)
+      clearTimeout(slideDownTimer.current)
+      clearTimeout(dismissTimer.current)
+    }
+  }, [])
+
+  // Auto-dismiss after 3 s visible → 0.4 s slide-down (only for auto knocks)
+  useEffect(() => {
+    if (!isAuto) return
+    slideDownTimer.current = setTimeout(() => {
+      setSlideVisible(false)
+      dismissTimer.current = setTimeout(onClose, 400)
+    }, 3000)
+    return () => {
+      clearTimeout(slideDownTimer.current)
+      clearTimeout(dismissTimer.current)
+    }
+  }, [isAuto]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cancel auto-dismiss the moment the rep taps anything
+  const cancelAutoDismiss = () => {
+    clearTimeout(slideDownTimer.current)
+    clearTimeout(dismissTimer.current)
+  }
 
   // Generate photo preview data-URLs whenever selected photos change
   useEffect(() => {
@@ -99,6 +132,7 @@ export default function InteractionModal({
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   const handleOutcomeSelect = async (outcomeId) => {
+    cancelAutoDismiss()
     setOutcome(outcomeId)
     if (outcomeId === 'no_answer' || outcomeId === 'not_interested') {
       await saveInteraction(outcomeId, {})
@@ -109,6 +143,7 @@ export default function InteractionModal({
 
   const handleDetailsSave = async (e) => {
     e.preventDefault()
+    cancelAutoDismiss()
     if (!estimatedValue && selectedOutcome === 'booked') {
       setError('Please enter an estimated job value.')
       return
@@ -177,7 +212,7 @@ export default function InteractionModal({
 
     if (outcome === 'booked') {
       setShowCelebration(true)
-      setTimeout(() => {
+      celebrationTimeout.current = setTimeout(() => {
         setShowCelebration(false)
         setStep('followup')
       }, 2600)
@@ -245,10 +280,15 @@ export default function InteractionModal({
         }
       `}</style>
 
-      {/* Bottom sheet */}
+      {/* Bottom sheet — slides up on mount, slides back down on auto-dismiss */}
       <div
         className="w-full bg-white rounded-t-3xl shadow-2xl relative"
-        style={{ maxHeight: '92vh', overflowY: 'auto' }}
+        style={{
+          maxHeight: '92vh',
+          overflowY: 'auto',
+          transform: slideVisible ? 'translateY(0)' : 'translateY(100%)',
+          transition: 'transform 0.4s ease-out',
+        }}
       >
 
         {/* ── Celebration overlay ───────────────────────────────────────── */}

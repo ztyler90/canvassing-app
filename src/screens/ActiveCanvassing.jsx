@@ -84,18 +84,30 @@ export default function ActiveCanvassing() {
     return () => clearInterval(timerRef.current)
   }, [state.stats.startedAt])
 
-  // Track current position for the blue dot
+  // Track current position for the blue dot.
+  // We hook into gpsTracker's existing onPosition callback rather than
+  // opening a second watchPosition (which wastes battery on field devices).
   useEffect(() => {
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-        setCurrentPos(p)
-        currentPosRef.current = p
-      },
-      () => {},
-      { enableHighAccuracy: true, maximumAge: 5000 }
-    )
-    return () => navigator.geolocation.clearWatch(watchId)
+    // Seed from the last known position immediately
+    const last = gpsTracker.getLastPosition()
+    if (last) {
+      const p = { lat: last.lat, lng: last.lng }
+      setCurrentPos(p)
+      currentPosRef.current = p
+    }
+
+    // Chain into gpsTracker's callback — preserve whatever was set in RepHome
+    const prevOnPosition = gpsTracker.onPosition
+    gpsTracker.onPosition = (point) => {
+      prevOnPosition?.(point)
+      const p = { lat: point.lat, lng: point.lng }
+      setCurrentPos(p)
+      currentPosRef.current = p
+    }
+
+    return () => {
+      gpsTracker.onPosition = prevOnPosition
+    }
   }, [])
 
   const formatTime = (secs) => {
@@ -233,7 +245,10 @@ export default function ActiveCanvassing() {
           sessionId={state.session?.id}
           repId={user?.id}
           onClose={() => dispatch({ type: 'CLEAR_PENDING_KNOCK' })}
-          onSave={(interaction) => dispatch({ type: 'LOG_INTERACTION', interaction })}
+          onSave={(interaction) => {
+            // Door was already counted by REGISTER_KNOCK — don't double-count
+            dispatch({ type: 'LOG_INTERACTION', interaction, countDoor: false })
+          }}
           isAuto
         />
       )}
@@ -246,7 +261,8 @@ export default function ActiveCanvassing() {
           repId={user?.id}
           onClose={() => setShowManualLog(false)}
           onSave={(interaction) => {
-            dispatch({ type: 'LOG_INTERACTION', interaction })
+            // Manual log counts as a door knock
+            dispatch({ type: 'LOG_INTERACTION', interaction, countDoor: true })
             setShowManualLog(false)
           }}
           isAuto={false}

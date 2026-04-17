@@ -56,6 +56,8 @@ export class DoorKnockDetector {
    */
   feed(point) {
     if (!point) return
+    // Guard against corrupted GPS data
+    if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return
 
     const now      = Date.now()
     const accuracy = point.accuracy || 15
@@ -75,7 +77,7 @@ export class DoorKnockDetector {
     // If the phone reports 12 m accuracy, a 5 m "move" is jitter.
     const moveThreshold = Math.max(MIN_MOVE_M, accuracy * JITTER_FACTOR)
 
-    if (dist > moveThreshold && dist > STOP_RADIUS_M) {
+    if (dist > STOP_RADIUS_M) {
       // ── Real movement — rep has left this spot ────────────
       // Fire a knock if they stayed long enough and we haven't already
       if (elapsed >= MIN_STOP_SECS && !this.knockFired) {

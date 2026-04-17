@@ -17,6 +17,7 @@ const GOOGLE_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 const cache      = new Map()
 
 export async function reverseGeocode(lat, lng) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
   const key = `${lat.toFixed(6)},${lng.toFixed(6)}`
   if (cache.has(key)) return cache.get(key)
 

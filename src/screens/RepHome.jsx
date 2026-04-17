@@ -72,7 +72,9 @@ export default function RepHome() {
     const detector = new DoorKnockDetector({
       repId: user.id,
       onKnock: (knock) => {
-        dispatch({ type: 'SET_PENDING_KNOCK', knock })
+        // REGISTER_KNOCK immediately increments door count so it's recorded
+        // even if the rep never interacts with the modal
+        dispatch({ type: 'REGISTER_KNOCK', knock })
       },
     })
     doorKnockRef.current = detector

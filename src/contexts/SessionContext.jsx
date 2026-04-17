@@ -42,6 +42,15 @@ function reducer(state, action) {
     case 'ADD_GPS_POINT':
       return { ...state, gpsTrail: [...state.gpsTrail, action.point] }
 
+    // Fired immediately when GPS knock is detected — increments door count
+    // right away so it's registered even if the rep never touches the modal.
+    case 'REGISTER_KNOCK':
+      return {
+        ...state,
+        pendingKnock: action.knock,
+        stats: { ...state.stats, doors: state.stats.doors + 1 },
+      }
+
     case 'SET_PENDING_KNOCK':
       return { ...state, pendingKnock: action.knock }
 
@@ -53,13 +62,16 @@ function reducer(state, action) {
       const isConversation = ['not_interested', 'estimate_requested', 'booked'].includes(interaction.outcome)
       const isEstimate     = interaction.outcome === 'estimate_requested'
       const isBooked       = interaction.outcome === 'booked'
+      // countDoor: true for manual logs (door not yet counted),
+      //            false for auto-detected knocks (already counted by REGISTER_KNOCK)
+      const doorsIncrement = action.countDoor ? 1 : 0
       return {
         ...state,
         interactions: [...state.interactions, interaction],
         pendingKnock: null,
         stats: {
           ...state.stats,
-          doors:         state.stats.doors + 1,
+          doors:         state.stats.doors + doorsIncrement,
           conversations: state.stats.conversations + (isConversation ? 1 : 0),
           estimates:     state.stats.estimates     + (isEstimate ? 1 : 0),
           bookings:      state.stats.bookings      + (isBooked ? 1 : 0),
