@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns'
-import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen } from 'lucide-react'
+import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllSessions, getAllReps, getManagerMapData, signOut,
@@ -89,13 +89,26 @@ export default function ManagerDashboard() {
       <div className="px-5 pt-12 pb-4" style={{ backgroundColor: BRAND_GREEN }}>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-blue-200 text-sm">Manager View</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-blue-200 text-sm">Owner View</p>
+              {user?.organization?.name && (
+                <span className="text-blue-200/80 text-xs">· {user.organization.name}</span>
+              )}
+            </div>
             <div className="flex items-baseline gap-0.5 mt-0.5">
               <span className="text-white text-xl font-extrabold">Knock</span>
               <span className="text-xl font-extrabold" style={{ color: BRAND_LIME }}>IQ</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {user?.is_super_admin && (
+              <button
+                onClick={() => navigate('/super-admin')}
+                title="Super-Admin Dashboard"
+                className="p-2 rounded-full bg-white/20 ring-1 ring-white/40">
+                <Shield className="w-5 h-5 text-white" />
+              </button>
+            )}
             <button onClick={() => navigate('/settings')} className="p-2 rounded-full bg-white/20">
               <Settings className="w-5 h-5 text-white" />
             </button>

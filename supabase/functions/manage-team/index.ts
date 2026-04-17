@@ -37,16 +37,22 @@ serve(async (req) => {
       })
     }
 
-    // Check role in public.users table
+    // Check role + org in public.users table
     const { data: callerProfile } = await adminClient
       .from('users')
-      .select('role, manager_id')
+      .select('role, organization_id, is_super_admin')
       .eq('id', callerUser.id)
       .single()
 
     if (!callerProfile || callerProfile.role !== 'manager') {
-      return new Response(JSON.stringify({ error: 'Forbidden: manager role required' }), {
+      return new Response(JSON.stringify({ error: 'Forbidden: owner role required' }), {
         status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (!callerProfile.organization_id) {
+      return new Response(JSON.stringify({ error: 'Owner is not attached to an organization' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
@@ -77,13 +83,14 @@ serve(async (req) => {
 
       const newUser = newUserData.user
 
-      // Insert into public.users
+      // Insert into public.users — stamp with the caller's organization so
+      // tenant RLS + seat-count aggregation work immediately.
       const { error: insertError } = await adminClient.from('users').insert({
         id: newUser.id,
         email,
         full_name: fullName,
         role: 'rep',
-        manager_id: callerUser.id,
+        organization_id: callerProfile.organization_id,
         plan: 'standard',
       })
       if (insertError) {
@@ -105,15 +112,17 @@ serve(async (req) => {
         })
       }
 
-      // Make sure the rep actually belongs to this manager
+      // Make sure the rep actually belongs to this owner's organization.
+      // Super-admins can delete across orgs.
       const { data: repProfile } = await adminClient
         .from('users')
-        .select('manager_id, role')
+        .select('organization_id, role')
         .eq('id', repId)
         .single()
 
-      if (!repProfile || repProfile.role !== 'rep' || repProfile.manager_id !== callerUser.id) {
-        return new Response(JSON.stringify({ error: 'Rep not found or not under your account' }), {
+      const sameOrg = repProfile?.organization_id === callerProfile.organization_id
+      if (!repProfile || repProfile.role !== 'rep' || (!sameOrg && !callerProfile.is_super_admin)) {
+        return new Response(JSON.stringify({ error: 'Rep not found or not under your organization' }), {
           status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }

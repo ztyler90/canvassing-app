@@ -9,8 +9,8 @@
  */
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Eye, EyeOff } from 'lucide-react'
-import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep } from '../lib/supabase.js'
+import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Eye, EyeOff, Building2, Shield } from 'lucide-react'
+import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, getMyOrganization } from '../lib/supabase.js'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
@@ -30,6 +30,7 @@ const FUTURE_CRMS = [
 export default function Settings() {
   const navigate = useNavigate()
   const [user, setUser]               = useState(null)
+  const [org, setOrg]                 = useState(null)
   const [webhookUrl, setWebhookUrl]   = useState('')
   const [savedUrl, setSavedUrl]       = useState('')
   const [saving, setSaving]           = useState(false)
@@ -53,9 +54,14 @@ export default function Settings() {
   }, [])
 
   async function loadSettings() {
-    const [u, repList] = await Promise.all([getCurrentUser(), getAllReps()])
+    const [u, repList, myOrg] = await Promise.all([
+      getCurrentUser(),
+      getAllReps(),
+      getMyOrganization(),
+    ])
     setUser(u)
     setReps(repList)
+    setOrg(myOrg)
     const url = await getWebhookUrl()
     if (url) {
       setWebhookUrl(url)
@@ -131,7 +137,12 @@ export default function Settings() {
     setTimeout(() => setTestResult(null), 4000)
   }
 
-  const isPro = user?.plan === 'pro'
+  // Phase 1: tier comes from the organization row (source of truth).
+  // Fallback to legacy user.plan during rollout.
+  const isPro       = (org?.tier || user?.plan) === 'pro'
+  const seatPrice   = isPro ? 50 : 20
+  const monthlyCost = (reps.length + 1) * seatPrice  // +1 for the owner
+  const roleLabel   = user?.is_super_admin ? 'Super-Admin' : (user?.role === 'manager' ? 'Owner' : 'Rep')
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -176,8 +187,8 @@ export default function Settings() {
                   <p className="text-gray-500 text-xs">For growing canvassing teams</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-gray-800 text-xl">$20<span className="text-sm font-normal text-gray-500">/mo</span></p>
-                  <p className="text-gray-400 text-xs">or $200/year</p>
+                  <p className="font-bold text-gray-800 text-xl">$20<span className="text-sm font-normal text-gray-500">/seat/mo</span></p>
+                  <p className="text-gray-400 text-xs">Billed monthly</p>
                 </div>
               </div>
               <ul className="space-y-1.5 mt-3">
@@ -211,8 +222,8 @@ export default function Settings() {
                   <p className="text-gray-500 text-xs">Standard + CRM integration add-on</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-gray-800 text-xl">$70<span className="text-sm font-normal text-gray-500">/mo</span></p>
-                  <p className="text-gray-400 text-xs">$20 + $50 CRM add-on</p>
+                  <p className="font-bold text-gray-800 text-xl">$50<span className="text-sm font-normal text-gray-500">/seat/mo</span></p>
+                  <p className="text-gray-400 text-xs">Replaces Standard price</p>
                 </div>
               </div>
               <ul className="space-y-1.5 mt-3">
@@ -374,9 +385,9 @@ export default function Settings() {
               <div className="flex items-start justify-between">
                 <p className="text-sm font-semibold text-gray-700">New Rep Account</p>
                 <div className="text-right">
-                  <p className="text-xs text-gray-400">Monthly charge</p>
+                  <p className="text-xs text-gray-400">Added to monthly bill</p>
                   <p className="text-base font-bold" style={{ color: BRAND_BLUE }}>
-                    ${isPro ? 70 : 20}<span className="text-xs font-normal text-gray-500">/mo</span>
+                    +${seatPrice}<span className="text-xs font-normal text-gray-500">/mo</span>
                   </p>
                   <p className="text-xs text-gray-400">{reps.length + 1} rep{reps.length + 1 !== 1 ? 's' : ''} total</p>
                 </div>
@@ -473,6 +484,42 @@ export default function Settings() {
           </div>
         </section>
 
+        {/* ── Organization & Billing ─────────────────────────────────── */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Building2 className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+            <h2 className="text-gray-700 font-semibold text-base">Organization</h2>
+          </div>
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <p className="text-gray-500 text-sm">Business</p>
+              <p className="text-gray-800 text-sm font-semibold">{org?.name || '—'}</p>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-gray-500 text-sm">Tier</p>
+              <span className="text-sm font-semibold px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: isPro ? BRAND_LIME + '20' : '#EFF6FF', color: isPro ? '#166534' : BRAND_BLUE }}>
+                {isPro ? 'Pro' : 'Standard'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-gray-500 text-sm">Seats</p>
+              <p className="text-gray-800 text-sm font-medium">
+                {reps.length + 1} <span className="text-gray-400 text-xs font-normal">(1 owner + {reps.length} rep{reps.length !== 1 ? 's' : ''})</span>
+              </p>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+              <p className="text-gray-500 text-sm">Monthly cost</p>
+              <p className="font-bold text-base" style={{ color: BRAND_BLUE }}>
+                ${monthlyCost.toLocaleString()}<span className="text-xs font-normal text-gray-500">/mo</span>
+              </p>
+            </div>
+            <p className="text-gray-400 text-xs pt-1">
+              ${seatPrice}/seat × {reps.length + 1} seats · {isPro ? 'Pro tier' : 'Standard tier'}
+            </p>
+          </div>
+        </section>
+
         {/* ── Account ────────────────────────────────────────────────── */}
         <section className="pb-6">
           <h2 className="text-gray-700 font-semibold text-base mb-3">Account</h2>
@@ -486,13 +533,23 @@ export default function Settings() {
               <p className="text-gray-800 text-sm font-medium">{user?.email || '—'}</p>
             </div>
             <div className="flex items-center justify-between">
-              <p className="text-gray-500 text-sm">Plan</p>
-              <span className="text-sm font-semibold px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: isPro ? BRAND_LIME + '20' : '#EFF6FF', color: isPro ? '#166534' : BRAND_BLUE }}>
-                {isPro ? 'Pro' : 'Standard'}
+              <p className="text-gray-500 text-sm">Role</p>
+              <span className="text-sm font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+                style={{ backgroundColor: user?.is_super_admin ? '#FEF3C7' : '#EFF6FF', color: user?.is_super_admin ? '#92400E' : BRAND_BLUE }}>
+                {user?.is_super_admin && <Shield className="w-3 h-3" />}
+                {roleLabel}
               </span>
             </div>
           </div>
+          {user?.is_super_admin && (
+            <button
+              onClick={() => navigate('/super-admin')}
+              className="mt-3 w-full py-2.5 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2"
+              style={{ backgroundColor: BRAND_BLUE }}>
+              <Shield className="w-4 h-4" />
+              Open Super-Admin Dashboard
+            </button>
+          )}
           <p className="text-center text-gray-400 text-xs mt-4">
             Questions?{' '}
             <a href="mailto:hello@knockiq.com" className="text-blue-500 hover:underline">

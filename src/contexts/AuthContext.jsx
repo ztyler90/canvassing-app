@@ -3,23 +3,39 @@ import { supabase } from '../lib/supabase.js'
 
 const AuthContext = createContext(null)
 
-// Build a user profile from a Supabase session user object + optional DB row
+// Build a user profile from a Supabase session user object + optional DB row.
+// Phase 1: also attaches the user's organization row so the UI can show org
+// name / tier / seats and drive super-admin gating.
 async function buildProfile(sessionUser) {
   if (!sessionUser) return null
   const meta = sessionUser.user_metadata || {}
   try {
-    const { data } = await supabase
+    const { data: row } = await supabase
       .from('users')
-      .select('*')
+      .select('id, email, full_name, role, plan, organization_id, is_super_admin')
       .eq('id', sessionUser.id)
       .single()
-    if (data) return data
+    if (row) {
+      let organization = null
+      if (row.organization_id) {
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('id, name, tier, status, seat_count, created_at')
+          .eq('id', row.organization_id)
+          .single()
+        organization = org || null
+      }
+      return { ...row, organization }
+    }
   } catch { /* fall through to metadata fallback */ }
   return {
     id: sessionUser.id,
     email: sessionUser.email,
     full_name: meta.full_name || sessionUser.email,
     role: meta.role || 'rep',
+    organization_id: null,
+    organization: null,
+    is_super_admin: false,
   }
 }
 

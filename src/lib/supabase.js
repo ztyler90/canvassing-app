@@ -202,12 +202,89 @@ export async function getAllSessions(filters = {}) {
 }
 
 export async function getAllReps() {
+  // Phase 1: tenant scoping is handled by RLS — selecting users with role='rep'
+  // automatically filters to the caller's organization. No more manager_id.
   const { data } = await supabase
     .from('users')
-    .select('id, full_name, email, role, manager_id')
-    .neq('role', 'manager')
+    .select('id, full_name, email, role, organization_id')
+    .eq('role', 'rep')
     .order('full_name')
   return data || []
+}
+
+// ── Organization helpers (Phase 1) ────────────────────────────────────────────
+
+/** Get the current user's organization row (RLS-filtered to their own org) */
+export async function getMyOrganization() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data: row } = await supabase
+    .from('users')
+    .select('organization_id')
+    .eq('id', user.id)
+    .single()
+  if (!row?.organization_id) return null
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('*')
+    .eq('id', row.organization_id)
+    .single()
+  return org
+}
+
+/**
+ * List every organization in the system. Only super-admins see more than one
+ * row — RLS filters non-super-admins to their own org.
+ */
+export async function getAllOrganizations() {
+  const { data } = await supabase
+    .from('organizations')
+    .select('id, name, tier, status, seat_count, created_at')
+    .order('created_at', { ascending: false })
+  return data || []
+}
+
+/** Fetch the billing view (monthly revenue per tenant). Super-admin-only use. */
+export async function getOrganizationBilling() {
+  const { data } = await supabase
+    .from('organization_billing')
+    .select('*')
+  return data || []
+}
+
+/** Change an org's tier. Super-admin only — RLS enforces that. */
+export async function updateOrganizationTier(orgId, tier) {
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({ tier })
+    .eq('id', orgId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+/** Update the org name (owners or super-admins). */
+export async function updateOrganizationName(orgId, name) {
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({ name })
+    .eq('id', orgId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+/** Count users in each org — for the super-admin dashboard. */
+export async function getOrganizationMemberCounts() {
+  const { data } = await supabase
+    .from('users')
+    .select('organization_id')
+  const counts = {}
+  for (const u of data || []) {
+    if (!u.organization_id) continue
+    counts[u.organization_id] = (counts[u.organization_id] || 0) + 1
+  }
+  return counts
 }
 
 /**
