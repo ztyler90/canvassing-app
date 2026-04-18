@@ -10,13 +10,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, formatDistanceToNow } from 'date-fns'
-import { ChevronLeft, Building2, DollarSign, Users, CheckCircle, Shield, TrendingUp, TrendingDown, Loader, ChevronRight, Activity, AlertTriangle, AlertOctagon } from 'lucide-react'
+import { ChevronLeft, Building2, DollarSign, Users, CheckCircle, Shield, TrendingUp, TrendingDown, Loader, ChevronRight, Activity, AlertTriangle, AlertOctagon, LineChart as LineChartIcon, UserCheck, Percent } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllOrganizations,
   getOrganizationBilling,
   getOrganizationMemberCounts,
   getOrganizationInsightsSummary,
+  getPlatformMetrics,
   updateOrganizationTier,
 } from '../lib/supabase.js'
 
@@ -32,6 +33,7 @@ export default function SuperAdminDashboard() {
   const [billing, setBilling]   = useState([])
   const [memberCounts, setMC]   = useState({})
   const [insights, setInsights] = useState({})
+  const [platform, setPlatform] = useState(null)
   const [loading, setLoading]   = useState(true)
   const [updatingId, setUpdating] = useState(null)
   const [toast, setToast]       = useState(null)
@@ -40,16 +42,18 @@ export default function SuperAdminDashboard() {
 
   async function loadData() {
     setLoading(true)
-    const [o, b, m, i] = await Promise.all([
+    const [o, b, m, i, p] = await Promise.all([
       getAllOrganizations(),
       getOrganizationBilling(),
       getOrganizationMemberCounts(),
       getOrganizationInsightsSummary(),
+      getPlatformMetrics(),
     ])
     setOrgs(o)
     setBilling(b)
     setMC(m)
     setInsights(i || {})
+    setPlatform(p || null)
     setLoading(false)
   }
 
@@ -138,6 +142,12 @@ export default function SuperAdminDashboard() {
             sub={totalSeats ? `${totalSeats} seats` : null}
           />
           <StatCard
+            icon={<UserCheck className="w-4 h-4" style={{ color: BRAND_BLUE }} />}
+            label="Total reps"
+            value={platform?.totalReps ?? 0}
+            sub={totalOrgs ? `Across ${totalOrgs} org${totalOrgs === 1 ? '' : 's'}` : null}
+          />
+          <StatCard
             icon={<Activity className="w-4 h-4" style={{ color: BRAND_BLUE }} />}
             label="Active this week"
             value={`${activeOrgs7d}`}
@@ -153,9 +163,42 @@ export default function SuperAdminDashboard() {
           <StatCard
             icon={<TrendingUp className="w-4 h-4" style={{ color: BRAND_LIME }} />}
             label="MRR"
-            value={`$${totalMRR.toLocaleString()}`}
+            value={`$${(platform?.currentMrr ?? totalMRR).toLocaleString()}`}
             accent
           />
+          <StatCard
+            icon={<DollarSign className="w-4 h-4" style={{ color: BRAND_LIME }} />}
+            label="Projected ARR"
+            value={`$${(platform?.projectedArr ?? totalMRR * 12).toLocaleString()}`}
+            sub="MRR × 12"
+            accent
+          />
+        </section>
+
+        {/* ── MRR trend + growth strip ────────────────────────────────────── */}
+        <section className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <LineChartIcon className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+              <p className="text-gray-700 font-semibold text-sm">MRR · last 90 days</p>
+            </div>
+            <span className="text-gray-400 text-[10px] uppercase tracking-wide font-semibold">
+              Churn {platform?.churnPct ?? 0}%
+            </span>
+          </div>
+          <MrrLineChart data={platform?.mrrByDay || []} />
+          <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-medium mb-4">
+            <span>90d ago</span>
+            <span>60d ago</span>
+            <span>30d ago</span>
+            <span>Today</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 pt-3 border-t border-gray-100">
+            <GrowthTile label="Daily"   pct={platform?.growth?.daily   ?? 0} />
+            <GrowthTile label="Weekly"  pct={platform?.growth?.weekly  ?? 0} />
+            <GrowthTile label="Monthly" pct={platform?.growth?.monthly ?? 0} />
+            <GrowthTile label="Annual"  pct={platform?.growth?.annual  ?? 0} />
+          </div>
         </section>
 
         {/* ── Organization list ───────────────────────────────────────────── */}
@@ -316,6 +359,52 @@ function InsightStat({ label, value, trend, accent }) {
           <span>{trend > 0 ? '+' : ''}{trend}%</span>
         </div>
       )}
+    </div>
+  )
+}
+
+/** 90-day MRR line chart with filled area. */
+function MrrLineChart({ data }) {
+  if (!data?.length) return <div className="h-24 grid place-items-center text-gray-300 text-xs">No MRR history yet</div>
+  const w = 600
+  const h = 110
+  const values = data.map(d => d.mrr)
+  const max = Math.max(1, ...values)
+  const min = Math.min(...values)
+  const step = w / Math.max(1, data.length - 1)
+  const pts = values.map((v, i) => [i * step, h - ((v - Math.min(0, min)) / (max - Math.min(0, min) || 1)) * (h - 12) - 6])
+  const pathLine = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+  const areaPath = `M0,${h} L${pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L')} L${w},${h} Z`
+  const last = pts[pts.length - 1]
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full h-24 block">
+      <defs>
+        <linearGradient id="mrrFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#1B4FCC" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="#1B4FCC" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill="url(#mrrFill)" />
+      <polyline points={pathLine} fill="none" stroke="#1B4FCC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={last[0]} cy={last[1]} r="4" fill="#1B4FCC" stroke="white" strokeWidth="1.5" />
+    </svg>
+  )
+}
+
+/** Single growth-% tile (daily/weekly/monthly/annual). */
+function GrowthTile({ label, pct }) {
+  const isUp = pct > 0
+  const isDown = pct < 0
+  const tone = isUp ? 'text-green-700' : isDown ? 'text-red-600' : 'text-gray-500'
+  const bg   = isUp ? 'bg-green-50' : isDown ? 'bg-red-50' : 'bg-gray-50'
+  return (
+    <div className={`rounded-xl px-2 py-2 text-center ${bg}`}>
+      <p className="text-gray-400 text-[10px] uppercase tracking-wide font-semibold">{label}</p>
+      <div className={`flex items-center justify-center gap-1 font-bold text-sm tabular-nums mt-0.5 ${tone}`}>
+        {isUp   && <TrendingUp   className="w-3 h-3" />}
+        {isDown && <TrendingDown className="w-3 h-3" />}
+        <span>{isUp ? '+' : ''}{pct}%</span>
+      </div>
     </div>
   )
 }

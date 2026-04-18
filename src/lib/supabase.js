@@ -533,6 +533,126 @@ export async function getOrganizationInsightsSummary() {
 }
 
 /**
+ * Platform-wide metrics for the super-admin dashboard.
+ *
+ * Returns {
+ *   totalReps, currentMrr, projectedArr, churnPct,
+ *   mrrByDay: [{date, mrr}, ...]   (90 daily points, oldest → newest),
+ *   growth: { daily, weekly, monthly, annual }  (% change in MRR),
+ * }.
+ *
+ * Historical MRR is reconstructed client-side from:
+ *   - organizations.created_at     (when the org joined the platform)
+ *   - organization_tier_history    (tier changes over time)
+ *   - users.created_at             (approximated seat-count-over-time)
+ * Orgs currently flagged `cancelled`/`churned`/`paused`/`inactive` are
+ * excluded from past MRR too — we don't have a cancellation date, so this
+ * errs on the side of not inflating the trend. Good enough for a KPI strip.
+ */
+export async function getPlatformMetrics() {
+  const SEAT_PRICE = { standard: 20, pro: 50 }
+  const DEAD_STATUSES = new Set(['cancelled', 'churned', 'paused', 'inactive'])
+  const now = Date.now()
+
+  const [
+    { data: orgs },
+    { data: tierHistory },
+    { data: users },
+  ] = await Promise.all([
+    supabase.from('organizations').select('id, tier, status, created_at'),
+    supabase.from('organization_tier_history').select('organization_id, old_tier, new_tier, changed_at'),
+    supabase.from('users').select('id, organization_id, role, created_at'),
+  ])
+
+  // ── Rep roster by org, with sorted join timestamps for fast seat-at-time ──
+  const reps = (users || []).filter(u =>
+    u.organization_id && (u.role === 'rep' || u.role === 'manager'))
+  const totalReps = reps.length
+
+  const repJoinsByOrg = {}
+  for (const u of reps) {
+    const t = new Date(u.created_at).getTime()
+    if (!repJoinsByOrg[u.organization_id]) repJoinsByOrg[u.organization_id] = []
+    repJoinsByOrg[u.organization_id].push(t)
+  }
+  for (const list of Object.values(repJoinsByOrg)) list.sort((a, b) => a - b)
+
+  // ── Tier-history events by org, oldest-first ─────────────────────────────
+  const historyByOrg = {}
+  for (const h of tierHistory || []) {
+    if (!historyByOrg[h.organization_id]) historyByOrg[h.organization_id] = []
+    historyByOrg[h.organization_id].push({
+      ...h,
+      _ts: new Date(h.changed_at).getTime(),
+    })
+  }
+  for (const list of Object.values(historyByOrg)) list.sort((a, b) => a._ts - b._ts)
+
+  const seatsAt = (orgId, t) => {
+    const list = repJoinsByOrg[orgId] || []
+    let n = 0
+    for (const j of list) {
+      if (j <= t) n++
+      else break
+    }
+    return n
+  }
+
+  const tierAt = (org, t) => {
+    const list = historyByOrg[org.id] || []
+    // Seed with the earliest-known prior tier, else current.
+    let tier = list.length ? list[0].old_tier : org.tier
+    for (const h of list) {
+      if (h._ts <= t) tier = h.new_tier
+      else break
+    }
+    return tier
+  }
+
+  const mrrAt = (t) => {
+    let sum = 0
+    for (const org of orgs || []) {
+      if (DEAD_STATUSES.has(org.status)) continue
+      const createdAt = new Date(org.created_at).getTime()
+      if (createdAt > t) continue
+      const tier  = tierAt(org, t)
+      const seats = seatsAt(org.id, t)
+      sum += seats * (SEAT_PRICE[tier] || 0)
+    }
+    return sum
+  }
+
+  // ── 90-day MRR series ────────────────────────────────────────────────────
+  const mrrByDay = []
+  for (let i = 89; i >= 0; i--) {
+    const t = now - i * 86400000
+    mrrByDay.push({
+      date: new Date(t).toISOString().slice(0, 10),
+      mrr: mrrAt(t),
+    })
+  }
+
+  const currentMrr   = mrrAt(now)
+  const projectedArr = currentMrr * 12
+
+  // ── Growth deltas ────────────────────────────────────────────────────────
+  const pct = (curr, prev) => !prev ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 100)
+  const growth = {
+    daily:   pct(currentMrr, mrrAt(now - 1   * 86400000)),
+    weekly:  pct(currentMrr, mrrAt(now - 7   * 86400000)),
+    monthly: pct(currentMrr, mrrAt(now - 30  * 86400000)),
+    annual:  pct(currentMrr, mrrAt(now - 365 * 86400000)),
+  }
+
+  // ── Churn % — share of all-time orgs currently in a dead state ───────────
+  const totalOrgs = (orgs || []).length
+  const churned   = (orgs || []).filter(o => DEAD_STATUSES.has(o.status)).length
+  const churnPct  = totalOrgs === 0 ? 0 : Math.round((churned / totalOrgs) * 100)
+
+  return { totalReps, currentMrr, projectedArr, churnPct, mrrByDay, growth }
+}
+
+/**
  * Rich detail for a single organization — used by the OrganizationDetail
  * drill-in screen. Returns { org, users, sessions30d, recentInteractions,
  * billing }. Super-admin only.
