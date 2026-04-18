@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns'
-import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield } from 'lucide-react'
+import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllSessions, getAllReps, getManagerMapData, signOut,
@@ -183,7 +183,7 @@ export default function ManagerDashboard() {
             )}
             {tab === 'live'        && <LiveTab allReps={reps} />}
             {tab === 'leaderboard' && <LeaderboardTab />}
-            {tab === 'reps'        && <RepsTab repStats={repStats} />}
+            {tab === 'reps'        && <RepsTab repStats={repStats} allReps={reps} />}
             {tab === 'bookings'    && <BookingsTab bookings={bookings} />}
             {tab === 'map'         && <MapTab interactions={mapData} />}
             {tab === 'territories' && <TerritoryTab allReps={reps} managerId={user?.id} />}
@@ -454,15 +454,22 @@ function BookingsTab({ bookings }) {
 }
 
 // ─── Reps Tab ─────────────────────────────────────────────────────────────────
-function RepsTab({ repStats }) {
-  if (!repStats.length) return (
-    <div className="text-center py-16 text-gray-400">
-      <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
-      <p>No rep data for this period.</p>
-    </div>
-  )
+// Shows a perf card for each rep with activity in the selected window, plus a
+// dim card for reps on the team who had no sessions in the period (so newly-
+// added reps don't disappear until they log their first door). An "Add Rep"
+// button at the bottom opens the full Team Management flow in Settings.
+function RepsTab({ repStats, allReps = [] }) {
+  const navigate = useNavigate()
+
+  // Reps who are on the team but produced no sessions in the current window.
+  const activeIds = new Set(repStats.map((r) => r.id))
+  const idleReps  = allReps.filter((r) => !activeIds.has(r.id))
+
+  const handleAddRep = () => navigate('/settings', { state: { openAddRep: true } })
+
   return (
     <div className="space-y-3">
+      {/* Active reps with performance stats */}
       {repStats.map((rep, i) => {
         const cr = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0'
         return (
@@ -487,6 +494,44 @@ function RepsTab({ repStats }) {
           </div>
         )
       })}
+
+      {/* Empty state if no sessions anywhere in the period */}
+      {repStats.length === 0 && (
+        <div className="text-center py-10 text-gray-400">
+          <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="font-medium text-sm">No rep activity in this period.</p>
+          <p className="text-xs mt-1">Try expanding the date range — or add a new rep below.</p>
+        </div>
+      )}
+
+      {/* Reps on the team with no sessions in the window — keeps them visible. */}
+      {idleReps.length > 0 && (
+        <div className="pt-2">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">No activity yet</p>
+          <div className="space-y-2">
+            {idleReps.map((rep) => (
+              <div key={rep.id} className="bg-gray-50 rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-500 text-xs font-bold flex items-center justify-center">
+                  {(rep.full_name || rep.email || '?')[0].toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-gray-700 truncate">{rep.full_name || rep.email}</p>
+                  <p className="text-xs text-gray-400 truncate">No sessions in this window</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Add Rep button — opens Settings team management flow with the form pre-opened */}
+      <button
+        onClick={handleAddRep}
+        className="w-full mt-3 py-3 rounded-2xl border-2 border-dashed flex items-center justify-center gap-2 text-sm font-semibold transition-colors hover:bg-blue-50"
+        style={{ borderColor: BRAND_GREEN, color: BRAND_GREEN }}>
+        <UserPlus className="w-4 h-4" />
+        Add Rep
+      </button>
     </div>
   )
 }

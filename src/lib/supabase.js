@@ -749,13 +749,24 @@ export async function flagInteractionFollowUp(interactionId, notes = null) {
 // ── Booking query helpers ─────────────────────────────────────────────────────
 
 /**
- * Get all bookings for the manager view, joining interaction photos / follow-up flag.
- * Returns an array of booking rows with nested `interactions` and `users` objects.
+ * Get all bookings for the manager view.
+ *
+ * Source of truth is `interactions` (outcome='booked') — every booking comes in
+ * through the rep's interaction modal and already carries address, contact
+ * info, photos, follow-up flag, estimated value, and organization_id. The
+ * separate `bookings` pipeline table (for future CRM status tracking) is not
+ * queried here because it's optional and historically under-populated — reading
+ * straight from interactions guarantees the tab always shows every booked job.
+ *
+ * Returns rows shaped to match the existing BookingsTab contract: photo_urls
+ * and follow_up live under a nested `interactions` object so the view layer
+ * doesn't need to change.
  */
 export async function getAllBookings(filters = {}) {
   let query = supabase
-    .from('bookings')
-    .select('*, interactions(photo_urls, follow_up, follow_up_notes, notes), users(full_name)')
+    .from('interactions')
+    .select('*, users(full_name)')
+    .eq('outcome', 'booked')
     .order('created_at', { ascending: false })
     .limit(100)
 
@@ -764,7 +775,17 @@ export async function getAllBookings(filters = {}) {
   if (filters.dateTo)   query = query.lte('created_at', filters.dateTo)
 
   const { data } = await query
-  return data || []
+  return (data || []).map((row) => ({
+    ...row,
+    // Nest the photo / follow-up fields under `interactions` so the BookingsTab
+    // UI (which used to read from a joined bookings→interactions row) still works.
+    interactions: {
+      photo_urls:      row.photo_urls,
+      follow_up:       row.follow_up,
+      follow_up_notes: row.follow_up_notes,
+      notes:           row.notes,
+    },
+  }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

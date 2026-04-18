@@ -7,8 +7,8 @@
  *  - Zapier webhook URL configuration (Pro feature)
  *  - Future CRM options (Coming Soon)
  */
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Eye, EyeOff, Building2, Shield, DollarSign, Plus, X } from 'lucide-react'
 import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, getMyOrganization, updateRepCommissionConfig } from '../lib/supabase.js'
 import { describeCommission, DEFAULT_COMMISSION_CONFIG } from '../lib/repStats.js'
@@ -18,6 +18,8 @@ const BRAND_LIME = '#7DC31E'
 
 export default function Settings() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const teamSectionRef = useRef(null)
   const [user, setUser]               = useState(null)
   const [org, setOrg]                 = useState(null)
   const [webhookUrl, setWebhookUrl]   = useState('')
@@ -41,6 +43,23 @@ export default function Settings() {
 
   useEffect(() => {
     loadSettings()
+  }, [])
+
+  // If Settings was opened with { state: { openAddRep: true } } — typically
+  // from the Manager Dashboard "Add Rep" button on the Reps tab — auto-open
+  // the Add Rep form and scroll the Team section into view so the manager
+  // lands right where they need to be.
+  useEffect(() => {
+    if (location.state?.openAddRep) {
+      setShowAddRep(true)
+      // Scroll after paint so the section ref is mounted and sized.
+      requestAnimationFrame(() => {
+        teamSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+      // Clear the state so a subsequent browser-back doesn't re-trigger it.
+      navigate(location.pathname, { replace: true, state: null })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function loadSettings() {
@@ -347,7 +366,7 @@ export default function Settings() {
         </section>
 
         {/* ── Team Management ────────────────────────────────────────── */}
-        <section>
+        <section ref={teamSectionRef}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4" style={{ color: BRAND_BLUE }} />
