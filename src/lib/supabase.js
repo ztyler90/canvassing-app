@@ -373,6 +373,28 @@ export async function updateOrganizationName(orgId, name) {
   return { data, error }
 }
 
+/**
+ * Update the org's daily goal configuration. Called from manager Settings.
+ *  type         : 'revenue' | 'count'
+ *  value        : numeric target (dollars if revenue, count if count)
+ *  countLabel   : 'estimates' | 'appointments' — verbiage shown to reps
+ *
+ * RLS: only the org owner or a super-admin can update this row.
+ */
+export async function updateOrganizationGoal(orgId, { type, value, countLabel }) {
+  const patch = {}
+  if (type       !== undefined) patch.daily_goal_type  = type
+  if (value      !== undefined) patch.daily_goal_value = value
+  if (countLabel !== undefined) patch.count_goal_label = countLabel
+  const { data, error } = await supabase
+    .from('organizations')
+    .update(patch)
+    .eq('id', orgId)
+    .select()
+    .single()
+  return { data, error }
+}
+
 /** Count users in each org — for the super-admin dashboard. */
 export async function getOrganizationMemberCounts() {
   const { data } = await supabase

@@ -9,8 +9,8 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Eye, EyeOff, Building2, Shield, DollarSign, Plus, X } from 'lucide-react'
-import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, getMyOrganization, updateRepCommissionConfig } from '../lib/supabase.js'
+import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Eye, EyeOff, Building2, Shield, DollarSign, Plus, X, Target, Hash } from 'lucide-react'
+import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal } from '../lib/supabase.js'
 import { describeCommission, DEFAULT_COMMISSION_CONFIG } from '../lib/repStats.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -40,6 +40,12 @@ export default function Settings() {
   const [addingRep, setAddingRep]     = useState(false)
   const [deletingRepId, setDeletingRepId] = useState(null)
   const [commissionRepId, setCommissionRepId] = useState(null)  // rep whose commission is being edited
+
+  // Daily goal config — hydrated from org on load, edited in-place.
+  const [goalType,     setGoalType]     = useState('revenue')  // 'revenue' | 'count'
+  const [goalValue,    setGoalValue]    = useState('1000')
+  const [countLabel,   setCountLabel]   = useState('estimates') // 'estimates' | 'appointments'
+  const [savingGoal,   setSavingGoal]   = useState(false)
 
   useEffect(() => {
     loadSettings()
@@ -71,12 +77,38 @@ export default function Settings() {
     setUser(u)
     setReps(repList)
     setOrg(myOrg)
+    if (myOrg) {
+      setGoalType(myOrg.daily_goal_type || 'revenue')
+      setGoalValue(String(myOrg.daily_goal_value ?? 1000))
+      setCountLabel(myOrg.count_goal_label || 'estimates')
+    }
     const url = await getWebhookUrl()
     if (url) {
       setWebhookUrl(url)
       setSavedUrl(url)
     }
     setLoading(false)
+  }
+
+  async function handleSaveGoal() {
+    if (!org?.id) return
+    const num = Number(goalValue)
+    if (!Number.isFinite(num) || num < 0) {
+      showToast('Enter a valid non-negative number', 'error'); return
+    }
+    setSavingGoal(true)
+    const { data, error } = await updateOrganizationGoal(org.id, {
+      type:       goalType,
+      value:      num,
+      countLabel: countLabel,
+    })
+    setSavingGoal(false)
+    if (error) {
+      showToast('Could not save goal: ' + error.message, 'error')
+    } else {
+      setOrg(data)
+      showToast('Daily goal updated')
+    }
   }
 
   async function handleAddRep() {
@@ -510,6 +542,148 @@ export default function Settings() {
                 </div>
               )
             })}
+          </div>
+        </section>
+
+        {/* ── Daily Goal ─────────────────────────────────────────────── */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Target className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+            <h2 className="text-gray-700 font-semibold text-base">Daily Goal</h2>
+          </div>
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
+            <p className="text-gray-500 text-xs">
+              Sets the "Today's Goal" target your reps see at the top of their home screen.
+            </p>
+
+            {/* Goal type segmented control */}
+            <div>
+              <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 mb-1.5">
+                Goal Type
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGoalType('revenue')}
+                  className={`py-2.5 rounded-xl text-sm font-semibold border-2 flex items-center justify-center gap-1.5 transition-colors ${
+                    goalType === 'revenue'
+                      ? 'text-white'
+                      : 'bg-white text-gray-600 border-gray-200'
+                  }`}
+                  style={
+                    goalType === 'revenue'
+                      ? { backgroundColor: BRAND_BLUE, borderColor: BRAND_BLUE }
+                      : undefined
+                  }
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Revenue
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGoalType('count')}
+                  className={`py-2.5 rounded-xl text-sm font-semibold border-2 flex items-center justify-center gap-1.5 transition-colors ${
+                    goalType === 'count'
+                      ? 'text-white'
+                      : 'bg-white text-gray-600 border-gray-200'
+                  }`}
+                  style={
+                    goalType === 'count'
+                      ? { backgroundColor: BRAND_BLUE, borderColor: BRAND_BLUE }
+                      : undefined
+                  }
+                >
+                  <Hash className="w-4 h-4" />
+                  {countLabel === 'appointments' ? 'Appointments' : 'Estimates'}
+                </button>
+              </div>
+            </div>
+
+            {/* Terminology toggle — only meaningful when goal type is count,
+                but we still let managers set it while in revenue mode so the
+                funnel chart and future labels match their company's language. */}
+            <div>
+              <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 mb-1.5">
+                Terminology
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCountLabel('estimates')}
+                  className={`py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                    countLabel === 'estimates'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'bg-white text-gray-600 border-gray-200'
+                  }`}
+                >
+                  Estimates
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCountLabel('appointments')}
+                  className={`py-2 rounded-xl text-sm font-semibold border-2 transition-colors ${
+                    countLabel === 'appointments'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'bg-white text-gray-600 border-gray-200'
+                  }`}
+                >
+                  Appointments
+                </button>
+              </div>
+              <p className="text-gray-400 text-[11px] mt-1.5">
+                Some teams say "Estimates", others say "Appointments". This changes the wording reps see.
+              </p>
+            </div>
+
+            {/* Target value input */}
+            <div>
+              <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 mb-1.5">
+                Daily Target
+              </p>
+              <div className="flex items-center gap-2">
+                {goalType === 'revenue' && (
+                  <span className="text-gray-500 text-sm font-semibold">$</span>
+                )}
+                <input
+                  type="number"
+                  min="0"
+                  step={goalType === 'revenue' ? '50' : '1'}
+                  value={goalValue}
+                  onChange={(e) => setGoalValue(e.target.value)}
+                  className="flex-1 px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-blue-400 focus:outline-none"
+                  placeholder={goalType === 'revenue' ? '1000' : '3'}
+                />
+                <span className="text-gray-500 text-sm font-medium whitespace-nowrap">
+                  {goalType === 'revenue'
+                    ? 'per day'
+                    : `${countLabel === 'appointments' ? 'appts' : 'ests'}/day`}
+                </span>
+              </div>
+              <p className="text-gray-400 text-[11px] mt-1.5">
+                {goalType === 'revenue'
+                  ? 'Reps see their revenue booked today vs. this target.'
+                  : `Reps see their ${countLabel} booked today vs. this target.`}
+              </p>
+            </div>
+
+            <button
+              onClick={handleSaveGoal}
+              disabled={savingGoal}
+              className="w-full py-2.5 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+              style={{ backgroundColor: BRAND_BLUE }}
+            >
+              {savingGoal ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  Save Goal
+                </>
+              )}
+            </button>
           </div>
         </section>
 

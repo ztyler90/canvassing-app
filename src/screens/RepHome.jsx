@@ -10,6 +10,7 @@ import { useSession } from '../contexts/SessionContext.jsx'
 import {
   startSession, getRepSessions, getActiveSession, signOut,
   updateSessionStats, getMyCommissionConfig, getSessionInteractions,
+  getMyOrganization,
 } from '../lib/supabase.js'
 import { requestGPSPermission } from '../lib/gps.js'
 import { gpsTracker } from '../lib/gps.js'
@@ -21,7 +22,15 @@ import {
 
 const BRAND_BLUE = '#1B4FCC'  // KnockIQ blue
 const BRAND_LIME = '#7DC31E'  // KnockIQ lime (accent)
-const DAILY_GOAL = 1000
+
+// Fallback goal shape — used until the org row is loaded (and for orgs
+// created before the daily-goal columns existed). Matches the default
+// DB values: a $1,000 revenue target with "estimates" terminology.
+const DEFAULT_GOAL = {
+  daily_goal_type:  'revenue',
+  daily_goal_value: 1000,
+  count_goal_label: 'estimates',
+}
 
 export default function RepHome() {
   const { user }              = useAuth()
@@ -32,6 +41,7 @@ export default function RepHome() {
   const [loadingStart,  setLoadingStart]  = useState(false)
   const [gpsError,      setGpsError]      = useState('')
   const [commissionCfg, setCommissionCfg] = useState(null)
+  const [goalCfg,       setGoalCfg]       = useState(DEFAULT_GOAL)
   const [period,        setPeriod]        = useState('week')  // 'week' | 'month' | 'lifetime'
   const [loadingData,   setLoadingData]   = useState(true)
 
@@ -42,12 +52,20 @@ export default function RepHome() {
 
   async function loadData() {
     // Pull up to 500 submitted sessions — enough for multi-month lifetime totals.
-    const [sessions, commission] = await Promise.all([
+    const [sessions, commission, org] = await Promise.all([
       getRepSessions(user.id, 500),
       getMyCommissionConfig(),
+      getMyOrganization(),
     ])
     setAllSessions(sessions)
     setCommissionCfg(commission)
+    if (org) {
+      setGoalCfg({
+        daily_goal_type:  org.daily_goal_type  || DEFAULT_GOAL.daily_goal_type,
+        daily_goal_value: Number(org.daily_goal_value ?? DEFAULT_GOAL.daily_goal_value),
+        count_goal_label: org.count_goal_label || DEFAULT_GOAL.count_goal_label,
+      })
+    }
     setLoadingData(false)
   }
 
@@ -132,11 +150,28 @@ export default function RepHome() {
   const todayStats = allSessions
     .filter(s => s.started_at.startsWith(todayKey))
     .reduce((acc, s) => ({
-      doors:   acc.doors   + (s.doors_knocked  || 0),
-      revenue: acc.revenue + (Number(s.revenue_booked) || 0),
-    }), { doors: 0, revenue: 0 })
+      doors:     acc.doors     + (s.doors_knocked  || 0),
+      revenue:   acc.revenue   + (Number(s.revenue_booked) || 0),
+      bookings:  acc.bookings  + (s.bookings  || 0),
+      estimates: acc.estimates + (s.estimates || 0),
+    }), { doors: 0, revenue: 0, bookings: 0, estimates: 0 })
 
-  const goalPct     = Math.min((todayStats.revenue / DAILY_GOAL) * 100, 100)
+  // Pick the right metric for the manager-configured goal. "count" goals
+  // measure estimates *or* appointments depending on terminology — the
+  // underlying field is the same either way (sessions.estimates).
+  const countNoun = goalCfg.count_goal_label === 'appointments' ? 'appointments' : 'estimates'
+  const isRevenueGoal = goalCfg.daily_goal_type === 'revenue'
+  const goalTarget  = Number(goalCfg.daily_goal_value) || 0
+  const goalCurrent = isRevenueGoal ? todayStats.revenue : todayStats.estimates
+  const goalPct = goalTarget > 0
+    ? Math.min((goalCurrent / goalTarget) * 100, 100)
+    : 0
+  const goalCurrentLabel = isRevenueGoal
+    ? `$${goalCurrent.toFixed(0)}`
+    : `${goalCurrent}`
+  const goalTargetLabel = isRevenueGoal
+    ? `$${goalTarget.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : `${goalTarget} ${countNoun}`
   const lifetimeXP  = computeXP(periods.lifetime)
   const levelInfo   = computeLevel(lifetimeXP)
   const commission  = calcCommission(stats, commissionCfg)
@@ -187,8 +222,8 @@ export default function RepHome() {
               <Target className="w-4 h-4" /> Today's Goal
             </span>
             <span className="text-white font-bold">
-              ${todayStats.revenue.toFixed(0)}
-              <span className="text-blue-200 font-normal"> / ${DAILY_GOAL}</span>
+              {goalCurrentLabel}
+              <span className="text-blue-200 font-normal"> / {goalTargetLabel}</span>
             </span>
           </div>
           <div className="h-2.5 bg-white/30 rounded-full overflow-hidden">
@@ -279,7 +314,11 @@ export default function RepHome() {
               </div>
 
               {/* Funnel / Conversion */}
-              <ConversionFunnel stats={stats} conv={conversion} />
+              <ConversionFunnel
+                stats={stats}
+                conv={conversion}
+                estimateLabel={countNoun === 'appointments' ? 'Appointments' : 'Estimates'}
+              />
             </>
           )}
         </section>
@@ -415,14 +454,15 @@ function CommissionCard({ amount, config }) {
   )
 }
 
-function ConversionFunnel({ stats, conv }) {
+function ConversionFunnel({ stats, conv, estimateLabel = 'Estimates' }) {
   // Each bar: width proportional to its count vs. doors (the top of the funnel).
   const top = Math.max(stats.doors, 1)
+  const lowerNoun = estimateLabel.toLowerCase()
   const rows = [
     { label: 'Doors Knocked',     count: stats.doors,         pctOfTop: 100,                               color: '#1B4FCC', pctLabel: null },
     { label: 'Conversations',     count: stats.conversations, pctOfTop: (stats.conversations / top) * 100, color: '#6366F1', pctLabel: `${conv.contactRate.toFixed(0)}% of doors` },
-    { label: 'Estimates',         count: stats.estimates,     pctOfTop: (stats.estimates     / top) * 100, color: '#7DC31E', pctLabel: `${conv.estimateRate.toFixed(0)}% of convos` },
-    { label: 'Bookings',          count: stats.bookings,      pctOfTop: (stats.bookings      / top) * 100, color: '#059669', pctLabel: `${conv.closeRate.toFixed(0)}% of estimates` },
+    { label: estimateLabel,       count: stats.estimates,     pctOfTop: (stats.estimates     / top) * 100, color: '#7DC31E', pctLabel: `${conv.estimateRate.toFixed(0)}% of convos` },
+    { label: 'Bookings',          count: stats.bookings,      pctOfTop: (stats.bookings      / top) * 100, color: '#059669', pctLabel: `${conv.closeRate.toFixed(0)}% of ${lowerNoun}` },
   ]
 
   return (
