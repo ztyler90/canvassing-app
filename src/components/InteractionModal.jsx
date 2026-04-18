@@ -57,8 +57,9 @@ export default function InteractionModal({
   const [estimatedValue, setEstValue]   = useState(
     existingInteraction?.estimated_value != null ? String(existingInteraction.estimated_value) : ''
   )
-  // Free-form notes about the job — visible on outcome + details steps.
-  // Persists to interactions.notes regardless of which outcome the rep picks.
+  // Free-form notes about the job — captured on the details step only
+  // (Estimate / Booked). No-answer and not-interested outcomes save without
+  // notes so reps can log them in one tap.
   const [notes, setNotes]               = useState(existingInteraction?.notes || '')
   const [photos, setPhotos]             = useState([])        // File[]
   const [photoPreviews, setPhotoPreviews] = useState([])      // data URLs
@@ -480,25 +481,6 @@ export default function InteractionModal({
               ))}
             </div>
 
-            {/* Notes / comments — open field so reps can capture any context
-                about the visit (e.g. "dog barking, no one home", "tenant said
-                owner is away until Friday"). Saved with the interaction no
-                matter which outcome the rep picks. */}
-            <div className="mt-4">
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                <MessageSquare className="w-3.5 h-3.5" />
-                Notes <span className="text-gray-400 normal-case font-normal">(optional)</span>
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => { cancelAutoDismiss(); setNotes(e.target.value) }}
-                onFocus={cancelAutoDismiss}
-                placeholder="Add any comments about this job…"
-                rows={3}
-                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none resize-none"
-              />
-            </div>
-
             {saving && (
               <p className="text-center text-sm text-gray-400 mt-4">Saving…</p>
             )}
@@ -635,9 +617,7 @@ export default function InteractionModal({
               )}
             </div>
 
-            {/* Notes — mirrors the field on the outcome step so reps can add
-                or refine comments after filling in contact + services. State
-                is shared, so typing in either place saves to the same column. */}
+            {/* Notes — free-form comments saved with the interaction record. */}
             <div>
               <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                 <MessageSquare className="w-3.5 h-3.5" />
