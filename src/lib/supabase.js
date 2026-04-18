@@ -214,6 +214,20 @@ export async function getAllReps() {
 
 // ── Organization helpers (Phase 1) ────────────────────────────────────────────
 
+/**
+ * Provision a brand-new organization for the just-signed-up user.
+ * Wraps the `provision_new_organization(business_name)` SECURITY DEFINER RPC
+ * which (1) inserts the org row with status='trial' + 30-day trial window,
+ * and (2) stamps the caller's public.users row with the new org id + role='manager'.
+ * Idempotent: if the caller already has an org, returns the existing id.
+ */
+export async function provisionNewOrganization(businessName) {
+  const { data, error } = await supabase.rpc('provision_new_organization', {
+    business_name: businessName,
+  })
+  return { data, error }
+}
+
 /** Get the current user's organization row (RLS-filtered to their own org) */
 export async function getMyOrganization() {
   const { data: { user } } = await supabase.auth.getUser()
