@@ -9,6 +9,7 @@ import ActiveCanvassing  from './screens/ActiveCanvassing.jsx'
 import SessionSummary    from './screens/SessionSummary.jsx'
 import SessionDetail     from './screens/SessionDetail.jsx'
 import ManagerDashboard  from './screens/ManagerDashboard.jsx'
+import RepDetail         from './screens/RepDetail.jsx'
 import Settings          from './screens/Settings.jsx'
 import RepProfile        from './screens/RepProfile.jsx'
 import SuperAdminDashboard from './screens/SuperAdminDashboard.jsx'
@@ -50,13 +51,14 @@ function AppRoutes() {
 
   if (user.role === 'manager') return (
     <Routes>
-      <Route path="/manager"      element={<ManagerDashboard />} />
-      <Route path="/settings"     element={<Settings />} />
-      <Route path="/session/:id"  element={<SessionDetail />} />
+      <Route path="/manager"           element={<ManagerDashboard />} />
+      <Route path="/manager/rep/:repId" element={<RepDetail />} />
+      <Route path="/settings"          element={<Settings />} />
+      <Route path="/session/:id"       element={<SessionDetail />} />
       {user.is_super_admin && (
         <Route path="/super-admin" element={<SuperAdminDashboard />} />
       )}
-      <Route path="*"             element={<Navigate to="/manager" replace />} />
+      <Route path="*"                  element={<Navigate to="/manager" replace />} />
     </Routes>
   )
 

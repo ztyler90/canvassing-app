@@ -352,7 +352,7 @@ export default function RepHome() {
 
 /* ── Sub-components ─────────────────────────────────────────────────────────── */
 
-function PeriodTabs({ period, onChange }) {
+export function PeriodTabs({ period, onChange }) {
   const tabs = [
     { id: 'week',     label: 'Week'     },
     { id: 'month',    label: 'Month'    },
@@ -376,7 +376,7 @@ function PeriodTabs({ period, onChange }) {
   )
 }
 
-function LevelCard({ level, className = '' }) {
+export function LevelCard({ level, className = '' }) {
   const pct = Math.round(level.progress * 100)
   return (
     <div
@@ -409,7 +409,7 @@ function LevelCard({ level, className = '' }) {
   )
 }
 
-function BigStatCard({ icon, label, value, accent = 'blue' }) {
+export function BigStatCard({ icon, label, value, accent = 'blue' }) {
   const palettes = {
     blue:  { bg: 'bg-blue-50',  text: 'text-blue-600',  label: 'text-blue-700' },
     green: { bg: 'bg-green-50', text: 'text-green-600', label: 'text-green-700' },
@@ -430,7 +430,7 @@ function BigStatCard({ icon, label, value, accent = 'blue' }) {
   )
 }
 
-function CommissionCard({ amount, config }) {
+export function CommissionCard({ amount, config }) {
   const hasConfig = !!config && (config.type !== 'flat_pct' || Number(config.value) > 0)
   return (
     <div
@@ -454,7 +454,7 @@ function CommissionCard({ amount, config }) {
   )
 }
 
-function ConversionFunnel({ stats, conv, estimateLabel = 'Estimates' }) {
+export function ConversionFunnel({ stats, conv, estimateLabel = 'Estimates' }) {
   // Each bar: width proportional to its count vs. doors (the top of the funnel).
   const top = Math.max(stats.doors, 1)
   const lowerNoun = estimateLabel.toLowerCase()
@@ -498,7 +498,7 @@ function ConversionFunnel({ stats, conv, estimateLabel = 'Estimates' }) {
   )
 }
 
-function SessionRow({ session, onClick }) {
+export function SessionRow({ session, onClick }) {
   const elapsed = session.ended_at
     ? ((new Date(session.ended_at) - new Date(session.started_at)) / 60000).toFixed(0)
     : null

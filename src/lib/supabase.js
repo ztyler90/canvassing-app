@@ -270,6 +270,21 @@ export async function getAllReps() {
   return data || []
 }
 
+/**
+ * Fetch a single rep's profile + commission config. Used by the manager
+ * Rep Detail screen to render an individual rep's home-page metrics.
+ * RLS ensures the caller can only read users in their own organization.
+ */
+export async function getRepById(repId) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, full_name, email, role, avatar_url, commission_config, organization_id')
+    .eq('id', repId)
+    .single()
+  if (error) return null
+  return data
+}
+
 /** Get the rep's own commission_config (null if not set by manager yet) */
 export async function getMyCommissionConfig() {
   const { data: { user } } = await supabase.auth.getUser()

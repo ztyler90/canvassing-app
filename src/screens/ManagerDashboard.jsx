@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns'
-import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus } from 'lucide-react'
+import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllSessions, getAllReps, getManagerMapData, signOut,
@@ -465,15 +465,21 @@ function RepsTab({ repStats, allReps = [] }) {
   const activeIds = new Set(repStats.map((r) => r.id))
   const idleReps  = allReps.filter((r) => !activeIds.has(r.id))
 
-  const handleAddRep = () => navigate('/settings', { state: { openAddRep: true } })
+  const handleAddRep    = () => navigate('/settings', { state: { openAddRep: true } })
+  const handleOpenRep   = (repId) => navigate(`/manager/rep/${repId}`)
 
   return (
     <div className="space-y-3">
-      {/* Active reps with performance stats */}
+      {/* Active reps with performance stats — tap to drill into full stats */}
       {repStats.map((rep, i) => {
         const cr = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0'
         return (
-          <div key={rep.id} className="bg-white rounded-2xl border border-gray-200 p-4">
+          <button
+            key={rep.id}
+            onClick={() => handleOpenRep(rep.id)}
+            className="w-full text-left bg-white rounded-2xl border border-gray-200 p-4 active:bg-gray-50 hover:border-blue-300 transition-colors"
+            aria-label={`Open ${rep.name} details`}
+          >
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm"
                 style={{ backgroundColor: BRAND_GREEN }}>{i + 1}</div>
@@ -481,9 +487,12 @@ function RepsTab({ repStats, allReps = [] }) {
                 <p className="font-bold text-gray-900">{rep.name}</p>
                 <p className="text-xs text-gray-400">{rep.sessions} sessions</p>
               </div>
-              <div className="ml-auto text-right">
-                <p className="text-lg font-bold text-gray-900">${rep.revenue.toFixed(0)}</p>
-                <p className="text-xs text-green-600">{rep.bookings} booked</p>
+              <div className="ml-auto text-right flex items-center gap-1">
+                <div>
+                  <p className="text-lg font-bold text-gray-900">${rep.revenue.toFixed(0)}</p>
+                  <p className="text-xs text-green-600">{rep.bookings} booked</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0 ml-1" />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100">
@@ -491,7 +500,7 @@ function RepsTab({ repStats, allReps = [] }) {
               <MicroStat label="Estimates" value={rep.estimates}   />
               <MicroStat label="Close %"   value={`${cr}%`}        />
             </div>
-          </div>
+          </button>
         )
       })}
 
@@ -510,7 +519,12 @@ function RepsTab({ repStats, allReps = [] }) {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">No activity yet</p>
           <div className="space-y-2">
             {idleReps.map((rep) => (
-              <div key={rep.id} className="bg-gray-50 rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3">
+              <button
+                key={rep.id}
+                onClick={() => handleOpenRep(rep.id)}
+                className="w-full text-left bg-gray-50 rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3 active:bg-gray-100 hover:border-blue-300 transition-colors"
+                aria-label={`Open ${rep.full_name || rep.email} details`}
+              >
                 <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-500 text-xs font-bold flex items-center justify-center">
                   {(rep.full_name || rep.email || '?')[0].toUpperCase()}
                 </div>
@@ -518,7 +532,8 @@ function RepsTab({ repStats, allReps = [] }) {
                   <p className="text-sm font-semibold text-gray-700 truncate">{rep.full_name || rep.email}</p>
                   <p className="text-xs text-gray-400 truncate">No sessions in this window</p>
                 </div>
-              </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              </button>
             ))}
           </div>
         </div>
