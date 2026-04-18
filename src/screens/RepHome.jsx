@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import {
   startSession, getRepSessions, getActiveSession, signOut,
-  updateSessionStats, getMyCommissionConfig,
+  updateSessionStats, getMyCommissionConfig, getSessionInteractions,
 } from '../lib/supabase.js'
 import { requestGPSPermission } from '../lib/gps.js'
 import { gpsTracker } from '../lib/gps.js'
@@ -51,13 +51,30 @@ export default function RepHome() {
     setLoadingData(false)
   }
 
+  // If an active session already exists in Supabase (e.g. rep closed the
+  // tab mid-shift, phone died, browser crashed), re-enter it with all
+  // previously-logged interactions so stats and pins aren't lost. The
+  // SessionContext has likely already primed from localStorage by this
+  // point; we overwrite it with the authoritative DB state.
   async function checkActiveSession() {
     const existing = await getActiveSession(user.id)
-    if (existing) {
+    if (!existing) return
+    try {
+      const interactions = await getSessionInteractions(existing.id)
+      dispatch({
+        type:         'HYDRATE_SESSION',
+        session:      existing,
+        interactions: interactions || [],
+      })
+    } catch (err) {
+      // DB fetch failed — fall back to a bare re-start so the rep can at
+      // least keep going. Their pending-save interactions already live in
+      // Supabase and will show up once connectivity returns.
+      console.warn('[Session] Hydrate failed, using bare restart:', err?.message)
       dispatch({ type: 'START_SESSION', session: existing })
-      startGPS(existing)
-      navigate('/canvassing')
     }
+    startGPS(existing)
+    navigate('/canvassing')
   }
 
   const handleStartCanvassing = async () => {

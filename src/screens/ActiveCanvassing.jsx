@@ -35,6 +35,23 @@ export default function ActiveCanvassing() {
     getDoNotKnockList().then(setDoNotKnock).catch(() => {})
   }, [user?.id])
 
+  // Warn the rep before a refresh / tab-close destroys the active session.
+  // Resilience is the DB + localStorage cache (they can resume exactly where
+  // they left off) — but a confirm dialog prevents the 99% case of an
+  // accidental pull-to-refresh gesture mid-canvass.
+  useEffect(() => {
+    if (!state.isRunning) return
+    const onBeforeUnload = (e) => {
+      e.preventDefault()
+      // The returnValue string is shown by older browsers; modern ones
+      // display their own generic message but still require the prompt.
+      e.returnValue = 'A canvassing session is in progress. Leaving will pause tracking.'
+      return e.returnValue
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [state.isRunning])
+
   // Keep the screen on while a session is active so GPS tracking doesn't
   // drop when the phone auto-sleeps. Note: a *manually* locked phone or
   // backgrounded tab will still pause JS — that's a browser limitation.
