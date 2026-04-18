@@ -9,13 +9,14 @@
  */
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { format } from 'date-fns'
-import { ChevronLeft, Building2, DollarSign, Users, CheckCircle, Shield, TrendingUp, Loader } from 'lucide-react'
+import { format, formatDistanceToNow } from 'date-fns'
+import { ChevronLeft, Building2, DollarSign, Users, CheckCircle, Shield, TrendingUp, TrendingDown, Loader, ChevronRight, Activity, AlertTriangle, AlertOctagon } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllOrganizations,
   getOrganizationBilling,
   getOrganizationMemberCounts,
+  getOrganizationInsightsSummary,
   updateOrganizationTier,
 } from '../lib/supabase.js'
 
@@ -30,6 +31,7 @@ export default function SuperAdminDashboard() {
   const [orgs, setOrgs]         = useState([])
   const [billing, setBilling]   = useState([])
   const [memberCounts, setMC]   = useState({})
+  const [insights, setInsights] = useState({})
   const [loading, setLoading]   = useState(true)
   const [updatingId, setUpdating] = useState(null)
   const [toast, setToast]       = useState(null)
@@ -38,14 +40,16 @@ export default function SuperAdminDashboard() {
 
   async function loadData() {
     setLoading(true)
-    const [o, b, m] = await Promise.all([
+    const [o, b, m, i] = await Promise.all([
       getAllOrganizations(),
       getOrganizationBilling(),
       getOrganizationMemberCounts(),
+      getOrganizationInsightsSummary(),
     ])
     setOrgs(o)
     setBilling(b)
     setMC(m)
+    setInsights(i || {})
     setLoading(false)
   }
 
@@ -71,6 +75,8 @@ export default function SuperAdminDashboard() {
   const totalMRR     = billing.reduce((s, b) => s + (Number(b.monthly_price)    || 0), 0)
   const totalSeats   = billing.reduce((s, b) => s + (Number(b.active_seat_count) || 0), 0)
   const totalOrgs    = orgs.length
+  const activeOrgs7d = Object.values(insights).filter(i => i.sessions_7d > 0).length
+  const atRiskCount  = Object.values(insights).filter(i => i.health === 'at-risk' || i.health === 'churning').length
 
   // Guard: non super-admins should never see this page
   if (!user?.is_super_admin) {
@@ -124,16 +130,25 @@ export default function SuperAdminDashboard() {
       <div className="flex-1 px-4 py-5 space-y-6 pb-10 max-w-3xl mx-auto w-full">
 
         {/* ── Platform stats ──────────────────────────────────────────────── */}
-        <section className="grid grid-cols-3 gap-3">
+        <section className="grid grid-cols-2 gap-3">
           <StatCard
             icon={<Building2 className="w-4 h-4" style={{ color: BRAND_BLUE }} />}
             label="Organizations"
             value={totalOrgs}
+            sub={totalSeats ? `${totalSeats} seats` : null}
           />
           <StatCard
-            icon={<Users className="w-4 h-4" style={{ color: BRAND_BLUE }} />}
-            label="Total seats"
-            value={totalSeats}
+            icon={<Activity className="w-4 h-4" style={{ color: BRAND_BLUE }} />}
+            label="Active this week"
+            value={`${activeOrgs7d}`}
+            sub={totalOrgs ? `${Math.round((activeOrgs7d / totalOrgs) * 100)}% activation` : null}
+          />
+          <StatCard
+            icon={<AlertTriangle className="w-4 h-4 text-amber-500" />}
+            label="At risk / churning"
+            value={atRiskCount}
+            sub={atRiskCount ? 'Needs attention' : 'All healthy'}
+            warn={atRiskCount > 0}
           />
           <StatCard
             icon={<TrendingUp className="w-4 h-4" style={{ color: BRAND_LIME }} />}
@@ -155,32 +170,58 @@ export default function SuperAdminDashboard() {
               </div>
             )}
             {orgs.map(org => {
-              const bill   = billingByOrg[org.id]
-              const seats  = bill?.active_seat_count ?? memberCounts[org.id] ?? 0
-              const mrr    = Number(bill?.monthly_price) || seats * (SEAT_PRICE[org.tier] || 0)
-              const isPro  = org.tier === 'pro'
-              const active = org.status === 'active'
+              const bill      = billingByOrg[org.id]
+              const seats     = bill?.active_seat_count ?? memberCounts[org.id] ?? 0
+              const mrr       = Number(bill?.monthly_price) || seats * (SEAT_PRICE[org.tier] || 0)
+              const isPro     = org.tier === 'pro'
+              const active    = org.status === 'active'
+              const orgInsight = insights[org.id] || null
               return (
                 <div key={org.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-                  {/* Top row: name + status */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="min-w-0">
-                      <p className="font-bold text-gray-800 text-base truncate">{org.name}</p>
+                  {/* Top row: name + status + drill-in */}
+                  <button
+                    onClick={() => navigate(`/super-admin/org/${org.id}`)}
+                    className="w-full flex items-start justify-between mb-3 text-left group">
+                    <div className="min-w-0 flex-1 pr-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-gray-800 text-base truncate group-hover:text-blue-700 transition">
+                          {org.name}
+                        </p>
+                        {orgInsight && <HealthPill status={orgInsight.health} />}
+                      </div>
                       <p className="text-gray-400 text-xs mt-0.5">
                         Created {format(new Date(org.created_at), 'MMM d, yyyy')}
+                        {' · '}
+                        {orgInsight?.last_activity_at
+                          ? <>Last active {formatDistanceToNow(new Date(orgInsight.last_activity_at), { addSuffix: true })}</>
+                          : <span className="text-gray-400">No activity yet</span>
+                        }
                       </p>
                     </div>
-                    <span
-                      className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                      style={{
-                        backgroundColor: active ? BRAND_LIME + '20' : '#FEE2E2',
-                        color:            active ? '#166534'        : '#991B1B',
-                      }}>
-                      {active ? 'Active' : org.status}
-                    </span>
-                  </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor: active ? BRAND_LIME + '20' : '#FEE2E2',
+                          color:            active ? '#166534'        : '#991B1B',
+                        }}>
+                        {active ? 'Active' : org.status}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-600 transition" />
+                    </div>
+                  </button>
 
-                  {/* Middle row: stats */}
+                  {/* Engagement row — the new part the user asked for */}
+                  {orgInsight ? (
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                      <InsightStat label="Active reps" value={`${orgInsight.active_reps_7d}/${orgInsight.total_reps}`} />
+                      <InsightStat label="Doors 7d"   value={orgInsight.doors_7d.toLocaleString()}  trend={orgInsight.doors_trend_pct} />
+                      <InsightStat label="Revenue 7d" value={`$${Math.round(orgInsight.revenue_7d).toLocaleString()}`} trend={orgInsight.revenue_trend_pct} accent />
+                      <InsightStat label="Sessions"   value={orgInsight.sessions_7d} />
+                    </div>
+                  ) : null}
+
+                  {/* Plan / billing row */}
                   <div className="grid grid-cols-3 gap-2 mb-3">
                     <MiniStat label="Seats"  value={seats} />
                     <MiniStat label="$/seat" value={`$${SEAT_PRICE[org.tier] ?? 0}`} />
@@ -229,14 +270,21 @@ export default function SuperAdminDashboard() {
   )
 }
 
-function StatCard({ icon, label, value, accent }) {
+function StatCard({ icon, label, value, sub, accent, warn }) {
+  const borderCls =
+    warn   ? 'border-amber-200'  :
+    accent ? 'border-green-200'  : 'border-gray-100'
+  const valueCls =
+    warn   ? 'text-amber-700' :
+    accent ? 'text-green-700' : 'text-gray-800'
   return (
-    <div className={`bg-white rounded-2xl p-3 shadow-sm border ${accent ? 'border-green-200' : 'border-gray-100'}`}>
+    <div className={`bg-white rounded-2xl p-3 shadow-sm border ${borderCls}`}>
       <div className="flex items-center gap-1.5 mb-1">
         {icon}
         <p className="text-gray-400 text-[10px] uppercase tracking-wide font-semibold">{label}</p>
       </div>
-      <p className={`font-bold text-lg ${accent ? 'text-green-700' : 'text-gray-800'}`}>{value}</p>
+      <p className={`font-bold text-lg ${valueCls}`}>{value}</p>
+      {sub && <p className="text-gray-400 text-[11px] font-medium mt-0.5">{sub}</p>}
     </div>
   )
 }
@@ -247,5 +295,45 @@ function MiniStat({ label, value, accent }) {
       <p className="text-gray-400 text-[10px] uppercase tracking-wide font-medium">{label}</p>
       <p className={`font-bold text-sm mt-0.5 ${accent ? 'text-green-700' : 'text-gray-800'}`}>{value}</p>
     </div>
+  )
+}
+
+/** Per-org inline KPI (used in the engagement row of each org card). */
+function InsightStat({ label, value, trend, accent }) {
+  return (
+    <div className="bg-gray-50 rounded-xl px-2 py-2 text-center">
+      <p className="text-gray-400 text-[9px] uppercase tracking-wide font-semibold">{label}</p>
+      <p className={`font-bold text-sm mt-0.5 tabular-nums ${accent ? 'text-green-700' : 'text-gray-800'}`}>
+        {value}
+      </p>
+      {trend !== undefined && (
+        <div className={`inline-flex items-center gap-0.5 text-[10px] font-semibold mt-0.5 ${
+          trend > 0  ? 'text-green-700' :
+          trend < 0  ? 'text-red-600'   : 'text-gray-400'
+        }`}>
+          {trend > 0 && <TrendingUp  className="w-2.5 h-2.5" />}
+          {trend < 0 && <TrendingDown className="w-2.5 h-2.5" />}
+          <span>{trend > 0 ? '+' : ''}{trend}%</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Health chip used next to each org name. */
+function HealthPill({ status }) {
+  const styles = {
+    healthy:  { bg: BRAND_LIME + '25', fg: '#14532D', text: 'Healthy' },
+    'at-risk':{ bg: '#FEF3C7',         fg: '#92400E', text: 'At risk' },
+    churning: { bg: '#FEE2E2',         fg: '#991B1B', text: 'Churning' },
+  }
+  const s = styles[status] || styles.healthy
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+      style={{ backgroundColor: s.bg, color: s.fg }}>
+      <span className="w-1 h-1 rounded-full" style={{ backgroundColor: s.fg }} />
+      {s.text}
+    </span>
   )
 }

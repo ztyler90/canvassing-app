@@ -424,6 +424,167 @@ export async function getOrganizationMemberCounts() {
 }
 
 /**
+ * Platform-wide engagement + activity insights, keyed by organization_id.
+ * Super-admin use only — assumes the RLS policies added in
+ * `20260418_super_admin_insights.sql` are in place (they grant super-admins
+ * cross-org read on users + canvassing_sessions).
+ *
+ * Returns an object: { [org_id]: { last_activity_at, active_reps_7d,
+ *   total_reps, doors_7d, conversations_7d, estimates_7d, bookings_7d,
+ *   revenue_7d, sessions_7d, doors_prev_7d, revenue_prev_7d,
+ *   doors_trend_pct, revenue_trend_pct, health } }.
+ *
+ * `health` is a string: 'healthy' | 'at-risk' | 'churning' derived from
+ * last_activity_at + trends. Used for the inline status chip on each org card.
+ */
+export async function getOrganizationInsightsSummary() {
+  const now     = Date.now()
+  const since7  = new Date(now -  7 * 86400000).toISOString()
+  const since14 = new Date(now - 14 * 86400000).toISOString()
+
+  // Map every user to their organization_id (and count total reps per org).
+  const { data: allUsers } = await supabase
+    .from('users')
+    .select('id, organization_id, role')
+  const repToOrg  = {}
+  const totalReps = {}
+  for (const u of allUsers || []) {
+    if (!u.organization_id) continue
+    repToOrg[u.id] = u.organization_id
+    if (u.role === 'rep' || u.role === 'manager') {
+      totalReps[u.organization_id] = (totalReps[u.organization_id] || 0) + 1
+    }
+  }
+
+  // Pull 14 days of sessions so we can compute week-over-week trends.
+  const { data: sessions } = await supabase
+    .from('canvassing_sessions')
+    .select('rep_id, started_at, doors_knocked, conversations, estimates, bookings, revenue_booked, status')
+    .gte('started_at', since14)
+
+  const blank = (orgId) => ({
+    org_id: orgId,
+    last_activity_at: null,
+    active_reps_7d: new Set(),
+    total_reps: totalReps[orgId] || 0,
+    doors_7d: 0, conversations_7d: 0, estimates_7d: 0,
+    bookings_7d: 0, revenue_7d: 0, sessions_7d: 0,
+    doors_prev_7d: 0, revenue_prev_7d: 0,
+  })
+
+  const byOrg = {}
+  for (const s of sessions || []) {
+    const orgId = repToOrg[s.rep_id]
+    if (!orgId) continue
+    if (!byOrg[orgId]) byOrg[orgId] = blank(orgId)
+    const stats = byOrg[orgId]
+
+    if (!stats.last_activity_at || s.started_at > stats.last_activity_at) {
+      stats.last_activity_at = s.started_at
+    }
+
+    if (s.started_at >= since7) {
+      stats.active_reps_7d.add(s.rep_id)
+      stats.doors_7d         += s.doors_knocked  || 0
+      stats.conversations_7d += s.conversations  || 0
+      stats.estimates_7d     += s.estimates      || 0
+      stats.bookings_7d      += s.bookings       || 0
+      stats.revenue_7d       += Number(s.revenue_booked) || 0
+      stats.sessions_7d      += 1
+    } else {
+      stats.doors_prev_7d    += s.doors_knocked   || 0
+      stats.revenue_prev_7d  += Number(s.revenue_booked) || 0
+    }
+  }
+
+  // Make sure every known org shows up even if it had zero sessions this period.
+  for (const orgId of Object.values(repToOrg)) {
+    if (!byOrg[orgId]) byOrg[orgId] = blank(orgId)
+  }
+
+  const pctChange = (curr, prev) => {
+    if (!prev) return curr > 0 ? 100 : 0
+    return Math.round(((curr - prev) / prev) * 100)
+  }
+  const hoursSince = (iso) => iso ? (now - new Date(iso).getTime()) / 3600000 : Infinity
+
+  const result = {}
+  for (const [orgId, s] of Object.entries(byOrg)) {
+    const doorsTrend   = pctChange(s.doors_7d,   s.doors_prev_7d)
+    const revenueTrend = pctChange(s.revenue_7d, s.revenue_prev_7d)
+    const hoursStale   = hoursSince(s.last_activity_at)
+
+    let health = 'healthy'
+    if (hoursStale > 7 * 24 || (s.active_reps_7d.size === 0 && s.total_reps > 0)) {
+      health = 'churning'
+    } else if (hoursStale > 3 * 24 || doorsTrend < -20 || revenueTrend < -20) {
+      health = 'at-risk'
+    }
+
+    result[orgId] = {
+      ...s,
+      active_reps_7d: s.active_reps_7d.size,
+      doors_trend_pct: doorsTrend,
+      revenue_trend_pct: revenueTrend,
+      health,
+    }
+  }
+  return result
+}
+
+/**
+ * Rich detail for a single organization — used by the OrganizationDetail
+ * drill-in screen. Returns { org, users, sessions30d, recentInteractions,
+ * billing }. Super-admin only.
+ */
+export async function getOrganizationDetail(orgId) {
+  const since30 = new Date(Date.now() - 30 * 86400000).toISOString()
+
+  const [
+    { data: org },
+    { data: users },
+    { data: billingRow },
+  ] = await Promise.all([
+    supabase.from('organizations').select('*').eq('id', orgId).single(),
+    supabase
+      .from('users')
+      .select('id, full_name, email, role, avatar_url, created_at, commission_config')
+      .eq('organization_id', orgId)
+      .order('full_name', { ascending: true }),
+    supabase.from('organization_billing').select('*').eq('id', orgId).maybeSingle(),
+  ])
+
+  const repIds = (users || []).map((u) => u.id)
+  if (!repIds.length) {
+    return { org, users: [], sessions: [], recentInteractions: [], billing: billingRow }
+  }
+
+  const [{ data: sessions }, { data: interactions }] = await Promise.all([
+    supabase
+      .from('canvassing_sessions')
+      .select('id, rep_id, started_at, ended_at, doors_knocked, conversations, estimates, bookings, revenue_booked, status, neighborhood')
+      .in('rep_id', repIds)
+      .gte('started_at', since30)
+      .order('started_at', { ascending: false }),
+    supabase
+      .from('interactions')
+      .select('id, rep_id, outcome, address, estimated_value, created_at')
+      .in('rep_id', repIds)
+      .gte('created_at', since30)
+      .order('created_at', { ascending: false })
+      .limit(40),
+  ])
+
+  return {
+    org,
+    users: users || [],
+    sessions: sessions || [],
+    recentInteractions: interactions || [],
+    billing: billingRow || null,
+  }
+}
+
+/**
  * Thin wrapper around fetch() for our manage-team edge function. Using fetch
  * directly (instead of supabase.functions.invoke) lets us read the real JSON
  * error body on non-2xx responses — invoke() just surfaces "non-2xx status

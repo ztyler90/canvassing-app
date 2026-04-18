@@ -13,6 +13,7 @@ import RepDetail         from './screens/RepDetail.jsx'
 import Settings          from './screens/Settings.jsx'
 import RepProfile        from './screens/RepProfile.jsx'
 import SuperAdminDashboard from './screens/SuperAdminDashboard.jsx'
+import OrganizationDetail  from './screens/OrganizationDetail.jsx'
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -55,9 +56,8 @@ function AppRoutes() {
       <Route path="/manager/rep/:repId" element={<RepDetail />} />
       <Route path="/settings"          element={<Settings />} />
       <Route path="/session/:id"       element={<SessionDetail />} />
-      {user.is_super_admin && (
-        <Route path="/super-admin" element={<SuperAdminDashboard />} />
-      )}
+      {user.is_super_admin && <Route path="/super-admin"            element={<SuperAdminDashboard />} />}
+      {user.is_super_admin && <Route path="/super-admin/org/:orgId" element={<OrganizationDetail />}  />}
       <Route path="*"                  element={<Navigate to="/manager" replace />} />
     </Routes>
   )
