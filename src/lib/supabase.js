@@ -387,15 +387,51 @@ export async function getOrganizationMemberCounts() {
 }
 
 /**
+ * Thin wrapper around fetch() for our manage-team edge function. Using fetch
+ * directly (instead of supabase.functions.invoke) lets us read the real JSON
+ * error body on non-2xx responses — invoke() just surfaces "non-2xx status
+ * code" and swallows the specific reason.
+ */
+async function callManageTeam(body) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return { error: new Error('Not signed in') }
+
+    const url = `${supabaseUrl}/functions/v1/manage-team`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'apikey':        supabaseKey,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+
+    let payload = null
+    try { payload = await res.json() } catch { /* not JSON */ }
+
+    if (!res.ok) {
+      const msg = payload?.error || `Request failed (${res.status})`
+      return { error: new Error(msg) }
+    }
+    if (payload?.error) return { error: new Error(payload.error) }
+    return { data: payload, error: null }
+  } catch (err) {
+    return { error: err instanceof Error ? err : new Error(String(err)) }
+  }
+}
+
+/**
  * Create a new rep under this manager.
  * Calls the manage-team Edge Function (service role required).
  */
 export async function createRep({ fullName, email, password }) {
-  const { data, error } = await supabase.functions.invoke('manage-team', {
-    body: { action: 'create', fullName, email, password },
+  const { data, error } = await callManageTeam({
+    action: 'create', fullName, email, password,
   })
   if (error) return { error }
-  if (data?.error) return { error: new Error(data.error) }
   return { user: data?.user, error: null }
 }
 
@@ -404,12 +440,8 @@ export async function createRep({ fullName, email, password }) {
  * Calls the manage-team Edge Function.
  */
 export async function deleteRep(repId) {
-  const { data, error } = await supabase.functions.invoke('manage-team', {
-    body: { action: 'delete', repId },
-  })
-  if (error) return { error }
-  if (data?.error) return { error: new Error(data.error) }
-  return { error: null }
+  const { error } = await callManageTeam({ action: 'delete', repId })
+  return { error: error || null }
 }
 
 // ── Territory helpers ─────────────────────────────────────────────────────────
