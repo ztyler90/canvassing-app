@@ -9,7 +9,10 @@ import {
   setTerritoryAssignments, getAllDoorHistory, getDoNotKnockList,
   addDoNotKnock, removeDoNotKnock,
   getActiveRepLocations, getLeaderboardData, getAllBookings,
+  getMyOrganization,
 } from '../lib/supabase.js'
+import { computeConversion } from '../lib/repStats.js'
+import { ConversionFunnel } from './RepHome.jsx'
 import MapView from '../components/MapView.jsx'
 import TerritoryMap from '../components/TerritoryMap.jsx'
 
@@ -38,6 +41,7 @@ export default function ManagerDashboard() {
   const [reps, setReps]             = useState([])
   const [mapData, setMapData]       = useState([])
   const [bookings, setBookings]     = useState([])
+  const [org, setOrg]               = useState(null)
   const [loading, setLoading]       = useState(true)
   const [dateRange, setDateRange]   = useState('7')
   const [selectedRep, setSelectedRep] = useState('all')
@@ -51,25 +55,36 @@ export default function ManagerDashboard() {
     const dateTo   = endOfDay(new Date()).toISOString()
     const filters  = { dateFrom, dateTo, ...(selectedRep !== 'all' ? { repId: selectedRep } : {}) }
 
-    const [sess, repList, interactions, bkgs] = await Promise.all([
+    const [sess, repList, interactions, bkgs, myOrg] = await Promise.all([
       getAllSessions(filters),
       getAllReps(),
       getManagerMapData(filters),
       getAllBookings(filters),
+      getMyOrganization(),
     ])
     setSessions(sess)
     setReps(repList)
     setMapData(interactions)
     setBookings(bkgs)
+    setOrg(myOrg)
     setLoading(false)
   }
 
-  const totalRevenue   = sessions.reduce((s, x) => s + (x.revenue_booked || 0), 0)
-  const totalDoors     = sessions.reduce((s, x) => s + (x.doors_knocked || 0), 0)
-  const totalBookings  = sessions.reduce((s, x) => s + (x.bookings || 0), 0)
-  const totalEstimates = sessions.reduce((s, x) => s + (x.estimates || 0), 0)
-  const closeRate      = totalDoors > 0 ? ((totalBookings / totalDoors) * 100).toFixed(1) : '0'
-  const revenuePerDoor = totalDoors > 0 ? (totalRevenue / totalDoors).toFixed(2) : '0'
+  const totalRevenue       = sessions.reduce((s, x) => s + (x.revenue_booked || 0), 0)
+  const totalDoors         = sessions.reduce((s, x) => s + (x.doors_knocked || 0), 0)
+  const totalBookings      = sessions.reduce((s, x) => s + (x.bookings || 0), 0)
+  // A booking is always an estimate too — mirrors computePeriodStats so a
+  // historical session where raw estimates < bookings doesn't show a broken
+  // funnel (estimates smaller than bookings).
+  const totalEstimates     = sessions.reduce(
+    (s, x) => s + Math.max(x.estimates || 0, x.bookings || 0), 0)
+  const totalConversations = sessions.reduce((s, x) => s + (x.conversations || 0), 0)
+  const closeRate          = totalDoors > 0 ? ((totalBookings / totalDoors) * 100).toFixed(1) : '0'
+  const revenuePerDoor     = totalDoors > 0 ? (totalRevenue / totalDoors).toFixed(2) : '0'
+
+  // Org-configured terminology flows into the funnel so the Estimates row
+  // re-labels to "Appointments" for teams that prefer that verbiage.
+  const countLabel     = org?.count_goal_label === 'appointments' ? 'Appointments' : 'Estimates'
 
   const repMap = {}
   sessions.forEach((s) => {
@@ -179,7 +194,9 @@ export default function ManagerDashboard() {
             {tab === 'overview' && (
               <OverviewTab sessions={sessions} totalRevenue={totalRevenue} totalDoors={totalDoors}
                 totalBookings={totalBookings} totalEstimates={totalEstimates}
-                closeRate={closeRate} revenuePerDoor={revenuePerDoor} />
+                totalConversations={totalConversations}
+                closeRate={closeRate} revenuePerDoor={revenuePerDoor}
+                countLabel={countLabel} />
             )}
             {tab === 'live'        && <LiveTab allReps={reps} />}
             {tab === 'leaderboard' && <LeaderboardTab />}
@@ -195,13 +212,28 @@ export default function ManagerDashboard() {
 }
 
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
-function OverviewTab({ sessions, totalRevenue, totalDoors, totalBookings, totalEstimates, closeRate, revenuePerDoor }) {
+function OverviewTab({
+  sessions, totalRevenue, totalDoors, totalBookings, totalEstimates,
+  totalConversations = 0, closeRate, revenuePerDoor, countLabel = 'Estimates',
+}) {
   const navigate = useNavigate()
   const totalHours     = sessions.reduce((sum, s) => {
     if (!s.started_at || !s.ended_at) return sum
     return sum + (new Date(s.ended_at) - new Date(s.started_at)) / 3600000
   }, 0)
   const revenuePerHour = totalHours > 0 ? (totalRevenue / totalHours).toFixed(0) : '—'
+
+  // Feed the rep-side ConversionFunnel component with team-aggregated totals.
+  // The shape matches { doors, conversations, estimates, bookings, ... } so
+  // both computeConversion and ConversionFunnel render identically to rep view.
+  const teamStats = {
+    doors:         totalDoors,
+    conversations: totalConversations,
+    estimates:     totalEstimates,
+    bookings:      totalBookings,
+    revenue:       totalRevenue,
+  }
+  const teamConv = computeConversion(teamStats)
 
   function exportCSV() {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
@@ -293,6 +325,15 @@ function OverviewTab({ sessions, totalRevenue, totalDoors, totalBookings, totalE
         <KPICard label="Jobs Booked"     value={totalBookings}                   icon={<TrendingUp className="w-5 h-5"/>} color="emerald" />
         <KPICard label="Close Rate"      value={`${closeRate}%`}                 icon={<BarChart2 className="w-5 h-5"/>}  color="purple"  />
       </div>
+      {/* Team Conversion Funnel — same visualization reps see on their home
+         page, but aggregated across all filtered sessions. Lets a manager
+         spot where the team is leaking at a glance (Doors → Convos →
+         Estimates/Appointments → Bookings). */}
+      <ConversionFunnel
+        stats={teamStats}
+        conv={teamConv}
+        estimateLabel={countLabel}
+      />
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
         <div className="px-5 py-3 bg-gray-50 border-b">
           <p className="font-semibold text-gray-700 text-sm">Performance Metrics</p>
