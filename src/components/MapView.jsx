@@ -172,14 +172,23 @@ export default function MapView({ trail = [], interactions = [], currentPos = nu
       const editHint = onInteractionClick
         ? `<div style="color:#3B82F6;font-size:11px;margin-top:6px;font-weight:500">Tap pin to change status ↻</div>`
         : ''
+      // Escape HTML in rep-entered free text (notes / contact name) so it
+      // can't break popup markup or inject script.
+      const escapeHtml = (s) =>
+        String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+      const notesHtml = interaction.notes
+        ? `<div style="margin-top:6px;padding:6px 8px;background:#F3F4F6;border-radius:6px;color:#374151;font-size:12px;white-space:pre-wrap;line-height:1.35">💬 ${escapeHtml(interaction.notes)}</div>`
+        : ''
       const popupContent = `
-        <div style="min-width:160px;font-family:system-ui;font-size:13px">
+        <div style="min-width:160px;max-width:240px;font-family:system-ui;font-size:13px">
           <div style="font-weight:700;color:${color};margin-bottom:4px">
             ${OUTCOME_LABELS[interaction.outcome] || interaction.outcome}
           </div>
-          <div style="color:#374151;margin-bottom:2px">${interaction.address || 'Unknown address'}</div>
-          ${interaction.contact_name ? `<div style="color:#6B7280">👤 ${interaction.contact_name}</div>` : ''}
+          <div style="color:#374151;margin-bottom:2px">${escapeHtml(interaction.address || 'Unknown address')}</div>
+          ${interaction.contact_name ? `<div style="color:#6B7280">👤 ${escapeHtml(interaction.contact_name)}</div>` : ''}
           ${interaction.estimated_value ? `<div style="color:#059669;font-weight:600">$${interaction.estimated_value}</div>` : ''}
+          ${notesHtml}
           ${editHint}
         </div>
       `
