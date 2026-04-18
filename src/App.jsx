@@ -3,6 +3,7 @@ import { Component } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'
 import { SessionProvider } from './contexts/SessionContext.jsx'
 import Login             from './screens/Login.jsx'
+import Signup            from './screens/Signup.jsx'
 import RepHome           from './screens/RepHome.jsx'
 import ActiveCanvassing  from './screens/ActiveCanvassing.jsx'
 import SessionSummary    from './screens/SessionSummary.jsx'
@@ -29,6 +30,11 @@ class ErrorBoundary extends Component {
   }
 }
 
+function WelcomeRedirect() {
+  if (typeof window !== 'undefined') window.location.replace('/welcome.html')
+  return null
+}
+
 function AppRoutes() {
   const { user, loading } = useAuth()
 
@@ -36,7 +42,9 @@ function AppRoutes() {
 
   if (!user) return (
     <Routes>
-      <Route path="*" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/login"  element={<Login />} />
+      <Route path="*"       element={<WelcomeRedirect />} />
     </Routes>
   )
 
