@@ -413,7 +413,15 @@ async function callManageTeam(body) {
     try { payload = await res.json() } catch { /* not JSON */ }
 
     if (!res.ok) {
-      const msg = payload?.error || `Request failed (${res.status})`
+      // Different sources use different field names:
+      //   our function          → { error: "..."    }
+      //   Supabase gateway 401  → { code, message }
+      //   Postgres errors       → { message, hint  }
+      const msg =
+        payload?.error ||
+        payload?.message ||
+        payload?.msg ||
+        `Request failed (${res.status})`
       return { error: new Error(msg) }
     }
     if (payload?.error) return { error: new Error(payload.error) }
