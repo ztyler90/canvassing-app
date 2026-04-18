@@ -82,6 +82,42 @@ function reducer(state, action) {
       }
     }
 
+    // Replace an interaction after edit — recompute the stat deltas so that
+    // changing "no answer" → "booked" on an existing pin lifts the totals
+    // correctly (and changing the other direction backs them out).
+    case 'REPLACE_INTERACTION': {
+      const next = action.interaction
+      const key  = (i) => i.id ?? `${i.lat},${i.lng},${i.created_at ?? ''}`
+      const idx  = state.interactions.findIndex((i) => key(i) === key(next))
+      if (idx < 0) return state
+
+      const prev        = state.interactions[idx]
+      const wasConv     = ['not_interested', 'estimate_requested', 'booked'].includes(prev.outcome)
+      const wasEst      = prev.outcome === 'estimate_requested' || prev.outcome === 'booked'
+      const wasBooked   = prev.outcome === 'booked'
+      const isConv      = ['not_interested', 'estimate_requested', 'booked'].includes(next.outcome)
+      const isEst       = next.outcome === 'estimate_requested' || next.outcome === 'booked'
+      const isBooked    = next.outcome === 'booked'
+      const prevRevenue = wasBooked  ? (Number(prev.estimated_value) || 0) : 0
+      const newRevenue  = isBooked   ? (Number(next.estimated_value) || 0) : 0
+
+      const updated = [...state.interactions]
+      updated[idx] = { ...prev, ...next }
+
+      return {
+        ...state,
+        interactions: updated,
+        stats: {
+          ...state.stats,
+          // doors unchanged — the house was already counted
+          conversations: state.stats.conversations + (isConv ? 1 : 0) - (wasConv ? 1 : 0),
+          estimates:     state.stats.estimates     + (isEst ? 1 : 0)  - (wasEst ? 1 : 0),
+          bookings:      state.stats.bookings      + (isBooked ? 1 : 0) - (wasBooked ? 1 : 0),
+          revenue:       Math.max(0, state.stats.revenue + newRevenue - prevRevenue),
+        },
+      }
+    }
+
     case 'RESET':
       return initialState
 

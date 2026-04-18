@@ -108,8 +108,9 @@ function elapsedLabel(startedAt) {
  * @param {Array}   props.territories   - [{ polygon: [[lat,lng]], color, name }] rep's assigned zones
  * @param {Array}   props.doNotKnock    - [{ lat, lng, address, reason }] DNK list
  * @param {Array}   props.repLocations  - [{ rep_id, lat, lng, user, session }] live rep positions
+ * @param {Function} props.onInteractionClick - (interaction) => void   Tap an existing pin to edit
  */
-export default function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], repLocations = [] }) {
+export default function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], repLocations = [], onInteractionClick = null }) {
   const containerRef       = useRef(null)
   const mapRef             = useRef(null)
   const trailRef           = useRef(null)
@@ -168,6 +169,9 @@ export default function MapView({ trail = [], interactions = [], currentPos = nu
       const color   = OUTCOME_COLORS[interaction.outcome] || '#9CA3AF'
       const marker  = L.marker([interaction.lat, interaction.lng], { icon: makePin(color) })
 
+      const editHint = onInteractionClick
+        ? `<div style="color:#3B82F6;font-size:11px;margin-top:6px;font-weight:500">Tap pin to change status ↻</div>`
+        : ''
       const popupContent = `
         <div style="min-width:160px;font-family:system-ui;font-size:13px">
           <div style="font-weight:700;color:${color};margin-bottom:4px">
@@ -176,13 +180,24 @@ export default function MapView({ trail = [], interactions = [], currentPos = nu
           <div style="color:#374151;margin-bottom:2px">${interaction.address || 'Unknown address'}</div>
           ${interaction.contact_name ? `<div style="color:#6B7280">👤 ${interaction.contact_name}</div>` : ''}
           ${interaction.estimated_value ? `<div style="color:#059669;font-weight:600">$${interaction.estimated_value}</div>` : ''}
+          ${editHint}
         </div>
       `
       marker.bindPopup(popupContent)
+
+      // Tap to edit: fires the parent callback with the full interaction so
+      // the caller can open InteractionModal in edit mode. We still bind the
+      // popup so the rep sees the current status, then invoke the editor.
+      if (onInteractionClick) {
+        marker.on('click', () => {
+          onInteractionClick(interaction)
+        })
+      }
+
       marker.addTo(mapRef.current)
       markersRef.current.push(marker)
     })
-  }, [interactions])
+  }, [interactions, onInteractionClick])
 
   // Update current position marker + pan
   useEffect(() => {
