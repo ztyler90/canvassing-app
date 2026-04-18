@@ -6,9 +6,10 @@
  * Extras: editable address, photo attachments, booking celebration animation
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { X, User, Phone, Mail, DollarSign, MapPin, Edit2, Check, Camera } from 'lucide-react'
+import { X, User, Phone, Mail, DollarSign, MapPin, Edit2, Check, Camera, MessageSquare } from 'lucide-react'
 import {
   logInteraction,
+  updateInteraction,
   createBooking,
   uploadInteractionPhoto,
   updateInteractionPhotos,
@@ -41,25 +42,33 @@ export default function InteractionModal({
   onClose,
   onSave,
   isAuto = false,
+  existingInteraction = null,  // pass to open in edit mode
 }) {
+  const isEditing = !!existingInteraction
   const [step, setStep]               = useState('outcome')   // 'outcome' | 'details' | 'followup'
-  const [selectedOutcome, setOutcome] = useState(null)
-  const [address, setAddress]         = useState(knock?.address || '')
+  const [selectedOutcome, setOutcome] = useState(existingInteraction?.outcome || null)
+  const [address, setAddress]         = useState(existingInteraction?.address || knock?.address || '')
   const [editingAddress, setEditingAddress] = useState(false)
   const [addressDraft, setAddressDraft]     = useState('')
-  const [contactName, setContactName]   = useState('')
-  const [contactPhone, setContactPhone] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  const [selectedServices, setServices] = useState([])
-  const [estimatedValue, setEstValue]   = useState('')
+  const [contactName, setContactName]   = useState(existingInteraction?.contact_name  || '')
+  const [contactPhone, setContactPhone] = useState(existingInteraction?.contact_phone || '')
+  const [contactEmail, setContactEmail] = useState(existingInteraction?.contact_email || '')
+  const [selectedServices, setServices] = useState(existingInteraction?.service_types || [])
+  const [estimatedValue, setEstValue]   = useState(
+    existingInteraction?.estimated_value != null ? String(existingInteraction.estimated_value) : ''
+  )
+  // Free-form notes about the job — visible on outcome + details steps.
+  // Persists to interactions.notes regardless of which outcome the rep picks.
+  const [notes, setNotes]               = useState(existingInteraction?.notes || '')
   const [photos, setPhotos]             = useState([])        // File[]
   const [photoPreviews, setPhotoPreviews] = useState([])      // data URLs
   const [saving, setSaving]             = useState(false)
   const [error, setError]               = useState('')
   const [showCelebration, setShowCelebration] = useState(false)
-  const [savedInteractionId, setSavedInteractionId] = useState(null)
-  const [followUpFlagged, setFollowUpFlagged]       = useState(false)
+  const [savedInteractionId, setSavedInteractionId] = useState(existingInteraction?.id || null)
+  const [followUpFlagged, setFollowUpFlagged]       = useState(!!existingInteraction?.follow_up)
   const [slideVisible, setSlideVisible] = useState(false)  // drives slide-in/out
+  const outcomeRef = useRef(existingInteraction?.outcome || null)
   const fileInputRef       = useRef(null)
   const celebrationTimeout = useRef(null)
   const slideDownTimer     = useRef(null)
@@ -84,18 +93,25 @@ export default function InteractionModal({
     }
   }, [])
 
-  // Auto-dismiss after 3 s visible → 0.4 s slide-down (only for auto knocks)
+  // Auto-dismiss after 4 s visible → 0.4 s slide-down (only for auto knocks
+  // on a brand-new interaction — never on edits). If no outcome was picked
+  // by the time the timer fires, log the house as "no answer" so it still
+  // shows on the map.
   useEffect(() => {
-    if (!isAuto) return
+    if (!isAuto || isEditing) return
     slideDownTimer.current = setTimeout(() => {
+      // If the rep never tapped an outcome, default to "no_answer"
+      if (!outcomeRef.current) {
+        saveInteraction('no_answer', {}, { silent: true })
+      }
       setSlideVisible(false)
       dismissTimer.current = setTimeout(onClose, 400)
-    }, 3000)
+    }, 4000)
     return () => {
       clearTimeout(slideDownTimer.current)
       clearTimeout(dismissTimer.current)
     }
-  }, [isAuto]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAuto, isEditing]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cancel auto-dismiss the moment the rep taps anything
   const cancelAutoDismiss = () => {
@@ -134,8 +150,11 @@ export default function InteractionModal({
   const handleOutcomeSelect = async (outcomeId) => {
     cancelAutoDismiss()
     setOutcome(outcomeId)
+    outcomeRef.current = outcomeId
     if (outcomeId === 'no_answer' || outcomeId === 'not_interested') {
-      await saveInteraction(outcomeId, {})
+      // Carry the typed notes through so "no answer / not interested" saves
+      // still capture any context the rep typed on the outcome screen.
+      await saveInteraction(outcomeId, { notes: notes || null })
     } else {
       setStep('details')
     }
@@ -154,31 +173,61 @@ export default function InteractionModal({
       contact_email:   contactEmail,
       service_types:   selectedServices,
       estimated_value: estimatedValue ? Number(estimatedValue) : null,
+      notes:           notes || null,
     })
   }
 
-  const saveInteraction = async (outcome, extras) => {
+  const saveInteraction = async (outcome, extras, opts = {}) => {
+    const { silent = false } = opts
     setSaving(true)
     setError('')
+    outcomeRef.current = outcome
 
     const payload = {
       session_id: sessionId,
       rep_id:     repId,
       address:    address || null,
-      lat:        knock?.lat || null,
-      lng:        knock?.lng || null,
+      lat:        knock?.lat || existingInteraction?.lat || null,
+      lng:        knock?.lng || existingInteraction?.lng || null,
       outcome,
       ...extras,
     }
 
-    const { data, error: err } = await logInteraction(payload)
-    if (err) { setError(err.message); setSaving(false); return }
+    let interactionId = existingInteraction?.id || null
+    let savedData     = null
 
-    const interactionId = data?.id
-    setSavedInteractionId(interactionId)
+    if (isEditing) {
+      // Only update the fields that actually change via the modal — leave
+      // session_id / rep_id / lat / lng alone.
+      const editUpdates = {
+        outcome,
+        address:         address || null,
+        contact_name:    extras.contact_name,
+        contact_phone:   extras.contact_phone,
+        contact_email:   extras.contact_email,
+        service_types:   extras.service_types,
+        estimated_value: extras.estimated_value,
+        notes:           extras.notes,
+      }
+      // Strip undefined so we don't clobber fields with nulls on the "no answer"
+      // / "not interested" branch (extras is {}).
+      Object.keys(editUpdates).forEach(
+        (k) => editUpdates[k] === undefined && delete editUpdates[k]
+      )
+      const { data, error: err } = await updateInteraction(interactionId, editUpdates)
+      if (err) { setError(err.message); setSaving(false); return }
+      savedData = data
+    } else {
+      const { data, error: err } = await logInteraction(payload)
+      if (err) { setError(err.message); setSaving(false); return }
+      savedData   = data
+      interactionId = data?.id
+      setSavedInteractionId(interactionId)
+    }
 
-    // Upload photos (best-effort — failure doesn't block saving)
-    if (photos.length > 0 && interactionId) {
+    // Upload photos (best-effort — failure doesn't block saving). Skip in
+    // silent mode (auto-dismiss without rep input) since no photos are possible.
+    if (!silent && photos.length > 0 && interactionId) {
       try {
         const urls = (
           await Promise.all(photos.map((f) => uploadInteractionPhoto(interactionId, f)))
@@ -192,10 +241,11 @@ export default function InteractionModal({
       }
     }
 
-    // Create booking record
-    if (outcome === 'booked' && data) {
+    // Create booking record (only on first-time save — on edits the booking
+    // row already exists and shouldn't be duplicated).
+    if (!isEditing && outcome === 'booked' && savedData) {
       await createBooking({
-        interaction_id:  data.id,
+        interaction_id:  savedData.id,
         session_id:      sessionId,
         rep_id:          repId,
         address:         address,
@@ -207,8 +257,18 @@ export default function InteractionModal({
       })
     }
 
-    onSave?.({ ...payload, id: interactionId })
+    onSave?.({ ...payload, id: interactionId, isEdit: isEditing })
     setSaving(false)
+
+    // Silent saves (auto-no-answer on timeout, or edits) skip the
+    // celebration / followup flow — the modal is about to close.
+    if (silent) return
+
+    if (isEditing) {
+      // Edits: confirm + close without running the followup wizard again.
+      onClose?.()
+      return
+    }
 
     if (outcome === 'booked') {
       setShowCelebration(true)
@@ -419,6 +479,26 @@ export default function InteractionModal({
                 </button>
               ))}
             </div>
+
+            {/* Notes / comments — open field so reps can capture any context
+                about the visit (e.g. "dog barking, no one home", "tenant said
+                owner is away until Friday"). Saved with the interaction no
+                matter which outcome the rep picks. */}
+            <div className="mt-4">
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                <MessageSquare className="w-3.5 h-3.5" />
+                Notes <span className="text-gray-400 normal-case font-normal">(optional)</span>
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => { cancelAutoDismiss(); setNotes(e.target.value) }}
+                onFocus={cancelAutoDismiss}
+                placeholder="Add any comments about this job…"
+                rows={3}
+                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none resize-none"
+              />
+            </div>
+
             {saving && (
               <p className="text-center text-sm text-gray-400 mt-4">Saving…</p>
             )}
@@ -553,6 +633,23 @@ export default function InteractionModal({
                   {photoPreviews.length > 0 ? 'Add More Photos' : 'Add Photos'}
                 </button>
               )}
+            </div>
+
+            {/* Notes — mirrors the field on the outcome step so reps can add
+                or refine comments after filling in contact + services. State
+                is shared, so typing in either place saves to the same column. */}
+            <div>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                <MessageSquare className="w-3.5 h-3.5" />
+                Notes <span className="text-gray-400 normal-case font-normal">(optional)</span>
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Any comments about this job…"
+                rows={3}
+                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none resize-none"
+              />
             </div>
 
             {error && <p className="text-red-600 text-sm">{error}</p>}

@@ -35,24 +35,82 @@ export async function signOut() {
   return supabase.auth.signOut()
 }
 
-/** Update the current rep's display name (and optionally email) */
-export async function updateUserProfile({ fullName, email }) {
-  const authUpdates = {}
-  if (email)    authUpdates.email = email
-  if (fullName) authUpdates.data  = { full_name: fullName }
+/**
+ * Update the current rep's display name, email, and/or avatar_url.
+ *
+ * IMPORTANT: we deliberately use getSession() (not getUser()) and we do the
+ * public.users row update BEFORE calling auth.updateUser(). Reason: calling
+ * auth.updateUser() fires an onAuthStateChange event that acquires the
+ * Supabase Web Lock, and if the listener (or anything running inside it)
+ * awaits another supabase.auth.* call, the whole chain deadlocks and the
+ * save button gets stuck on "Saving…". Running the DB mirror first, then
+ * the auth update last, keeps everything lock-safe.
+ */
+export async function updateUserProfile({ fullName, email, avatarUrl } = {}) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
+    if (!user) return { error: new Error('No active session') }
 
-  const { error: authError } = await supabase.auth.updateUser(authUpdates)
-  if (authError) return { error: authError }
-
-  // Also update the public.users row so dashboards reflect the new name immediately
-  if (fullName) {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      await supabase.from('users').update({ full_name: fullName }).eq('id', user.id)
+    // 1. Mirror to public.users FIRST so the Rep dashboard reflects it even
+    //    if the auth update is slow or the user closes the page.
+    const row = {}
+    if (fullName)                row.full_name  = fullName
+    if (avatarUrl !== undefined) row.avatar_url = avatarUrl
+    if (Object.keys(row).length > 0) {
+      const { error: dbError } = await supabase
+        .from('users').update(row).eq('id', user.id)
+      if (dbError) return { error: dbError }
     }
-  }
 
-  return { error: null }
+    // 2. Auth update (metadata + email). Run last so the trailing
+    //    onAuthStateChange event doesn't block earlier DB work.
+    const authUpdates = {}
+    if (email) authUpdates.email = email
+    if (fullName || avatarUrl !== undefined) {
+      authUpdates.data = {}
+      if (fullName)                authUpdates.data.full_name  = fullName
+      if (avatarUrl !== undefined) authUpdates.data.avatar_url = avatarUrl
+    }
+    if (Object.keys(authUpdates).length > 0) {
+      const { error: authError } = await supabase.auth.updateUser(authUpdates)
+      if (authError) return { error: authError }
+    }
+
+    return { error: null }
+  } catch (err) {
+    return { error: err }
+  }
+}
+
+/**
+ * Upload a profile picture for the current user to the "avatars" bucket,
+ * return its public URL (null on failure). Uses getSession() (local-storage
+ * read, no network, no lock) instead of getUser() to avoid the Web Locks
+ * deadlock that hangs the upload spinner forever.
+ */
+export async function uploadAvatar(file) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
+    if (!user) return null
+    const ext  = (file.name.split('.').pop() || 'jpg').toLowerCase()
+    const path = `${user.id}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { cacheControl: '3600', upsert: true })
+    if (error) {
+      console.warn('[Storage] Avatar upload failed:', error.message)
+      return null
+    }
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(path)
+    return publicUrl
+  } catch (err) {
+    console.warn('[Storage] Avatar upload threw:', err)
+    return null
+  }
 }
 
 /** Send a password-reset email to the given address */
@@ -206,10 +264,52 @@ export async function getAllReps() {
   // automatically filters to the caller's organization. No more manager_id.
   const { data } = await supabase
     .from('users')
-    .select('id, full_name, email, role, organization_id')
+    .select('id, full_name, email, role, organization_id, commission_config')
     .eq('role', 'rep')
     .order('full_name')
   return data || []
+}
+
+/**
+ * Fetch a single rep's profile + commission config. Used by the manager
+ * Rep Detail screen to render an individual rep's home-page metrics.
+ * RLS ensures the caller can only read users in their own organization.
+ */
+export async function getRepById(repId) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, full_name, email, role, avatar_url, commission_config, organization_id')
+    .eq('id', repId)
+    .single()
+  if (error) return null
+  return data
+}
+
+/** Get the rep's own commission_config (null if not set by manager yet) */
+export async function getMyCommissionConfig() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data } = await supabase
+    .from('users')
+    .select('commission_config')
+    .eq('id', user.id)
+    .single()
+  return data?.commission_config || null
+}
+
+/**
+ * Save a rep's commission_config. Must be called by a manager in the same org
+ * (enforced by the "Managers update reps in their org" RLS policy added in the
+ * 20260418_commission migration).
+ */
+export async function updateRepCommissionConfig(repId, config) {
+  const { data, error } = await supabase
+    .from('users')
+    .update({ commission_config: config })
+    .eq('id', repId)
+    .select('id, commission_config')
+    .single()
+  return { data, error }
 }
 
 // ── Organization helpers (Phase 1) ────────────────────────────────────────────
@@ -288,6 +388,28 @@ export async function updateOrganizationName(orgId, name) {
   return { data, error }
 }
 
+/**
+ * Update the org's daily goal configuration. Called from manager Settings.
+ *  type         : 'revenue' | 'count'
+ *  value        : numeric target (dollars if revenue, count if count)
+ *  countLabel   : 'estimates' | 'appointments' — verbiage shown to reps
+ *
+ * RLS: only the org owner or a super-admin can update this row.
+ */
+export async function updateOrganizationGoal(orgId, { type, value, countLabel }) {
+  const patch = {}
+  if (type       !== undefined) patch.daily_goal_type  = type
+  if (value      !== undefined) patch.daily_goal_value = value
+  if (countLabel !== undefined) patch.count_goal_label = countLabel
+  const { data, error } = await supabase
+    .from('organizations')
+    .update(patch)
+    .eq('id', orgId)
+    .select()
+    .single()
+  return { data, error }
+}
+
 /** Count users in each org — for the super-admin dashboard. */
 export async function getOrganizationMemberCounts() {
   const { data } = await supabase
@@ -302,15 +424,59 @@ export async function getOrganizationMemberCounts() {
 }
 
 /**
+ * Thin wrapper around fetch() for our manage-team edge function. Using fetch
+ * directly (instead of supabase.functions.invoke) lets us read the real JSON
+ * error body on non-2xx responses — invoke() just surfaces "non-2xx status
+ * code" and swallows the specific reason.
+ */
+async function callManageTeam(body) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return { error: new Error('Not signed in') }
+
+    const url = `${supabaseUrl}/functions/v1/manage-team`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'apikey':        supabaseKey,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+
+    let payload = null
+    try { payload = await res.json() } catch { /* not JSON */ }
+
+    if (!res.ok) {
+      // Different sources use different field names:
+      //   our function          → { error: "..."    }
+      //   Supabase gateway 401  → { code, message }
+      //   Postgres errors       → { message, hint  }
+      const msg =
+        payload?.error ||
+        payload?.message ||
+        payload?.msg ||
+        `Request failed (${res.status})`
+      return { error: new Error(msg) }
+    }
+    if (payload?.error) return { error: new Error(payload.error) }
+    return { data: payload, error: null }
+  } catch (err) {
+    return { error: err instanceof Error ? err : new Error(String(err)) }
+  }
+}
+
+/**
  * Create a new rep under this manager.
  * Calls the manage-team Edge Function (service role required).
  */
 export async function createRep({ fullName, email, password }) {
-  const { data, error } = await supabase.functions.invoke('manage-team', {
-    body: { action: 'create', fullName, email, password },
+  const { data, error } = await callManageTeam({
+    action: 'create', fullName, email, password,
   })
   if (error) return { error }
-  if (data?.error) return { error: new Error(data.error) }
   return { user: data?.user, error: null }
 }
 
@@ -319,12 +485,8 @@ export async function createRep({ fullName, email, password }) {
  * Calls the manage-team Edge Function.
  */
 export async function deleteRep(repId) {
-  const { data, error } = await supabase.functions.invoke('manage-team', {
-    body: { action: 'delete', repId },
-  })
-  if (error) return { error }
-  if (data?.error) return { error: new Error(data.error) }
-  return { error: null }
+  const { error } = await callManageTeam({ action: 'delete', repId })
+  return { error: error || null }
 }
 
 // ── Territory helpers ─────────────────────────────────────────────────────────
@@ -624,13 +786,24 @@ export async function flagInteractionFollowUp(interactionId, notes = null) {
 // ── Booking query helpers ─────────────────────────────────────────────────────
 
 /**
- * Get all bookings for the manager view, joining interaction photos / follow-up flag.
- * Returns an array of booking rows with nested `interactions` and `users` objects.
+ * Get all bookings for the manager view.
+ *
+ * Source of truth is `interactions` (outcome='booked') — every booking comes in
+ * through the rep's interaction modal and already carries address, contact
+ * info, photos, follow-up flag, estimated value, and organization_id. The
+ * separate `bookings` pipeline table (for future CRM status tracking) is not
+ * queried here because it's optional and historically under-populated — reading
+ * straight from interactions guarantees the tab always shows every booked job.
+ *
+ * Returns rows shaped to match the existing BookingsTab contract: photo_urls
+ * and follow_up live under a nested `interactions` object so the view layer
+ * doesn't need to change.
  */
 export async function getAllBookings(filters = {}) {
   let query = supabase
-    .from('bookings')
-    .select('*, interactions(photo_urls, follow_up, follow_up_notes, notes), users(full_name)')
+    .from('interactions')
+    .select('*, users(full_name)')
+    .eq('outcome', 'booked')
     .order('created_at', { ascending: false })
     .limit(100)
 
@@ -639,7 +812,17 @@ export async function getAllBookings(filters = {}) {
   if (filters.dateTo)   query = query.lte('created_at', filters.dateTo)
 
   const { data } = await query
-  return data || []
+  return (data || []).map((row) => ({
+    ...row,
+    // Nest the photo / follow-up fields under `interactions` so the BookingsTab
+    // UI (which used to read from a joined bookings→interactions row) still works.
+    interactions: {
+      photo_urls:      row.photo_urls,
+      follow_up:       row.follow_up,
+      follow_up_notes: row.follow_up_notes,
+      notes:           row.notes,
+    },
+  }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns'
-import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield } from 'lucide-react'
+import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllSessions, getAllReps, getManagerMapData, signOut,
@@ -9,7 +9,10 @@ import {
   setTerritoryAssignments, getAllDoorHistory, getDoNotKnockList,
   addDoNotKnock, removeDoNotKnock,
   getActiveRepLocations, getLeaderboardData, getAllBookings,
+  getMyOrganization,
 } from '../lib/supabase.js'
+import { computeConversion } from '../lib/repStats.js'
+import { ConversionFunnel } from './RepHome.jsx'
 import MapView from '../components/MapView.jsx'
 import TerritoryMap from '../components/TerritoryMap.jsx'
 
@@ -38,6 +41,7 @@ export default function ManagerDashboard() {
   const [reps, setReps]             = useState([])
   const [mapData, setMapData]       = useState([])
   const [bookings, setBookings]     = useState([])
+  const [org, setOrg]               = useState(null)
   const [loading, setLoading]       = useState(true)
   const [dateRange, setDateRange]   = useState('7')
   const [selectedRep, setSelectedRep] = useState('all')
@@ -51,25 +55,36 @@ export default function ManagerDashboard() {
     const dateTo   = endOfDay(new Date()).toISOString()
     const filters  = { dateFrom, dateTo, ...(selectedRep !== 'all' ? { repId: selectedRep } : {}) }
 
-    const [sess, repList, interactions, bkgs] = await Promise.all([
+    const [sess, repList, interactions, bkgs, myOrg] = await Promise.all([
       getAllSessions(filters),
       getAllReps(),
       getManagerMapData(filters),
       getAllBookings(filters),
+      getMyOrganization(),
     ])
     setSessions(sess)
     setReps(repList)
     setMapData(interactions)
     setBookings(bkgs)
+    setOrg(myOrg)
     setLoading(false)
   }
 
-  const totalRevenue   = sessions.reduce((s, x) => s + (x.revenue_booked || 0), 0)
-  const totalDoors     = sessions.reduce((s, x) => s + (x.doors_knocked || 0), 0)
-  const totalBookings  = sessions.reduce((s, x) => s + (x.bookings || 0), 0)
-  const totalEstimates = sessions.reduce((s, x) => s + (x.estimates || 0), 0)
-  const closeRate      = totalDoors > 0 ? ((totalBookings / totalDoors) * 100).toFixed(1) : '0'
-  const revenuePerDoor = totalDoors > 0 ? (totalRevenue / totalDoors).toFixed(2) : '0'
+  const totalRevenue       = sessions.reduce((s, x) => s + (x.revenue_booked || 0), 0)
+  const totalDoors         = sessions.reduce((s, x) => s + (x.doors_knocked || 0), 0)
+  const totalBookings      = sessions.reduce((s, x) => s + (x.bookings || 0), 0)
+  // A booking is always an estimate too — mirrors computePeriodStats so a
+  // historical session where raw estimates < bookings doesn't show a broken
+  // funnel (estimates smaller than bookings).
+  const totalEstimates     = sessions.reduce(
+    (s, x) => s + Math.max(x.estimates || 0, x.bookings || 0), 0)
+  const totalConversations = sessions.reduce((s, x) => s + (x.conversations || 0), 0)
+  const closeRate          = totalDoors > 0 ? ((totalBookings / totalDoors) * 100).toFixed(1) : '0'
+  const revenuePerDoor     = totalDoors > 0 ? (totalRevenue / totalDoors).toFixed(2) : '0'
+
+  // Org-configured terminology flows into the funnel so the Estimates row
+  // re-labels to "Appointments" for teams that prefer that verbiage.
+  const countLabel     = org?.count_goal_label === 'appointments' ? 'Appointments' : 'Estimates'
 
   const repMap = {}
   sessions.forEach((s) => {
@@ -179,11 +194,13 @@ export default function ManagerDashboard() {
             {tab === 'overview' && (
               <OverviewTab sessions={sessions} totalRevenue={totalRevenue} totalDoors={totalDoors}
                 totalBookings={totalBookings} totalEstimates={totalEstimates}
-                closeRate={closeRate} revenuePerDoor={revenuePerDoor} />
+                totalConversations={totalConversations}
+                closeRate={closeRate} revenuePerDoor={revenuePerDoor}
+                countLabel={countLabel} />
             )}
             {tab === 'live'        && <LiveTab allReps={reps} />}
             {tab === 'leaderboard' && <LeaderboardTab />}
-            {tab === 'reps'        && <RepsTab repStats={repStats} />}
+            {tab === 'reps'        && <RepsTab repStats={repStats} allReps={reps} />}
             {tab === 'bookings'    && <BookingsTab bookings={bookings} />}
             {tab === 'map'         && <MapTab interactions={mapData} />}
             {tab === 'territories' && <TerritoryTab allReps={reps} managerId={user?.id} />}
@@ -195,13 +212,28 @@ export default function ManagerDashboard() {
 }
 
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
-function OverviewTab({ sessions, totalRevenue, totalDoors, totalBookings, totalEstimates, closeRate, revenuePerDoor }) {
+function OverviewTab({
+  sessions, totalRevenue, totalDoors, totalBookings, totalEstimates,
+  totalConversations = 0, closeRate, revenuePerDoor, countLabel = 'Estimates',
+}) {
   const navigate = useNavigate()
   const totalHours     = sessions.reduce((sum, s) => {
     if (!s.started_at || !s.ended_at) return sum
     return sum + (new Date(s.ended_at) - new Date(s.started_at)) / 3600000
   }, 0)
   const revenuePerHour = totalHours > 0 ? (totalRevenue / totalHours).toFixed(0) : '—'
+
+  // Feed the rep-side ConversionFunnel component with team-aggregated totals.
+  // The shape matches { doors, conversations, estimates, bookings, ... } so
+  // both computeConversion and ConversionFunnel render identically to rep view.
+  const teamStats = {
+    doors:         totalDoors,
+    conversations: totalConversations,
+    estimates:     totalEstimates,
+    bookings:      totalBookings,
+    revenue:       totalRevenue,
+  }
+  const teamConv = computeConversion(teamStats)
 
   function exportCSV() {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
@@ -293,6 +325,15 @@ function OverviewTab({ sessions, totalRevenue, totalDoors, totalBookings, totalE
         <KPICard label="Jobs Booked"     value={totalBookings}                   icon={<TrendingUp className="w-5 h-5"/>} color="emerald" />
         <KPICard label="Close Rate"      value={`${closeRate}%`}                 icon={<BarChart2 className="w-5 h-5"/>}  color="purple"  />
       </div>
+      {/* Team Conversion Funnel — same visualization reps see on their home
+         page, but aggregated across all filtered sessions. Lets a manager
+         spot where the team is leaking at a glance (Doors → Convos →
+         Estimates/Appointments → Bookings). */}
+      <ConversionFunnel
+        stats={teamStats}
+        conv={teamConv}
+        estimateLabel={countLabel}
+      />
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
         <div className="px-5 py-3 bg-gray-50 border-b">
           <p className="font-semibold text-gray-700 text-sm">Performance Metrics</p>
@@ -454,19 +495,32 @@ function BookingsTab({ bookings }) {
 }
 
 // ─── Reps Tab ─────────────────────────────────────────────────────────────────
-function RepsTab({ repStats }) {
-  if (!repStats.length) return (
-    <div className="text-center py-16 text-gray-400">
-      <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
-      <p>No rep data for this period.</p>
-    </div>
-  )
+// Shows a perf card for each rep with activity in the selected window, plus a
+// dim card for reps on the team who had no sessions in the period (so newly-
+// added reps don't disappear until they log their first door). An "Add Rep"
+// button at the bottom opens the full Team Management flow in Settings.
+function RepsTab({ repStats, allReps = [] }) {
+  const navigate = useNavigate()
+
+  // Reps who are on the team but produced no sessions in the current window.
+  const activeIds = new Set(repStats.map((r) => r.id))
+  const idleReps  = allReps.filter((r) => !activeIds.has(r.id))
+
+  const handleAddRep    = () => navigate('/settings', { state: { openAddRep: true } })
+  const handleOpenRep   = (repId) => navigate(`/manager/rep/${repId}`)
+
   return (
     <div className="space-y-3">
+      {/* Active reps with performance stats — tap to drill into full stats */}
       {repStats.map((rep, i) => {
         const cr = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0'
         return (
-          <div key={rep.id} className="bg-white rounded-2xl border border-gray-200 p-4">
+          <button
+            key={rep.id}
+            onClick={() => handleOpenRep(rep.id)}
+            className="w-full text-left bg-white rounded-2xl border border-gray-200 p-4 active:bg-gray-50 hover:border-blue-300 transition-colors"
+            aria-label={`Open ${rep.name} details`}
+          >
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm"
                 style={{ backgroundColor: BRAND_GREEN }}>{i + 1}</div>
@@ -474,9 +528,12 @@ function RepsTab({ repStats }) {
                 <p className="font-bold text-gray-900">{rep.name}</p>
                 <p className="text-xs text-gray-400">{rep.sessions} sessions</p>
               </div>
-              <div className="ml-auto text-right">
-                <p className="text-lg font-bold text-gray-900">${rep.revenue.toFixed(0)}</p>
-                <p className="text-xs text-green-600">{rep.bookings} booked</p>
+              <div className="ml-auto text-right flex items-center gap-1">
+                <div>
+                  <p className="text-lg font-bold text-gray-900">${rep.revenue.toFixed(0)}</p>
+                  <p className="text-xs text-green-600">{rep.bookings} booked</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0 ml-1" />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100">
@@ -484,9 +541,53 @@ function RepsTab({ repStats }) {
               <MicroStat label="Estimates" value={rep.estimates}   />
               <MicroStat label="Close %"   value={`${cr}%`}        />
             </div>
-          </div>
+          </button>
         )
       })}
+
+      {/* Empty state if no sessions anywhere in the period */}
+      {repStats.length === 0 && (
+        <div className="text-center py-10 text-gray-400">
+          <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="font-medium text-sm">No rep activity in this period.</p>
+          <p className="text-xs mt-1">Try expanding the date range — or add a new rep below.</p>
+        </div>
+      )}
+
+      {/* Reps on the team with no sessions in the window — keeps them visible. */}
+      {idleReps.length > 0 && (
+        <div className="pt-2">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">No activity yet</p>
+          <div className="space-y-2">
+            {idleReps.map((rep) => (
+              <button
+                key={rep.id}
+                onClick={() => handleOpenRep(rep.id)}
+                className="w-full text-left bg-gray-50 rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3 active:bg-gray-100 hover:border-blue-300 transition-colors"
+                aria-label={`Open ${rep.full_name || rep.email} details`}
+              >
+                <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-500 text-xs font-bold flex items-center justify-center">
+                  {(rep.full_name || rep.email || '?')[0].toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-gray-700 truncate">{rep.full_name || rep.email}</p>
+                  <p className="text-xs text-gray-400 truncate">No sessions in this window</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Add Rep button — opens Settings team management flow with the form pre-opened */}
+      <button
+        onClick={handleAddRep}
+        className="w-full mt-3 py-3 rounded-2xl border-2 border-dashed flex items-center justify-center gap-2 text-sm font-semibold transition-colors hover:bg-blue-50"
+        style={{ borderColor: BRAND_GREEN, color: BRAND_GREEN }}>
+        <UserPlus className="w-4 h-4" />
+        Add Rep
+      </button>
     </div>
   )
 }

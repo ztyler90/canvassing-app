@@ -1,21 +1,47 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle, Home, Clock, DollarSign, Target, BarChart2 } from 'lucide-react'
 import { useSession } from '../contexts/SessionContext.jsx'
+import { getMyOrganization } from '../lib/supabase.js'
 import { format } from 'date-fns'
 
 const BRAND_GREEN = '#1B4FCC'  // KnockIQ blue
-const DAILY_GOAL  = 1000
+// Fallback used until the org row loads (and for pre-goal-config orgs).
+const DEFAULT_GOAL = {
+  daily_goal_type:  'revenue',
+  daily_goal_value: 1000,
+  count_goal_label: 'estimates',
+}
 
 export default function SessionSummary() {
   const { state, dispatch } = useSession()
   const navigate            = useNavigate()
   const { stats }           = state
+  const [goalCfg, setGoalCfg] = useState(DEFAULT_GOAL)
 
   // If somehow landed here without data, go home
   useEffect(() => {
     if (state.isRunning) navigate('/canvassing', { replace: true })
   }, [state.isRunning])
+
+  // Pull the manager-configured daily goal so this summary's progress bar
+  // matches the home screen. Silent fallback to the default on failure —
+  // the summary is non-blocking.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const org = await getMyOrganization()
+        if (!org || cancelled) return
+        setGoalCfg({
+          daily_goal_type:  org.daily_goal_type  || DEFAULT_GOAL.daily_goal_type,
+          daily_goal_value: Number(org.daily_goal_value ?? DEFAULT_GOAL.daily_goal_value),
+          count_goal_label: org.count_goal_label || DEFAULT_GOAL.count_goal_label,
+        })
+      } catch { /* keep defaults */ }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const duration = stats.startedAt
     ? Math.floor((Date.now() - stats.startedAt) / 60000)
@@ -33,8 +59,15 @@ export default function SessionSummary() {
     ? ((stats.bookings / stats.doors) * 100).toFixed(1)
     : '0'
 
-  const goalPct     = Math.min((stats.revenue / DAILY_GOAL) * 100, 100)
-  const goalReached = stats.revenue >= DAILY_GOAL
+  const isRevenueGoal = goalCfg.daily_goal_type === 'revenue'
+  const countNoun     = goalCfg.count_goal_label === 'appointments' ? 'appointments' : 'estimates'
+  const goalTarget    = Number(goalCfg.daily_goal_value) || 0
+  const goalCurrent   = isRevenueGoal ? stats.revenue : stats.estimates
+  const goalPct       = goalTarget > 0 ? Math.min((goalCurrent / goalTarget) * 100, 100) : 0
+  const goalReached   = goalTarget > 0 && goalCurrent >= goalTarget
+  const goalProgressLabel = isRevenueGoal
+    ? `$${stats.revenue.toFixed(0)} / $${goalTarget.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : `${goalCurrent} / ${goalTarget} ${countNoun}`
 
   const handleDone = () => {
     dispatch({ type: 'RESET' })
@@ -59,7 +92,7 @@ export default function SessionSummary() {
           <div className="flex items-center justify-between mb-3">
             <span className="font-semibold text-gray-700">Daily Goal Progress</span>
             <span className="font-bold text-lg">
-              {goalReached ? '🏆 Goal Hit!' : `$${stats.revenue.toFixed(0)} / $1,000`}
+              {goalReached ? '🏆 Goal Hit!' : goalProgressLabel}
             </span>
           </div>
           <div className="h-3 bg-gray-100 rounded-full overflow-hidden">

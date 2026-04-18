@@ -3,7 +3,7 @@
  *
  * A "door knock" is registered when a rep:
  *   1. Stops within STOP_RADIUS_M meters of a position
- *   2. Remains there for at least MIN_STOP_SECS seconds (4 s)
+ *   2. Remains there for at least MIN_STOP_SECS seconds (5 s)
  *   3. The resolved address hasn't been logged in the last 24 hours
  *
  * Key v2 changes
@@ -27,7 +27,7 @@ import { wasAddressRecentlyVisited } from './supabase.js'
 
 // ── Thresholds ──────────────────────────────────────────────────
 const STOP_RADIUS_M      = 15    // ~50 ft — max drift while "stopped"
-const MIN_STOP_SECS      = 4     // seconds to qualify as a door knock
+const MIN_STOP_SECS      = 5     // seconds to qualify as a door knock
 const AUTO_PROMPT_SECS   = 45    // auto-open modal (likely in conversation)
 const MIN_MOVE_M         = 5     // metres to count as "left the stop"
 const JITTER_FACTOR      = 0.5   // movement < accuracy × this → GPS noise

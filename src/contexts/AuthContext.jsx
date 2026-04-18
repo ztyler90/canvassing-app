@@ -12,7 +12,7 @@ async function buildProfile(sessionUser) {
   try {
     const { data: row } = await supabase
       .from('users')
-      .select('id, email, full_name, role, organization_id, is_super_admin')
+      .select('id, email, full_name, role, organization_id, is_super_admin, avatar_url')
       .eq('id', sessionUser.id)
       .single()
     if (row) {
@@ -36,6 +36,7 @@ async function buildProfile(sessionUser) {
     organization_id: null,
     organization: null,
     is_super_admin: false,
+    avatar_url: meta.avatar_url || null,
   }
 }
 
@@ -48,17 +49,27 @@ export function AuthProvider({ children }) {
     let initResolved = false   // tracks whether the initial session check fired
 
     // Always-on handler: processes every auth event (INITIAL_SESSION, SIGNED_IN,
-    // SIGNED_OUT, TOKEN_REFRESHED, etc.)
+    // SIGNED_OUT, TOKEN_REFRESHED, USER_UPDATED, etc.)
+    //
+    // IMPORTANT: do NOT await supabase queries directly inside this callback.
+    // supabase-js holds a Web Lock while the listener runs, and any
+    // supabase.auth.* call fired elsewhere during that window will deadlock
+    // (classic symptom: "Save" or "Upload" buttons stuck spinning forever).
+    // Defer the async work with setTimeout(0) so the lock is released before
+    // buildProfile runs its DB queries.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (!mounted) return
         initResolved = true
-        if (session?.user) {
-          const profile = await buildProfile(session.user)
-          if (mounted) { setUser(profile); setLoading(false) }
-        } else {
-          if (mounted) { setUser(null); setLoading(false) }
-        }
+        setTimeout(async () => {
+          if (!mounted) return
+          if (session?.user) {
+            const profile = await buildProfile(session.user)
+            if (mounted) { setUser(profile); setLoading(false) }
+          } else {
+            if (mounted) { setUser(null); setLoading(false) }
+          }
+        }, 0)
       }
     )
 

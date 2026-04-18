@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import { gpsTracker } from '../lib/gps.js'
 import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, getWebhookUrl, fireZapierWebhook } from '../lib/supabase.js'
+import { acquireWakeLock, releaseWakeLock, isWakeLockSupported } from '../lib/wakeLock.js'
 import MapView from '../components/MapView.jsx'
 import InteractionModal from '../components/InteractionModal.jsx'
 
@@ -18,9 +19,11 @@ export default function ActiveCanvassing() {
   const [elapsed, setElapsed]       = useState(0)   // seconds
   const [stopping, setStopping]     = useState(false)
   const [showManualLog, setShowManualLog] = useState(false)
+  const [editingInteraction, setEditingInteraction] = useState(null)
   const [currentPos, setCurrentPos] = useState(null)
   const [territories, setTerritories] = useState([])
   const [doNotKnock, setDoNotKnock]   = useState([])
+  const [showWakeWarning, setShowWakeWarning] = useState(false)
   const timerRef                    = useRef(null)
   const locationBroadcastRef        = useRef(null)
   const currentPosRef               = useRef(null)
@@ -31,6 +34,51 @@ export default function ActiveCanvassing() {
     getRepTerritories(user.id).then(setTerritories).catch(() => {})
     getDoNotKnockList().then(setDoNotKnock).catch(() => {})
   }, [user?.id])
+
+  // Warn the rep before a refresh / tab-close destroys the active session.
+  // Resilience is the DB + localStorage cache (they can resume exactly where
+  // they left off) — but a confirm dialog prevents the 99% case of an
+  // accidental pull-to-refresh gesture mid-canvass.
+  useEffect(() => {
+    if (!state.isRunning) return
+    const onBeforeUnload = (e) => {
+      e.preventDefault()
+      // The returnValue string is shown by older browsers; modern ones
+      // display their own generic message but still require the prompt.
+      e.returnValue = 'A canvassing session is in progress. Leaving will pause tracking.'
+      return e.returnValue
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [state.isRunning])
+
+  // Keep the screen on while a session is active so GPS tracking doesn't
+  // drop when the phone auto-sleeps. Note: a *manually* locked phone or
+  // backgrounded tab will still pause JS — that's a browser limitation.
+  // True phone-in-pocket tracking needs a native wrapper (Capacitor).
+  useEffect(() => {
+    if (!state.isRunning) return
+    let cancelled = false
+    acquireWakeLock().then((ok) => {
+      if (cancelled) return
+      // Only show the "manually locked" warning if Wake Lock isn't even
+      // supported — otherwise the lock keeps the screen alive.
+      if (!ok && !isWakeLockSupported()) setShowWakeWarning(true)
+    })
+
+    // If the user backgrounds the tab (switches apps, gets a call, locks
+    // the phone), warn them on return that tracking paused.
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') setShowWakeWarning(true)
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      cancelled = true
+      releaseWakeLock()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [state.isRunning])
 
   // Broadcast GPS position to Supabase every 15s for live manager map
   // Includes retry logic for network transitions (WiFi → cellular) and
@@ -206,6 +254,7 @@ export default function ActiveCanvassing() {
           territories={territories}
           doNotKnock={doNotKnock}
           followUser
+          onInteractionClick={(interaction) => setEditingInteraction(interaction)}
           className="w-full h-full"
         />
 
@@ -214,6 +263,27 @@ export default function ActiveCanvassing() {
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           Tracking
         </div>
+
+        {/* Wake-lock advisory — appears if the device tab was backgrounded */}
+        {showWakeWarning && (
+          <div className="absolute top-3 right-3 left-3 sm:left-auto sm:max-w-xs bg-amber-50 border border-amber-300 text-amber-800 rounded-xl px-3 py-2 shadow-lg text-xs flex items-start gap-2">
+            <span>⚠️</span>
+            <div className="flex-1">
+              <p className="font-semibold">Keep this screen open</p>
+              <p className="mt-0.5 leading-snug">
+                GPS pauses when the phone locks or the browser is in the
+                background. For pocket tracking, install the native app.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowWakeWarning(false)}
+              className="text-amber-700 hover:text-amber-900 text-base leading-none"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Bottom Bar */}
@@ -264,6 +334,32 @@ export default function ActiveCanvassing() {
             // Manual log counts as a door knock
             dispatch({ type: 'LOG_INTERACTION', interaction, countDoor: true })
             setShowManualLog(false)
+          }}
+          isAuto={false}
+        />
+      )}
+
+      {/* Edit-existing-interaction modal (tap pin on the map) */}
+      {editingInteraction && (
+        <InteractionModal
+          knock={{
+            lat:     editingInteraction.lat,
+            lng:     editingInteraction.lng,
+            address: editingInteraction.address,
+          }}
+          sessionId={state.session?.id}
+          repId={user?.id}
+          existingInteraction={editingInteraction}
+          onClose={() => setEditingInteraction(null)}
+          onSave={(updated) => {
+            // Replace the matching interaction in session state rather than
+            // appending a new one. Stats don't get re-counted here — editing
+            // the outcome of an existing knock would otherwise double-count.
+            dispatch({
+              type: 'REPLACE_INTERACTION',
+              interaction: { ...editingInteraction, ...updated },
+            })
+            setEditingInteraction(null)
           }}
           isAuto={false}
         />
