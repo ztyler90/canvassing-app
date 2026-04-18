@@ -15,18 +15,6 @@ import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAl
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
 
-const FUTURE_CRMS = [
-  { name: 'FieldPulse',        logo: '⚡' },
-  { name: 'Salesforce',        logo: '☁️' },
-  { name: 'HouseCall Pro',     logo: '🏠' },
-  { name: 'ServiceTitan',      logo: '🔧' },
-  { name: 'FieldRoutes',       logo: '🗺️' },
-  { name: 'HubSpot',           logo: '🔶' },
-  { name: 'Sunbase',           logo: '☀️' },
-  { name: 'PestPac',           logo: '🐛' },
-  { name: 'GoHighLevel',       logo: '🚀' },
-]
-
 export default function Settings() {
   const navigate = useNavigate()
   const [user, setUser]               = useState(null)
@@ -341,22 +329,6 @@ export default function Settings() {
                 <p className="text-gray-500 text-sm">Upgrade to Pro to configure Zapier webhooks.</p>
               </div>
             )}
-          </div>
-        </section>
-
-        {/* ── Coming Soon CRMs ───────────────────────────────────────── */}
-        <section>
-          <h2 className="text-gray-700 font-semibold text-base mb-1">More Integrations</h2>
-          <p className="text-gray-400 text-xs mb-3">Native connectors — coming soon</p>
-          <div className="grid grid-cols-3 gap-2">
-            {FUTURE_CRMS.map(crm => (
-              <div key={crm.name}
-                className="bg-white rounded-2xl px-3 py-3 shadow-sm border border-gray-100 flex flex-col items-center gap-1.5 text-center">
-                <span className="text-2xl">{crm.logo}</span>
-                <p className="text-gray-600 text-xs font-medium leading-tight">{crm.name}</p>
-                <span className="text-gray-400 text-[10px] bg-gray-100 px-2 py-0.5 rounded-full">Soon</span>
-              </div>
-            ))}
           </div>
         </section>
 
