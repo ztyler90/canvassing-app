@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import {
-  MapPin, DollarSign, LogOut, Settings, Flame, Trophy,
+  MapPin, DollarSign, LogOut, Settings, Trophy,
   TrendingUp, Users, Target, ChevronRight, Sparkles, Zap,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
@@ -15,7 +15,7 @@ import { requestGPSPermission } from '../lib/gps.js'
 import { gpsTracker } from '../lib/gps.js'
 import { DoorKnockDetector } from '../lib/doorKnock.js'
 import {
-  computePeriodStats, computeConversion, computeStreak,
+  computePeriodStats, computeConversion,
   computeXP, computeLevel, calcCommission, describeCommission,
 } from '../lib/repStats.js'
 
@@ -120,7 +120,6 @@ export default function RepHome() {
     }), { doors: 0, revenue: 0 })
 
   const goalPct     = Math.min((todayStats.revenue / DAILY_GOAL) * 100, 100)
-  const streak      = computeStreak(allSessions)
   const lifetimeXP  = computeXP(periods.lifetime)
   const levelInfo   = computeLevel(lifetimeXP)
   const commission  = calcCommission(stats, commissionCfg)
@@ -135,11 +134,26 @@ export default function RepHome() {
         style={{ background: `linear-gradient(135deg, ${BRAND_BLUE} 0%, #2E6BFF 100%)` }}
       >
         <div className="flex items-center justify-between mb-4">
-          <div>
-            <p className="text-blue-200 text-sm">Welcome back</p>
-            <h1 className="text-white text-xl font-bold">{user?.full_name || 'Rep'}</h1>
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => navigate('/profile')}
+              className="w-10 h-10 rounded-full overflow-hidden bg-white/20 shrink-0 flex items-center justify-center"
+              aria-label="Open profile"
+            >
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-white text-sm font-bold">
+                  {(user?.full_name || 'R')[0].toUpperCase()}
+                </span>
+              )}
+            </button>
+            <div className="min-w-0">
+              <p className="text-blue-200 text-sm">Welcome back</p>
+              <h1 className="text-white text-xl font-bold truncate">{user?.full_name || 'Rep'}</h1>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button onClick={() => navigate('/profile')} className="p-2 rounded-full bg-white/20 active:bg-white/30">
               <Settings className="w-5 h-5 text-white" />
             </button>
@@ -202,11 +216,8 @@ export default function RepHome() {
           </div>
         )}
 
-        {/* Level + Streak Row (Gamification) */}
-        <div className="grid grid-cols-5 gap-3">
-          <LevelCard level={levelInfo} className="col-span-3" />
-          <StreakCard streak={streak} className="col-span-2" />
-        </div>
+        {/* Level (Gamification) */}
+        <LevelCard level={levelInfo} />
 
         {/* Stats Section with period tabs */}
         <section>
@@ -338,31 +349,6 @@ function LevelCard({ level, className = '' }) {
 
       {/* Decorative sparkle */}
       <Sparkles className="absolute -bottom-2 -right-2 w-16 h-16 text-white/10" />
-    </div>
-  )
-}
-
-function StreakCard({ streak, className = '' }) {
-  const onFire = streak >= 3
-  return (
-    <div
-      className={`${className} rounded-2xl p-4 shadow-sm flex flex-col items-center justify-center relative overflow-hidden`}
-      style={{
-        background: onFire
-          ? 'linear-gradient(135deg, #FF6B35 0%, #F7931E 100%)'
-          : 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
-      }}
-    >
-      <Flame
-        className={`w-6 h-6 mb-1 ${onFire ? 'text-white' : 'text-gray-400'}`}
-        fill={onFire ? 'currentColor' : 'none'}
-      />
-      <p className={`text-2xl font-extrabold ${onFire ? 'text-white' : 'text-gray-700'}`}>
-        {streak}
-      </p>
-      <p className={`text-[11px] font-semibold uppercase tracking-wide ${onFire ? 'text-orange-100' : 'text-gray-500'}`}>
-        Day Streak
-      </p>
     </div>
   )
 }

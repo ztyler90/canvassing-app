@@ -35,24 +35,61 @@ export async function signOut() {
   return supabase.auth.signOut()
 }
 
-/** Update the current rep's display name (and optionally email) */
-export async function updateUserProfile({ fullName, email }) {
-  const authUpdates = {}
-  if (email)    authUpdates.email = email
-  if (fullName) authUpdates.data  = { full_name: fullName }
+/** Update the current rep's display name, email, and/or avatar_url */
+export async function updateUserProfile({ fullName, email, avatarUrl } = {}) {
+  try {
+    // 1. Auth update (metadata + email). Only call if there's something to send.
+    const authUpdates = {}
+    if (email)    authUpdates.email = email
+    if (fullName || avatarUrl !== undefined) {
+      authUpdates.data = {}
+      if (fullName)              authUpdates.data.full_name  = fullName
+      if (avatarUrl !== undefined) authUpdates.data.avatar_url = avatarUrl
+    }
+    if (Object.keys(authUpdates).length > 0) {
+      const { error: authError } = await supabase.auth.updateUser(authUpdates)
+      if (authError) return { error: authError }
+    }
 
-  const { error: authError } = await supabase.auth.updateUser(authUpdates)
-  if (authError) return { error: authError }
-
-  // Also update the public.users row so dashboards reflect the new name immediately
-  if (fullName) {
+    // 2. Mirror to public.users so dashboards reflect the new values.
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      await supabase.from('users').update({ full_name: fullName }).eq('id', user.id)
+      const row = {}
+      if (fullName)              row.full_name  = fullName
+      if (avatarUrl !== undefined) row.avatar_url = avatarUrl
+      if (Object.keys(row).length > 0) {
+        const { error: dbError } = await supabase
+          .from('users').update(row).eq('id', user.id)
+        if (dbError) return { error: dbError }
+      }
     }
-  }
 
-  return { error: null }
+    return { error: null }
+  } catch (err) {
+    return { error: err }
+  }
+}
+
+/**
+ * Upload a profile picture for the current user to the "avatars" bucket,
+ * return its public URL (null on failure).
+ */
+export async function uploadAvatar(file) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const ext  = (file.name.split('.').pop() || 'jpg').toLowerCase()
+  const path = `${user.id}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage
+    .from('avatars')
+    .upload(path, file, { cacheControl: '3600', upsert: true })
+  if (error) {
+    console.warn('[Storage] Avatar upload failed:', error.message)
+    return null
+  }
+  const { data: { publicUrl } } = supabase.storage
+    .from('avatars')
+    .getPublicUrl(path)
+  return publicUrl
 }
 
 /** Send a password-reset email to the given address */

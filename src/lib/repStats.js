@@ -106,11 +106,17 @@ export function computePeriodStats(sessions) {
 
   for (const s of sessions || []) {
     const ts = new Date(s.started_at).getTime()
+    // Normalize: a booking is always also an estimate. This handles historical
+    // sessions that were recorded before the booked-counts-as-estimate rule
+    // was introduced — if raw estimates < bookings, we lift estimates up.
+    const rawBookings  = s.bookings  || 0
+    const rawEstimates = s.estimates || 0
+    const estimates    = Math.max(rawEstimates, rawBookings)
     const add = (acc) => {
       acc.doors         += s.doors_knocked  || 0
       acc.conversations += s.conversations  || 0
-      acc.estimates     += s.estimates      || 0
-      acc.bookings      += s.bookings       || 0
+      acc.estimates     += estimates
+      acc.bookings      += rawBookings
       acc.revenue       += Number(s.revenue_booked) || 0
       acc.sessions      += 1
     }
@@ -125,6 +131,10 @@ export function computePeriodStats(sessions) {
 /**
  * Funnel conversion rates as % (doors → conversations → estimates → bookings).
  * Returns 0 if denominator is 0 rather than NaN.
+ *
+ * Note on `overallClose`: close rate is bookings ÷ estimates (not ÷ doors).
+ * Reps only "close" a deal once a homeowner has gotten a quote; measuring it
+ * against total doors punishes a rep for a long prospecting day.
  */
 export function computeConversion(stats) {
   const pct = (num, den) => (den > 0 ? (num / den) * 100 : 0)
@@ -132,7 +142,7 @@ export function computeConversion(stats) {
     contactRate:   pct(stats.conversations, stats.doors),         // doors → conv
     estimateRate:  pct(stats.estimates,     stats.conversations), // conv  → est
     closeRate:     pct(stats.bookings,      stats.estimates),     // est   → book
-    overallClose:  pct(stats.bookings,      stats.doors),         // doors → book
+    overallClose:  pct(stats.bookings,      stats.estimates),     // book  ÷ est
   }
 }
 

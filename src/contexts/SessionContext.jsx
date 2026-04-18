@@ -60,7 +60,9 @@ function reducer(state, action) {
     case 'LOG_INTERACTION': {
       const interaction = action.interaction
       const isConversation = ['not_interested', 'estimate_requested', 'booked'].includes(interaction.outcome)
-      const isEstimate     = interaction.outcome === 'estimate_requested'
+      // A booking always counts as an estimate too — you can't book without
+      // first quoting the job. This keeps bookings <= estimates by construction.
+      const isEstimate     = interaction.outcome === 'estimate_requested' || interaction.outcome === 'booked'
       const isBooked       = interaction.outcome === 'booked'
       // countDoor: true for manual logs (door not yet counted),
       //            false for auto-detected knocks (already counted by REGISTER_KNOCK)

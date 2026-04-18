@@ -12,7 +12,7 @@ async function buildProfile(sessionUser) {
   try {
     const { data: row } = await supabase
       .from('users')
-      .select('id, email, full_name, role, organization_id, is_super_admin')
+      .select('id, email, full_name, role, organization_id, is_super_admin, avatar_url')
       .eq('id', sessionUser.id)
       .single()
     if (row) {
@@ -36,6 +36,7 @@ async function buildProfile(sessionUser) {
     organization_id: null,
     organization: null,
     is_super_admin: false,
+    avatar_url: meta.avatar_url || null,
   }
 }
 
