@@ -20,7 +20,7 @@ async function buildProfile(sessionUser) {
       if (row.organization_id) {
         const { data: org } = await supabase
           .from('organizations')
-          .select('id, name, tier, status, created_at')
+          .select('id, name, tier, status, created_at, trial_ends_at')
           .eq('id', row.organization_id)
           .single()
         organization = org || null

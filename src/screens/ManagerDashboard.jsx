@@ -137,6 +137,20 @@ export default function ManagerDashboard() {
         )}
       </div>
 
+      {/* Trial banner */}
+      {user?.organization?.status === 'trial' && user?.organization?.trial_ends_at && (() => {
+        const msLeft = new Date(user.organization.trial_ends_at).getTime() - Date.now()
+        const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)))
+        const isExpired = msLeft <= 0
+        return (
+          <div className={`px-4 py-2 text-center text-sm font-medium ${isExpired ? 'bg-red-50 text-red-900' : 'bg-amber-50 text-amber-900'}`}>
+            {isExpired
+              ? 'Your free trial has ended. Upgrade to keep using KnockIQ.'
+              : `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left in your free trial.`}
+          </div>
+        )
+      })()}
+
       {/* Tab Bar — horizontally scrollable for 6 tabs */}
       <div className="bg-white border-b flex overflow-x-auto scrollbar-hide">
         {TABS.map((t) => {
