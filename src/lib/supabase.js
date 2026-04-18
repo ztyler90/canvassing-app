@@ -35,33 +35,46 @@ export async function signOut() {
   return supabase.auth.signOut()
 }
 
-/** Update the current rep's display name, email, and/or avatar_url */
+/**
+ * Update the current rep's display name, email, and/or avatar_url.
+ *
+ * IMPORTANT: we deliberately use getSession() (not getUser()) and we do the
+ * public.users row update BEFORE calling auth.updateUser(). Reason: calling
+ * auth.updateUser() fires an onAuthStateChange event that acquires the
+ * Supabase Web Lock, and if the listener (or anything running inside it)
+ * awaits another supabase.auth.* call, the whole chain deadlocks and the
+ * save button gets stuck on "Saving…". Running the DB mirror first, then
+ * the auth update last, keeps everything lock-safe.
+ */
 export async function updateUserProfile({ fullName, email, avatarUrl } = {}) {
   try {
-    // 1. Auth update (metadata + email). Only call if there's something to send.
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
+    if (!user) return { error: new Error('No active session') }
+
+    // 1. Mirror to public.users FIRST so the Rep dashboard reflects it even
+    //    if the auth update is slow or the user closes the page.
+    const row = {}
+    if (fullName)                row.full_name  = fullName
+    if (avatarUrl !== undefined) row.avatar_url = avatarUrl
+    if (Object.keys(row).length > 0) {
+      const { error: dbError } = await supabase
+        .from('users').update(row).eq('id', user.id)
+      if (dbError) return { error: dbError }
+    }
+
+    // 2. Auth update (metadata + email). Run last so the trailing
+    //    onAuthStateChange event doesn't block earlier DB work.
     const authUpdates = {}
-    if (email)    authUpdates.email = email
+    if (email) authUpdates.email = email
     if (fullName || avatarUrl !== undefined) {
       authUpdates.data = {}
-      if (fullName)              authUpdates.data.full_name  = fullName
+      if (fullName)                authUpdates.data.full_name  = fullName
       if (avatarUrl !== undefined) authUpdates.data.avatar_url = avatarUrl
     }
     if (Object.keys(authUpdates).length > 0) {
       const { error: authError } = await supabase.auth.updateUser(authUpdates)
       if (authError) return { error: authError }
-    }
-
-    // 2. Mirror to public.users so dashboards reflect the new values.
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const row = {}
-      if (fullName)              row.full_name  = fullName
-      if (avatarUrl !== undefined) row.avatar_url = avatarUrl
-      if (Object.keys(row).length > 0) {
-        const { error: dbError } = await supabase
-          .from('users').update(row).eq('id', user.id)
-        if (dbError) return { error: dbError }
-      }
     }
 
     return { error: null }
@@ -72,24 +85,32 @@ export async function updateUserProfile({ fullName, email, avatarUrl } = {}) {
 
 /**
  * Upload a profile picture for the current user to the "avatars" bucket,
- * return its public URL (null on failure).
+ * return its public URL (null on failure). Uses getSession() (local-storage
+ * read, no network, no lock) instead of getUser() to avoid the Web Locks
+ * deadlock that hangs the upload spinner forever.
  */
 export async function uploadAvatar(file) {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const ext  = (file.name.split('.').pop() || 'jpg').toLowerCase()
-  const path = `${user.id}/${Date.now()}.${ext}`
-  const { error } = await supabase.storage
-    .from('avatars')
-    .upload(path, file, { cacheControl: '3600', upsert: true })
-  if (error) {
-    console.warn('[Storage] Avatar upload failed:', error.message)
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
+    if (!user) return null
+    const ext  = (file.name.split('.').pop() || 'jpg').toLowerCase()
+    const path = `${user.id}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { cacheControl: '3600', upsert: true })
+    if (error) {
+      console.warn('[Storage] Avatar upload failed:', error.message)
+      return null
+    }
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(path)
+    return publicUrl
+  } catch (err) {
+    console.warn('[Storage] Avatar upload threw:', err)
     return null
   }
-  const { data: { publicUrl } } = supabase.storage
-    .from('avatars')
-    .getPublicUrl(path)
-  return publicUrl
 }
 
 /** Send a password-reset email to the given address */

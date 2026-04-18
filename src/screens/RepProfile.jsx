@@ -41,6 +41,17 @@ export default function RepProfile() {
     setTimeout(() => setToast(null), 3500)
   }
 
+  // Wrap a promise so it rejects after `ms` — guarantees finally always runs
+  // even if the underlying supabase call deadlocks on Web Locks.
+  function withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`${label} timed out`)), ms)
+      ),
+    ])
+  }
+
   async function handleSave() {
     if (!hasChanges) return
     setSaving(true)
@@ -49,12 +60,12 @@ export default function RepProfile() {
       if (nameChanged)  updates.fullName = fullName.trim()
       if (emailChanged) updates.email    = email.trim()
 
-      const { error } = await updateUserProfile(updates)
+      const { error } = await withTimeout(updateUserProfile(updates), 15000, 'Save')
 
       if (error) {
         showToast(error.message || 'Save failed — please try again.', 'error')
       } else {
-        await refreshUser?.()
+        try { await withTimeout(refreshUser?.(), 5000, 'Refresh') } catch { /* ignore */ }
         if (emailChanged) {
           showToast('Check your new email address to confirm the change.')
         } else {
@@ -84,19 +95,24 @@ export default function RepProfile() {
 
     setUploadingAvatar(true)
     try {
-      const publicUrl = await uploadAvatar(file)
+      const publicUrl = await withTimeout(uploadAvatar(file), 30000, 'Upload')
       if (!publicUrl) {
         showToast('Upload failed — please try again.', 'error')
         return
       }
-      const { error } = await updateUserProfile({ avatarUrl: publicUrl })
+      const { error } = await withTimeout(
+        updateUserProfile({ avatarUrl: publicUrl }),
+        15000,
+        'Save',
+      )
       if (error) {
         showToast(error.message || 'Could not save avatar.', 'error')
         return
       }
+      // Show new avatar immediately — don't wait on refreshUser in case it hangs
       setAvatarUrl(publicUrl)
-      await refreshUser?.()
       showToast('Profile picture updated!')
+      try { await withTimeout(refreshUser?.(), 5000, 'Refresh') } catch { /* ignore */ }
     } catch (err) {
       showToast(err.message || 'Upload failed — please try again.', 'error')
     } finally {
