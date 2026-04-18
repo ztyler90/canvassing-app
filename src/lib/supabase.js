@@ -245,10 +245,14 @@ export async function getRepSessions(repId, limit = 30) {
 }
 
 export async function getAllSessions(filters = {}) {
+  // Explicit org scope so super-admin managers see only their own org here.
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
   let query = supabase
     .from('canvassing_sessions')
     .select(`*, users(full_name, email)`)
     .eq('status', 'submitted')
+    .eq('organization_id', orgId)
     .order('started_at', { ascending: false })
 
   if (filters.repId)    query = query.eq('rep_id', filters.repId)
@@ -259,13 +263,34 @@ export async function getAllSessions(filters = {}) {
   return data || []
 }
 
+/**
+ * Look up the caller's own organization_id from public.users.
+ * Used to scope manager-facing queries explicitly, so super-admins (whose
+ * RLS policies return ALL rows via `auth_is_super_admin()`) still only see
+ * their own org in manager views like Settings / Rep Dashboard.
+ */
+async function getMyOrgId() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data: row } = await supabase
+    .from('users')
+    .select('organization_id')
+    .eq('id', user.id)
+    .single()
+  return row?.organization_id || null
+}
+
 export async function getAllReps() {
-  // Phase 1: tenant scoping is handled by RLS — selecting users with role='rep'
-  // automatically filters to the caller's organization. No more manager_id.
+  // Explicitly scope to the caller's own org. RLS would also filter here,
+  // but super-admins bypass tenant RLS — without this filter, super-admin
+  // managers would see every rep across every org on the Settings page.
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
   const { data } = await supabase
     .from('users')
     .select('id, full_name, email, role, organization_id, commission_config')
     .eq('role', 'rep')
+    .eq('organization_id', orgId)
     .order('full_name')
   return data || []
 }
@@ -273,13 +298,17 @@ export async function getAllReps() {
 /**
  * Fetch a single rep's profile + commission config. Used by the manager
  * Rep Detail screen to render an individual rep's home-page metrics.
- * RLS ensures the caller can only read users in their own organization.
+ * Explicitly scoped to the caller's org so super-admins don't accidentally
+ * drill into a rep in another org from a manager-context link.
  */
 export async function getRepById(repId) {
+  const orgId = await getMyOrgId()
+  if (!orgId) return null
   const { data, error } = await supabase
     .from('users')
     .select('id, full_name, email, role, avatar_url, commission_config, organization_id')
     .eq('id', repId)
+    .eq('organization_id', orgId)
     .single()
   if (error) return null
   return data
@@ -300,13 +329,17 @@ export async function getMyCommissionConfig() {
 /**
  * Save a rep's commission_config. Must be called by a manager in the same org
  * (enforced by the "Managers update reps in their org" RLS policy added in the
- * 20260418_commission migration).
+ * 20260418_commission migration). Also scoped explicitly here so super-admin
+ * managers can't accidentally edit a rep in another org.
  */
 export async function updateRepCommissionConfig(repId, config) {
+  const orgId = await getMyOrgId()
+  if (!orgId) return { data: null, error: new Error('No organization') }
   const { data, error } = await supabase
     .from('users')
     .update({ commission_config: config })
     .eq('id', repId)
+    .eq('organization_id', orgId)
     .select('id, commission_config')
     .single()
   return { data, error }
@@ -856,9 +889,13 @@ export async function removeDoNotKnock(id) {
 }
 
 export async function getManagerMapData(filters = {}) {
+  // Explicit org scope so super-admin managers see only their own org here.
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
   let query = supabase
     .from('interactions')
     .select(`*, canvassing_sessions(neighborhood), users(full_name)`)
+    .eq('organization_id', orgId)
     .order('created_at', { ascending: false })
 
   if (filters.repId)    query = query.eq('rep_id', filters.repId)
