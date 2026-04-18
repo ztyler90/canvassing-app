@@ -96,20 +96,135 @@
       transition: background .15s;
     }
     .nav-cta:hover { background: var(--blue-700) !important; color: white !important; }
-    .nav-mobile-signin {
+    /* Hamburger button — only visible below 900px */
+    .nav-hamburger {
       display: none;
+      width: 42px;
+      height: 42px;
       align-items: center;
-      gap: 6px;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--blue-600);
-      text-decoration: none;
-      padding: 8px 14px;
+      justify-content: center;
+      background: transparent;
       border: 1px solid var(--border);
-      border-radius: var(--radius-btn);
-      transition: border-color .15s, background .15s;
+      border-radius: 10px;
+      cursor: pointer;
+      padding: 0;
+      transition: background .15s, border-color .15s;
     }
-    .nav-mobile-signin:hover { border-color: var(--blue-600); background: rgba(27,79,204,0.04); }
+    .nav-hamburger:hover { background: var(--bg); border-color: #c4cfe0; }
+    .nav-hamburger-bars {
+      position: relative;
+      width: 20px; height: 14px;
+    }
+    .nav-hamburger-bars span {
+      position: absolute; left: 0; right: 0;
+      height: 2px; background: var(--dark);
+      border-radius: 2px;
+      transition:
+        transform .28s cubic-bezier(.22, 1, .36, 1),
+        top       .28s cubic-bezier(.22, 1, .36, 1),
+        opacity   .15s ease;
+    }
+    .nav-hamburger-bars span:nth-child(1) { top: 0; }
+    .nav-hamburger-bars span:nth-child(2) { top: 6px; }
+    .nav-hamburger-bars span:nth-child(3) { top: 12px; }
+    .nav-hamburger.open .nav-hamburger-bars span:nth-child(1) { top: 6px; transform: rotate(45deg); }
+    .nav-hamburger.open .nav-hamburger-bars span:nth-child(2) { opacity: 0; }
+    .nav-hamburger.open .nav-hamburger-bars span:nth-child(3) { top: 6px; transform: rotate(-45deg); }
+
+    /* Mobile menu panel — slides down from under the nav */
+    .mobile-menu {
+      position: fixed;
+      top: 64px; left: 0; right: 0;
+      background: white;
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.10);
+      padding: 14px 20px 22px;
+      transform: translateY(-24px);
+      opacity: 0;
+      pointer-events: none;
+      /* Subtle ease-out — decelerates as it lands, feels "planted" */
+      transition:
+        transform .32s cubic-bezier(.22, 1, .36, 1),
+        opacity   .22s ease-out;
+      z-index: 99;
+      display: none;   /* only enabled on mobile */
+    }
+    .mobile-menu.open {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .mobile-menu ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    /* Staggered item entry — each li slides/fades in after the panel lands */
+    .mobile-menu li {
+      opacity: 0;
+      transform: translateY(-8px);
+      transition:
+        transform .28s cubic-bezier(.22, 1, .36, 1),
+        opacity   .22s ease-out;
+    }
+    .mobile-menu.open li { opacity: 1; transform: translateY(0); }
+    .mobile-menu.open li:nth-child(1) { transition-delay: .06s; }
+    .mobile-menu.open li:nth-child(2) { transition-delay: .10s; }
+    .mobile-menu.open li:nth-child(3) { transition-delay: .14s; }
+    .mobile-menu.open li:nth-child(4) { transition-delay: .18s; }
+    .mobile-menu.open li:nth-child(5) { transition-delay: .22s; }
+    .mobile-menu a {
+      display: block;
+      padding: 14px 8px;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-med);
+      text-decoration: none;
+      border-bottom: 1px solid var(--border);
+      transition: color .12s;
+    }
+    .mobile-menu a:hover { color: var(--dark); }
+    .mobile-menu li:last-child a { border-bottom: none; }
+    .mobile-menu .mobile-cta {
+      margin-top: 10px;
+      text-align: center;
+      background: var(--blue-600);
+      color: white;
+      font-weight: 600;
+      border-radius: var(--radius-btn);
+      padding: 14px;
+      border: none;
+    }
+    .mobile-menu .mobile-cta:hover { background: var(--blue-700); color: white; }
+
+    /* Backdrop that dims the page while the menu is open */
+    .mobile-menu-backdrop {
+      position: fixed;
+      top: 64px; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .28s ease-out;
+      z-index: 98;
+      display: none;
+    }
+    .mobile-menu-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Respect users who don't want motion */
+    @media (prefers-reduced-motion: reduce) {
+      .mobile-menu,
+      .mobile-menu li,
+      .mobile-menu-backdrop,
+      .nav-hamburger-bars span {
+        transition: opacity .12s linear !important;
+        transform: none !important;
+      }
+      .mobile-menu.open li { transition-delay: 0s !important; }
+    }
 
     /* ── BUTTONS ── */
     .btn-primary {
@@ -906,7 +1021,9 @@
       section { padding: 64px 20px; }
       .section-title { font-size: 28px; }
       nav .nav-links { display: none; }
-      nav .nav-mobile-signin { display: inline-flex; }
+      nav .nav-hamburger { display: inline-flex; }
+      .mobile-menu { display: block; }
+      .mobile-menu-backdrop { display: block; }
     }
     @media (max-width: 560px) {
       .hero-h1 { font-size: 32px; }
@@ -939,7 +1056,6 @@
       <div class="nav-logo-icon">📍</div>
       KnockIQ
     </a>
-    <a href="/login" class="nav-mobile-signin">Sign In →</a>
     <ul class="nav-links">
       <li><a href="#how">How It Works</a></li>
       <li><a href="#features">Features</a></li>
@@ -947,8 +1063,25 @@
       <li><a href="/login">Sign In</a></li>
       <li><a href="/signup" class="nav-cta">Start Free Trial →</a></li>
     </ul>
+    <button class="nav-hamburger" id="navHamburger" aria-label="Open menu" aria-expanded="false">
+      <span class="nav-hamburger-bars">
+        <span></span><span></span><span></span>
+      </span>
+    </button>
   </div>
 </nav>
+
+<!-- Mobile menu (only visible ≤900px) -->
+<div class="mobile-menu-backdrop" id="mobileMenuBackdrop"></div>
+<div class="mobile-menu" id="mobileMenu">
+  <ul>
+    <li><a href="#how" data-close-menu>How It Works</a></li>
+    <li><a href="#features" data-close-menu>Features</a></li>
+    <li><a href="#pricing" data-close-menu>Pricing</a></li>
+    <li><a href="/login" data-close-menu>Sign In</a></li>
+    <li><a href="/signup" class="mobile-cta" data-close-menu>Start Free Trial →</a></li>
+  </ul>
+</div>
 
 <!-- ── HERO ── -->
 <section id="hero">
@@ -1630,6 +1763,33 @@
   }, { threshold: 0.3 });
 
   document.querySelectorAll('.outcomes-visual').forEach(el => barObserver.observe(el));
+
+  // Mobile hamburger menu
+  (function () {
+    const btn      = document.getElementById('navHamburger');
+    const menu     = document.getElementById('mobileMenu');
+    const backdrop = document.getElementById('mobileMenuBackdrop');
+    if (!btn || !menu || !backdrop) return;
+
+    function setOpen(open) {
+      btn.classList.toggle('open', open);
+      menu.classList.toggle('open', open);
+      backdrop.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      document.body.style.overflow = open ? 'hidden' : '';
+    }
+
+    btn.addEventListener('click', () => setOpen(!menu.classList.contains('open')));
+    backdrop.addEventListener('click', () => setOpen(false));
+    menu.querySelectorAll('[data-close-menu]').forEach(a =>
+      a.addEventListener('click', () => setOpen(false))
+    );
+
+    // Auto-close if the viewport grows past the mobile breakpoint
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 900) setOpen(false);
+    });
+  })();
 </script>
 
 </body>
