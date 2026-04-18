@@ -11,7 +11,7 @@
  *
  * Protected by the super-admin route gate in App.jsx.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { format, formatDistanceToNow } from 'date-fns'
 import {
@@ -179,7 +179,7 @@ export default function OrganizationDetail() {
     .slice(0, 5)
 
   // ── Daily active reps — last 30 days (for the sparkline chart) ─────────────
-  const dailyActiveReps = useMemo(() => {
+  const dailyActiveReps = (() => {
     const buckets = new Array(30).fill(null).map(() => new Set())
     for (const s of sessions) {
       const t = new Date(s.started_at).getTime()
@@ -187,7 +187,7 @@ export default function OrganizationDetail() {
       if (dayIdx >= 0 && dayIdx < 30) buckets[dayIdx].add(s.rep_id)
     }
     return buckets.map((b) => b.size)
-  }, [sessions])
+  })()
 
   const avgDaily = dailyActiveReps.length
     ? (dailyActiveReps.reduce((a, b) => a + b, 0) / dailyActiveReps.length).toFixed(1)
