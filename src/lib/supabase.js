@@ -206,10 +206,37 @@ export async function getAllReps() {
   // automatically filters to the caller's organization. No more manager_id.
   const { data } = await supabase
     .from('users')
-    .select('id, full_name, email, role, organization_id')
+    .select('id, full_name, email, role, organization_id, commission_config')
     .eq('role', 'rep')
     .order('full_name')
   return data || []
+}
+
+/** Get the rep's own commission_config (null if not set by manager yet) */
+export async function getMyCommissionConfig() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data } = await supabase
+    .from('users')
+    .select('commission_config')
+    .eq('id', user.id)
+    .single()
+  return data?.commission_config || null
+}
+
+/**
+ * Save a rep's commission_config. Must be called by a manager in the same org
+ * (enforced by the "Managers update reps in their org" RLS policy added in the
+ * 20260418_commission migration).
+ */
+export async function updateRepCommissionConfig(repId, config) {
+  const { data, error } = await supabase
+    .from('users')
+    .update({ commission_config: config })
+    .eq('id', repId)
+    .select('id, commission_config')
+    .single()
+  return { data, error }
 }
 
 // ── Organization helpers (Phase 1) ────────────────────────────────────────────
