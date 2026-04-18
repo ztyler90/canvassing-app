@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import {
-  MapPin, DollarSign, LogOut, Settings, Trophy,
-  TrendingUp, Users, Target, ChevronRight, Sparkles, Zap,
+  MapPin, DollarSign, Settings, Trophy, Play,
+  TrendingUp, Users, Target, ChevronRight, Sparkles,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import {
-  startSession, getRepSessions, getActiveSession, signOut,
+  startSession, getRepSessions, getActiveSession,
   updateSessionStats, getMyCommissionConfig, getSessionInteractions,
   getMyOrganization,
 } from '../lib/supabase.js'
@@ -140,7 +140,8 @@ export default function RepHome() {
     })
   }
 
-  const handleSignOut = async () => { await signOut() }
+  // Time-of-day greeting replaces the static "Welcome back".
+  const greeting = getGreeting()
 
   // ── Derived numbers ─────────────────────────────────────────────────────────
   const periods = computePeriodStats(allSessions)
@@ -180,86 +181,70 @@ export default function RepHome() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col pb-10">
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* ── Slim Header (no stats, just identity) ──────────────────────────── */}
       <div
-        className="px-5 pt-12 pb-6 rounded-b-3xl"
+        className="px-5 pt-12 pb-5"
         style={{ background: `linear-gradient(135deg, ${BRAND_BLUE} 0%, #2E6BFF 100%)` }}
       >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              onClick={() => navigate('/profile')}
-              className="w-10 h-10 rounded-full overflow-hidden bg-white/20 shrink-0 flex items-center justify-center"
-              aria-label="Open profile"
-            >
-              {user?.avatar_url ? (
-                <img src={user.avatar_url} alt="Profile" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-white text-sm font-bold">
-                  {(user?.full_name || 'R')[0].toUpperCase()}
-                </span>
-              )}
-            </button>
-            <div className="min-w-0">
-              <p className="text-blue-200 text-sm">Welcome back</p>
-              <h1 className="text-white text-xl font-bold truncate">{user?.full_name || 'Rep'}</h1>
-            </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/profile')}
+            className="w-11 h-11 rounded-full overflow-hidden bg-white shrink-0 flex items-center justify-center"
+            aria-label="Open profile"
+          >
+            {user?.avatar_url ? (
+              <img src={user.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-sm font-bold" style={{ color: BRAND_BLUE }}>
+                {(user?.full_name || 'R')[0].toUpperCase()}
+              </span>
+            )}
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="text-blue-100 text-xs">{greeting}</p>
+            <h1 className="text-white text-xl font-bold truncate leading-tight">{user?.full_name || 'Rep'}</h1>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => navigate('/profile')} className="p-2 rounded-full bg-white/20 active:bg-white/30">
-              <Settings className="w-5 h-5 text-white" />
-            </button>
-            <button onClick={handleSignOut} className="p-2 rounded-full bg-white/20 active:bg-white/30">
-              <LogOut className="w-5 h-5 text-white" />
-            </button>
-          </div>
-        </div>
-
-        {/* Today's Goal Progress */}
-        <div className="bg-white/15 backdrop-blur rounded-2xl p-4">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-white font-semibold text-sm flex items-center gap-1.5">
-              <Target className="w-4 h-4" /> Today's Goal
-            </span>
-            <span className="text-white font-bold">
-              {goalCurrentLabel}
-              <span className="text-blue-200 font-normal"> / {goalTargetLabel}</span>
-            </span>
-          </div>
-          <div className="h-2.5 bg-white/30 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${goalPct}%`, backgroundColor: goalPct >= 100 ? '#FFD700' : '#86EFAC' }}
-            />
-          </div>
-          {todayStats.doors > 0 && (
-            <p className="text-blue-200 text-xs mt-2">
-              {todayStats.doors} door{todayStats.doors === 1 ? '' : 's'} knocked today
-              {goalPct >= 100 && <span className="ml-2 font-semibold text-yellow-300">🔥 Goal crushed!</span>}
-            </p>
-          )}
+          <button
+            onClick={() => navigate('/profile')}
+            className="p-2 rounded-full bg-white/20 active:bg-white/30 shrink-0"
+            aria-label="Settings"
+          >
+            <Settings className="w-5 h-5 text-white" />
+          </button>
         </div>
       </div>
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
-      <div className="flex-1 px-5 pt-6 space-y-5">
+      <div className="flex-1 px-4 pt-5 space-y-3">
 
-        {/* Start Button (unchanged position) */}
+        {/* Start Canvassing — hero CTA (blue, breathing room above) */}
         <button
           onClick={handleStartCanvassing}
           disabled={loadingStart}
-          className="w-full py-5 rounded-2xl text-white text-xl font-bold shadow-lg active:scale-95 transition-transform disabled:opacity-70 flex items-center justify-center gap-2"
-          style={{ background: `linear-gradient(135deg, ${BRAND_BLUE} 0%, #2E6BFF 100%)` }}
+          className="w-full rounded-2xl text-white text-xl font-bold active:scale-[0.99] transition-transform disabled:opacity-70 flex items-center justify-start gap-3 py-5 px-5"
+          style={{
+            background: BRAND_BLUE,
+            boxShadow: '0 10px 24px rgba(27, 79, 204, 0.35)',
+          }}
         >
           {loadingStart ? (
             <>
-              <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-              </svg>
+              <span className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+              </span>
               Getting GPS…
             </>
-          ) : <>▶  Start Canvassing</>}
+          ) : (
+            <>
+              <span className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <Play className="w-5 h-5 text-white" fill="currentColor" />
+              </span>
+              Start Canvassing
+            </>
+          )}
         </button>
 
         {gpsError && (
@@ -268,8 +253,17 @@ export default function RepHome() {
           </div>
         )}
 
-        {/* Level (Gamification) */}
-        <LevelCard level={levelInfo} />
+        {/* Scoreboard row: Today's Goal + Level (2 cards, same styling) */}
+        <div className="grid grid-cols-2 gap-2.5">
+          <GoalCard
+            current={goalCurrent}
+            target={goalTarget}
+            pct={goalPct}
+            currentLabel={goalCurrentLabel}
+            targetLabel={goalTargetLabel}
+          />
+          <LevelCard level={levelInfo} />
+        </div>
 
         {/* Stats Section with period tabs */}
         <section>
@@ -376,37 +370,127 @@ export function PeriodTabs({ period, onChange }) {
   )
 }
 
-export function LevelCard({ level, className = '' }) {
-  const pct = Math.round(level.progress * 100)
+/**
+ * Today's goal card — conic-gradient ring + target text. Matches LevelCard
+ * sizing so the two sit side-by-side as a scoreboard row.
+ */
+export function GoalCard({ pct, currentLabel, targetLabel }) {
+  const capped   = Math.max(0, Math.min(100, pct))
+  const ringDeg  = (capped / 100) * 360
+  const ringColor = capped >= 100 ? '#F59E0B' : '#7DC31E'
   return (
-    <div
-      className={`${className} rounded-2xl p-4 shadow-sm text-white overflow-hidden relative`}
-      style={{ background: 'linear-gradient(135deg, #1B4FCC 0%, #6B42FF 100%)' }}
-    >
-      <div className="flex items-center justify-between mb-2 relative z-10">
-        <div>
-          <p className="text-blue-100 text-xs font-medium uppercase tracking-wide">Level {level.level}</p>
-          <p className="text-white font-bold text-lg leading-tight">{level.title}</p>
-        </div>
-        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-          <Zap className="w-5 h-5 text-yellow-300" fill="currentColor" />
-        </div>
-      </div>
-
-      <div className="h-2 bg-white/25 rounded-full overflow-hidden relative z-10">
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${pct}%`, backgroundColor: '#FFD93D' }}
-        />
-      </div>
-      <p className="text-blue-100 text-[11px] mt-1.5 relative z-10">
-        {level.xpIntoLevel.toLocaleString()} / {level.xpForNext.toLocaleString()} XP to level {level.level + 1}
+    <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-sm min-h-[110px] flex flex-col gap-2">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1">
+        <Target className="w-3 h-3" /> Today's Goal
       </p>
-
-      {/* Decorative sparkle */}
-      <Sparkles className="absolute -bottom-2 -right-2 w-16 h-16 text-white/10" />
+      <div className="flex items-center gap-2.5">
+        <div
+          className="w-[52px] h-[52px] rounded-full grid place-items-center shrink-0 relative"
+          style={{
+            background: `conic-gradient(${ringColor} ${ringDeg}deg, #f3f4f6 0)`,
+          }}
+        >
+          <div className="w-10 h-10 rounded-full bg-white grid place-items-center">
+            <span className="text-[10px] font-bold text-green-700">
+              {Math.round(capped)}%
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-col min-w-0">
+          <span className="text-[22px] font-bold text-gray-900 leading-none tabular-nums truncate">
+            {currentLabel}
+          </span>
+          <span className="text-[11px] text-gray-500 font-medium mt-0.5 truncate">
+            of {targetLabel}
+          </span>
+        </div>
+      </div>
     </div>
   )
+}
+
+/**
+ * Level card — matches Goal card styling (white) with a yellow XP bar
+ * and a unique tier-themed badge in the top-right. Each level gets a
+ * different emoji + gradient; higher levels look more epic (gold, phoenix,
+ * cosmic, holographic). Reps don't see a list of future levels — each
+ * one is revealed on level-up as a surprise.
+ */
+export function LevelCard({ level }) {
+  const pct = Math.round(level.progress * 100)
+  return (
+    <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-sm min-h-[110px] flex flex-col gap-2 relative overflow-hidden">
+      <LevelBadge tier={level.tier} icon={level.icon} />
+      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+        Level {level.level} · {level.title}
+      </p>
+      <div className="text-[22px] font-bold text-gray-900 leading-none tabular-nums">
+        {level.xpIntoLevel.toLocaleString()}
+        <span className="text-[11px] font-semibold text-gray-500 ml-0.5">
+          {' '}/ {level.xpForNext.toLocaleString()} XP
+        </span>
+      </div>
+      <div className="h-[5px] bg-gray-100 rounded-full overflow-hidden mt-0.5">
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{
+            width: `${pct}%`,
+            background: 'linear-gradient(90deg, #FACC15 0%, #F59E0B 100%)',
+          }}
+        />
+      </div>
+      <p className="text-[11px] text-gray-500 font-medium mt-auto">
+        {(level.xpForNext - level.xpIntoLevel).toLocaleString()} XP to level {level.level + 1}
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Tiered level badge — a small circular emoji badge in the top-right
+ * corner of the Level card. Gradient + glow escalate as tiers progress
+ * from Rookie → Knock God.
+ */
+export function LevelBadge({ tier, icon }) {
+  const style = TIER_STYLES[tier] || TIER_STYLES.rookie
+  return (
+    <span
+      className="absolute top-2 right-2 w-8 h-8 rounded-full grid place-items-center text-[16px] leading-none"
+      style={style}
+      aria-hidden="true"
+    >
+      {icon}
+    </span>
+  )
+}
+
+// Keep all gradient/shadow bundles in one object so a new tier is just a
+// one-line addition. Glow intensity rises with rarity.
+const TIER_STYLES = {
+  rookie:    { background: 'linear-gradient(135deg, #d1fae5, #86efac)',                                               boxShadow: '0 2px 6px rgba(16,185,129,0.25)' },
+  bronze:    { background: 'linear-gradient(135deg, #fcd9b3, #c77a3a)',                                               boxShadow: '0 2px 8px rgba(199,122,58,0.35)' },
+  silver:    { background: 'linear-gradient(135deg, #f1f5f9, #94a3b8)',                                               boxShadow: '0 2px 8px rgba(100,116,139,0.35)' },
+  ninja:     { background: 'linear-gradient(135deg, #a78bfa, #6d28d9)',   color: '#fff',                              boxShadow: '0 2px 10px rgba(109,40,217,0.45)' },
+  gold:      { background: 'linear-gradient(135deg, #fde68a, #f59e0b)',                                               boxShadow: '0 2px 10px rgba(245,158,11,0.45)' },
+  legend:    { background: 'linear-gradient(135deg, #fb923c, #ef4444)',                                               boxShadow: '0 2px 12px rgba(239,68,68,0.5)' },
+  titan:     { background: 'linear-gradient(135deg, #22d3ee, #2563eb)',   color: '#fff',                              boxShadow: '0 2px 12px rgba(37,99,235,0.5)' },
+  mythic:    { background: 'linear-gradient(135deg, #f0abfc 0%, #7dd3fc 35%, #fde047 70%, #fb7185 100%)',             boxShadow: '0 2px 14px rgba(236,72,153,0.55)' },
+  diamond:   { background: 'linear-gradient(135deg, #bae6fd, #0ea5e9)',   color: '#fff',                              boxShadow: '0 2px 12px rgba(14,165,233,0.5)' },
+  platinum:  { background: 'linear-gradient(135deg, #e2e8f0, #475569)',   color: '#fff',                              boxShadow: '0 2px 12px rgba(71,85,105,0.55)' },
+  royal:     { background: 'linear-gradient(135deg, #fde68a, #dc2626)',   color: '#fff',                              boxShadow: '0 2px 14px rgba(220,38,38,0.55)' },
+  phoenix:   { background: 'linear-gradient(135deg, #fde047 0%, #fb923c 40%, #dc2626 100%)',                          boxShadow: '0 2px 14px rgba(251,146,60,0.6)' },
+  celestial: { background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #7c3aed 100%)', color: '#fff',           boxShadow: '0 2px 16px rgba(124,58,237,0.55)' },
+  cosmic:    { background: 'linear-gradient(135deg, #312e81 0%, #6d28d9 40%, #db2777 100%)', color: '#fff',           boxShadow: '0 2px 18px rgba(219,39,119,0.55)' },
+  galaxy:    { background: 'linear-gradient(135deg, #0b1020 0%, #4c1d95 50%, #db2777 100%)', color: '#fff',           boxShadow: '0 2px 20px rgba(76,29,149,0.65)' },
+  god:       { background: 'conic-gradient(from 0deg, #fde047, #fb7185, #a78bfa, #60a5fa, #4ade80, #fde047)', color: '#1a1203', boxShadow: '0 0 18px rgba(253,224,71,0.85), 0 0 30px rgba(236,72,153,0.5)' },
+}
+
+// Greeting is purely cosmetic — pick based on the rep's local clock.
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return "Let's go, one more push"
 }
 
 export function BigStatCard({ icon, label, value, accent = 'blue' }) {

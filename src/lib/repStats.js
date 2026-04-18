@@ -208,20 +208,34 @@ export function computeXP(stats) {
  */
 const LEVEL_XP = (L) => 50 * (L - 1) * (L - 1)
 
-const LEVEL_TITLES = [
-  // index = level - 1
-  'Rookie',          // 1
-  'Door Starter',    // 2
-  'Door Warrior',    // 3
-  'Street Pro',      // 4
-  'Closer',          // 5
-  'Deal Hunter',     // 6
-  'Sales Ninja',     // 7
-  'Revenue Master',  // 8
-  'Elite Closer',    // 9
-  'Top Dog',         // 10
+// 20-tier level system. Each level has a unique title + emoji icon + tier
+// key. Tiers drive badge colors in <LevelBadge>. Reps don't see a full
+// progression list — each new rank is revealed on level-up, so the titles
+// stay surprising.
+const LEVELS = [
+  { title: 'Rookie',         icon: '🌱', tier: 'rookie'    },  // 1
+  { title: 'Apprentice',     icon: '👣', tier: 'rookie'    },  // 2
+  { title: 'Door Knocker',   icon: '🚪', tier: 'bronze'    },  // 3
+  { title: 'Closer',         icon: '🎯', tier: 'bronze'    },  // 4
+  { title: 'Sharpshooter',   icon: '🏹', tier: 'silver'    },  // 5
+  { title: 'Warrior',        icon: '⚔️', tier: 'silver'    },  // 6
+  { title: 'Sales Ninja',    icon: '🥷', tier: 'ninja'     },  // 7
+  { title: 'Shogun',         icon: '🗡️', tier: 'ninja'     },  // 8
+  { title: 'Champion',       icon: '🏆', tier: 'gold'      },  // 9
+  { title: 'Legend',         icon: '🔥', tier: 'legend'    },  // 10
+  { title: 'Titan',          icon: '⚡', tier: 'titan'     },  // 11
+  { title: 'Mythic',         icon: '🐉', tier: 'mythic'    },  // 12
+  { title: 'Ascendant',      icon: '💎', tier: 'diamond'   },  // 13
+  { title: 'Conqueror',      icon: '🛡️', tier: 'platinum'  },  // 14
+  { title: 'Overlord',       icon: '👑', tier: 'royal'     },  // 15
+  { title: 'Phoenix',        icon: '🦅', tier: 'phoenix'   },  // 16
+  { title: 'Celestial',      icon: '☄️', tier: 'celestial' },  // 17
+  { title: 'Immortal',       icon: '🪐', tier: 'cosmic'    },  // 18
+  { title: 'Cosmic',         icon: '🌌', tier: 'galaxy'    },  // 19
+  { title: 'Knock God',      icon: '♾️', tier: 'god'       },  // 20
 ]
-const LEGEND_TITLE = 'Legend'
+// Beyond 20 = the rep has maxed out. Keep them at Knock God.
+const CAP = LEVELS[LEVELS.length - 1]
 
 export function computeLevel(xp) {
   const x = Math.max(0, xp | 0)
@@ -231,13 +245,13 @@ export function computeLevel(xp) {
   const nextStart = LEVEL_XP(level + 1)
   const span      = nextStart - thisStart
   const progress  = span > 0 ? (x - thisStart) / span : 1
-  const title     = level <= LEVEL_TITLES.length
-    ? LEVEL_TITLES[level - 1]
-    : LEGEND_TITLE
+  const info      = level <= LEVELS.length ? LEVELS[level - 1] : CAP
 
   return {
     level,
-    title,
+    title: info.title,
+    icon:  info.icon,
+    tier:  info.tier,
     xp: x,
     thisLevelStart: thisStart,
     nextLevelStart: nextStart,

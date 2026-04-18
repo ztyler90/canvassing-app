@@ -96,6 +96,20 @@
       transition: background .15s;
     }
     .nav-cta:hover { background: var(--blue-700) !important; color: white !important; }
+    .nav-mobile-signin {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--blue-600);
+      text-decoration: none;
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-btn);
+      transition: border-color .15s, background .15s;
+    }
+    .nav-mobile-signin:hover { border-color: var(--blue-600); background: rgba(27,79,204,0.04); }
 
     /* ── BUTTONS ── */
     .btn-primary {
@@ -892,6 +906,7 @@
       section { padding: 64px 20px; }
       .section-title { font-size: 28px; }
       nav .nav-links { display: none; }
+      nav .nav-mobile-signin { display: inline-flex; }
     }
     @media (max-width: 560px) {
       .hero-h1 { font-size: 32px; }
@@ -924,6 +939,7 @@
       <div class="nav-logo-icon">📍</div>
       KnockIQ
     </a>
+    <a href="/login" class="nav-mobile-signin">Sign In →</a>
     <ul class="nav-links">
       <li><a href="#how">How It Works</a></li>
       <li><a href="#features">Features</a></li>
