@@ -1,33 +1,40 @@
 /**
- * Door Knock Detection Algorithm  (v3 — speed-gated stop detection)
+ * Door Knock Detection Algorithm  (v4 — heading & motion corroboration)
  *
  * A "door knock" is registered when a rep:
  *   1. Slows below walking pace (device speed OR recent path length)
- *   2. Remains stopped for MIN_STOP_SECS seconds
+ *   2. Remains stopped for MIN_STOP_SECS_FAST / MIN_STOP_SECS_SLOW seconds
+ *      (fast path is unlocked when a heading turn corroborates the stop)
  *   3. Drifts no more than STOP_RADIUS_M from the stop anchor
- *   4. And the resolved address hasn't been logged in the last 24 h
+ *   4. Is NOT inside a Do-Not-Knock polygon
+ *   5. Is NOT classified "in-vehicle" by the accelerometer
+ *   6. The resolved address hasn't been logged in the last 24 h
  *
- * v3 — why it changed
- * ───────────────────
- * v2 fired a knock whenever the rep stayed within 15 m of an anchor
- * for 5 seconds. A brisk walk (~1.4 m/s) only covers 7 m in 5 s — which
- * is INSIDE the old 15 m radius — so reps were getting false-triggered
- * modals while walking between houses. v3 fixes this by:
+ * v4 — what changed
+ * ─────────────────
+ * • **Heading-change gate.** A rep walking a sidewalk has a heading
+ *   aligned with the street; turning toward a door rotates heading
+ *   60–90°. If we see a material heading turn in the 6 s before a stop,
+ *   we fire at MIN_STOP_SECS_FAST (4 s). Without a turn — which is the
+ *   common "pausing at a street corner to check phone" case — we
+ *   require a longer MIN_STOP_SECS_SLOW (8 s) before firing.
+ * • **Motion corroboration.** An external `motionClassifier` can tell
+ *   us "the rep is in a vehicle right now". When it does, we suppress
+ *   both the short-stop knock and the 45 s long-stop prompt, which
+ *   otherwise triggered modals at red lights.
+ * • **DNK suppression.** If the caller supplies `isInDoNotKnockZone`,
+ *   we skip detection inside marked zones — the rep still sees the
+ *   zone on the map but the detector stays quiet.
+ * • **Adaptive polling hook.** When the detector transitions between
+ *   "moving" and "stopped" it calls an optional `onModeChange` so the
+ *   GPS tracker can dial accuracy up/down to save battery.
  *
- * • **Gating on actual speed.** Every modern phone reports
- *   `pos.coords.speed` in m/s. If it's below 0.6 m/s we consider the
- *   rep "stopped" (walking is 1.2–1.8 m/s).
- * • **Sliding-window fallback.** On devices that report speed as null,
- *   we compute total path length over the last 5 seconds and require
- *   < 3 m of travel to call the rep stopped.
- * • **Tighter anchor radius** (15 m → 4 m). Once stopped, drift beyond
- *   4 m re-anchors the stop rather than continuing it.
- * • **Post-knock lockout.** After firing a knock, the rep must move
- *   > 12 m from the knock center before another can fire. Prevents
- *   a second phantom knock from being triggered while still at the door.
- * • The 45 s auto-prompt (for when the rep is in conversation) is
- *   preserved — it still fires through the same onKnock callback so
- *   ActiveCanvassing can choose whether to auto-open the modal.
+ * v3 retained fixes
+ * ─────────────────
+ *   – Speed gate (< 0.6 m/s) or sliding-window fallback (<3 m/5 s)
+ *   – Tight anchor radius (4 m)
+ *   – Post-knock lockout (rep must move > 12 m to fire again)
+ *   – The 45 s auto-prompt for when the rep is in conversation
  */
 
 import { reverseGeocode } from './geocoding.js'
@@ -35,13 +42,19 @@ import { distanceMeters }  from './gps.js'
 import { wasAddressRecentlyVisited } from './supabase.js'
 
 // ── Thresholds ──────────────────────────────────────────────────
-const STOP_RADIUS_M      = 4      // anchor drift tolerance once stopped
-const MIN_STOP_SECS      = 4      // seconds stopped to qualify as a knock
-const STOP_SPEED_MPS     = 0.6    // below walking pace (~1.4 m/s)
-const WINDOW_MS          = 5000   // sliding window for fallback speed test
-const WINDOW_MAX_DIST_M  = 3      // total path length in window → "stopped"
-const POST_KNOCK_MOVE_M  = 12     // must move this far before firing again
-const AUTO_PROMPT_SECS   = 45     // long-stop auto-prompt (handled downstream)
+const STOP_RADIUS_M        = 4      // anchor drift tolerance once stopped
+const MIN_STOP_SECS_FAST   = 4      // fires when corroborated by a heading turn
+const MIN_STOP_SECS_SLOW   = 8      // fires on a straight-line stop (no turn)
+const STOP_SPEED_MPS       = 0.6    // below walking pace (~1.4 m/s)
+const WINDOW_MS            = 5000   // sliding window for fallback speed test
+const WINDOW_MAX_DIST_M    = 3      // total path length in window → "stopped"
+const POST_KNOCK_MOVE_M    = 12     // must move this far before firing again
+const AUTO_PROMPT_SECS     = 45     // long-stop auto-prompt (handled downstream)
+
+// Heading-turn detection
+const HEADING_WINDOW_MS    = 6000   // look back 6 s before the stop
+const HEADING_DELTA_DEG    = 45     // a "turn toward the door" ≥ 45°
+const MIN_HEADING_SAMPLES  = 3      // require ≥3 readings in the window
 
 export class DoorKnockDetector {
   /**
@@ -49,26 +62,41 @@ export class DoorKnockDetector {
    * @param {function} opts.onKnock - (knockData) => void
    *   knockData: { lat, lng, address, elapsedSecs, knockedAt, autoPrompt }
    * @param {string}   opts.repId
+   * @param {object=}  opts.motionClassifier  Optional motion lib (see lib/motion.js).
+   *                                          When `.isLikelyInVehicle()` is true,
+   *                                          all auto-knock firing is suppressed.
+   * @param {function=} opts.isInDoNotKnockZone  (lat, lng) => boolean.
+   *                                          When true, detector stays silent.
+   * @param {function=} opts.onModeChange       (mode) => void. Called when the
+   *                                          detector transitions between
+   *                                          'moving' | 'stopped'. Used by the
+   *                                          GPS tracker for adaptive polling.
    */
-  constructor({ onKnock, repId }) {
-    this.onKnock      = onKnock
-    this.repId        = repId
+  constructor({ onKnock, repId, motionClassifier, isInDoNotKnockZone, onModeChange }) {
+    this.onKnock            = onKnock
+    this.repId              = repId
+    this.motionClassifier   = motionClassifier || null
+    this.isInDoNotKnockZone = isInDoNotKnockZone || null
+    this.onModeChange       = onModeChange || null
     // Address-level dedup persists across resets within a session — we
     // don't want a rep re-knocking the same door after a momentary
     // detector reset.
     this.recentKnocks = new Map()
+    this.mode         = 'moving'   // 'moving' | 'stopped'
     this.reset()
   }
 
   /** Clear per-stop state; preserves in-memory dedup map. */
   reset() {
-    this.windowPoints    = []    // [{ lat, lng, speed, ts }] in last WINDOW_MS
+    this.windowPoints    = []    // [{ lat, lng, speed, ts, heading }]
+    this.headingHistory  = []    // [{ heading, ts }] — kept across stops
     this.stopOrigin      = null  // anchor { lat, lng }
     this.stopPoints      = []    // all positions captured during current stop
     this.stoppedSince    = null  // ts when stop began
     this.knockFired      = false // true once knock fired for this stop
     this.longStopFired   = false // true once 45 s auto-prompt fired
     this.lastKnockCenter = null  // last knock center, for post-knock lockout
+    this.headingTurnSeen = false // latched: did we see a turn before the stop?
   }
 
   /**
@@ -81,18 +109,46 @@ export class DoorKnockDetector {
 
     const now = Date.now()
 
-    // ── Maintain sliding window ─────────────────────────────
+    // ── Maintain sliding windows ─────────────────────────────
     this.windowPoints.push({
-      lat:   point.lat,
-      lng:   point.lng,
-      speed: point.speed,
-      ts:    now,
+      lat:     point.lat,
+      lng:     point.lng,
+      speed:   point.speed,
+      ts:      now,
+      heading: Number.isFinite(point.heading) ? point.heading : null,
     })
     while (
       this.windowPoints.length &&
       (now - this.windowPoints[0].ts) > WINDOW_MS
     ) {
       this.windowPoints.shift()
+    }
+
+    // Track heading history over a longer window — we need to look BACK
+    // past the stop-onset to detect a turn.
+    if (Number.isFinite(point.heading)) {
+      this.headingHistory.push({ heading: point.heading, ts: now })
+      while (
+        this.headingHistory.length &&
+        (now - this.headingHistory[0].ts) > HEADING_WINDOW_MS
+      ) {
+        this.headingHistory.shift()
+      }
+    }
+
+    // ── Short-circuit: vehicle or DNK suppression ────────────
+    // These run BEFORE stop evaluation so we don't even start a stop
+    // timer in a car. We still track windows so the detector recovers
+    // instantly when the rep gets out and walks.
+    if (this.motionClassifier?.isLikelyInVehicle?.()) {
+      this._abandonStop()
+      this._setMode('moving')
+      return
+    }
+    if (this.isInDoNotKnockZone?.(point.lat, point.lng)) {
+      this._abandonStop()
+      this._setMode('moving')
+      return
     }
 
     // ── Post-knock lockout ──────────────────────────────────
@@ -108,30 +164,32 @@ export class DoorKnockDetector {
     const stopped = this._isStopped(point)
 
     if (!stopped) {
-      // Moving — abandon any in-progress stop.
-      this.stopOrigin    = null
-      this.stopPoints    = []
-      this.stoppedSince  = null
-      this.knockFired    = false
-      this.longStopFired = false
+      this._abandonStop()
+      this._setMode('moving')
       return
     }
 
     // ── Handle stopped state ────────────────────────────────
+    this._setMode('stopped')
     if (!this.stopOrigin) {
-      this.stopOrigin   = { lat: point.lat, lng: point.lng }
-      this.stopPoints   = [{ lat: point.lat, lng: point.lng }]
-      this.stoppedSince = now
+      this.stopOrigin      = { lat: point.lat, lng: point.lng }
+      this.stopPoints      = [{ lat: point.lat, lng: point.lng }]
+      this.stoppedSince    = now
+      // Evaluate the turn at the MOMENT the stop starts — this captures
+      // the approach (walking toward the door) before further heading
+      // readings in the stationary window drown it out.
+      this.headingTurnSeen = this._hadRecentHeadingTurn()
       return
     }
 
     // Drifted outside the anchor radius? Treat as a new stop.
     if (distanceMeters(this.stopOrigin, point) > STOP_RADIUS_M) {
-      this.stopOrigin    = { lat: point.lat, lng: point.lng }
-      this.stopPoints    = [{ lat: point.lat, lng: point.lng }]
-      this.stoppedSince  = now
-      this.knockFired    = false
-      this.longStopFired = false
+      this.stopOrigin      = { lat: point.lat, lng: point.lng }
+      this.stopPoints      = [{ lat: point.lat, lng: point.lng }]
+      this.stoppedSince    = now
+      this.knockFired      = false
+      this.longStopFired   = false
+      this.headingTurnSeen = this._hadRecentHeadingTurn()
       return
     }
 
@@ -139,7 +197,12 @@ export class DoorKnockDetector {
     this.stopPoints.push({ lat: point.lat, lng: point.lng })
     const elapsed = (now - this.stoppedSince) / 1000
 
-    if (elapsed >= MIN_STOP_SECS && !this.knockFired) {
+    // Heading turn gives us the fast path (4 s). No turn → slow path (8 s).
+    // This is the key false-positive fix: reps stopping to check their
+    // phone at a corner don't trigger until the longer threshold.
+    const requiredStop = this.headingTurnSeen ? MIN_STOP_SECS_FAST : MIN_STOP_SECS_SLOW
+
+    if (elapsed >= requiredStop && !this.knockFired) {
       this.knockFired = true
       this._tryKnock(elapsed, false)
     }
@@ -151,6 +214,21 @@ export class DoorKnockDetector {
   }
 
   // ── Private helpers ─────────────────────────────────────────
+
+  _abandonStop() {
+    this.stopOrigin      = null
+    this.stopPoints      = []
+    this.stoppedSince    = null
+    this.knockFired      = false
+    this.longStopFired   = false
+    this.headingTurnSeen = false
+  }
+
+  _setMode(mode) {
+    if (this.mode === mode) return
+    this.mode = mode
+    this.onModeChange?.(mode)
+  }
 
   /**
    * Decide whether the rep is stopped right now.
@@ -178,6 +256,26 @@ export class DoorKnockDetector {
       totalDist += distanceMeters(pts[i - 1], pts[i])
     }
     return totalDist < WINDOW_MAX_DIST_M
+  }
+
+  /**
+   * Did the rep turn by HEADING_DELTA_DEG or more within the heading
+   * window? Uses max pairwise diff across samples so a single heading
+   * blip doesn't dominate — we want a sustained change.
+   *
+   * Returns false if we don't have enough samples (treat as "no turn"
+   * conservatively, forcing the longer stop threshold).
+   */
+  _hadRecentHeadingTurn() {
+    const h = this.headingHistory
+    if (h.length < MIN_HEADING_SAMPLES) return false
+
+    let maxDiff = 0
+    for (let i = 1; i < h.length; i++) {
+      const d = _angleDiff(h[i].heading, h[i - 1].heading)
+      if (d > maxDiff) maxDiff = d
+    }
+    return maxDiff >= HEADING_DELTA_DEG
   }
 
   /** Centroid of all GPS readings captured during the current stop. */
@@ -238,4 +336,13 @@ export class DoorKnockDetector {
       })
     }
   }
+}
+
+/**
+ * Smallest angular difference between two compass headings (degrees).
+ * Returns 0–180. Handles the 359→1 wrap cleanly.
+ */
+function _angleDiff(a, b) {
+  const d = Math.abs(a - b) % 360
+  return d > 180 ? 360 - d : d
 }

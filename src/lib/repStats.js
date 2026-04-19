@@ -260,3 +260,84 @@ export function computeLevel(xp) {
     progress:       Math.max(0, Math.min(1, progress)),
   }
 }
+
+// ─── Best-hour-of-day nudge ──────────────────────────────────────────────────
+
+const HOUR_MIN_KNOCKS    = 10        // need N doors in a bucket to trust it
+const HOUR_MIN_LIFT      = 1.5       // best hour must beat rep's mean by ≥ 1.5×
+const HOUR_MIN_TOTAL     = 40        // overall sample floor before any nudge
+
+/**
+ * Bucket a rep's raw interactions by local hour and find the hour window
+ * with the highest conversion lift. Returns null if there's not enough
+ * data, or if no hour materially beats the rep's average — in that case
+ * the RepHome card just stays hidden. No nudge is better than a
+ * statistically shaky one.
+ *
+ * Conversion metric is bookings / knocks. Contact-rate is also returned
+ * for narrative ("you convert 3x here") but doesn't drive selection.
+ *
+ * @param {Array} interactions  [{ created_at, outcome }]
+ * @returns {null | {
+ *   hour: number,            0–23 local hour
+ *   knocks: number,          knocks in this hour
+ *   bookings: number,        bookings in this hour
+ *   bookingRate: number,     bookings / knocks, 0..1
+ *   avgBookingRate: number,  overall booking rate across all hours, 0..1
+ *   lift: number,            bookingRate / avgBookingRate
+ * }}
+ */
+export function computeBestHour(interactions) {
+  if (!Array.isArray(interactions) || interactions.length < HOUR_MIN_TOTAL) return null
+  const buckets = Array.from({ length: 24 }, () => ({ count: 0, bookings: 0 }))
+
+  let totalCount = 0
+  let totalBooked = 0
+  for (const it of interactions) {
+    if (!it?.created_at) continue
+    const d = new Date(it.created_at)
+    if (Number.isNaN(d.getTime())) continue
+    const h = d.getHours()
+    buckets[h].count++
+    totalCount++
+    if (it.outcome === 'booked') {
+      buckets[h].bookings++
+      totalBooked++
+    }
+  }
+  if (totalCount < HOUR_MIN_TOTAL) return null
+  const avg = totalBooked / totalCount
+  if (avg <= 0) return null
+
+  let best = null
+  for (let h = 0; h < 24; h++) {
+    const b = buckets[h]
+    if (b.count < HOUR_MIN_KNOCKS) continue
+    const rate = b.bookings / b.count
+    if (!best || rate > best.bookingRate) {
+      best = { hour: h, knocks: b.count, bookings: b.bookings, bookingRate: rate }
+    }
+  }
+  if (!best) return null
+  const lift = best.bookingRate / avg
+  if (lift < HOUR_MIN_LIFT) return null
+
+  return { ...best, avgBookingRate: avg, lift }
+}
+
+/** Render a 24-hour integer like 16 as "4-5pm" — helper so the nudge card
+ *  doesn't sprout its own date-fns import just for hour formatting.
+ *  Handles the noon/midnight meridian-flip edge case cleanly. */
+export function formatHourRange(h) {
+  const parts = (hour) => {
+    const hh        = ((hour % 24) + 24) % 24
+    const meridiem  = hh < 12 ? 'am' : 'pm'
+    const display   = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh
+    return { display, meridiem }
+  }
+  const s = parts(h)
+  const e = parts(h + 1)
+  return s.meridiem === e.meridiem
+    ? `${s.display}-${e.display}${s.meridiem}`
+    : `${s.display}${s.meridiem}-${e.display}${e.meridiem}`
+}

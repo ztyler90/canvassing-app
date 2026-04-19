@@ -119,6 +119,24 @@ function reducer(state, action) {
     case 'CLEAR_PENDING_KNOCK':
       return { ...state, pendingKnock: null }
 
+    // UNDO_LAST_KNOCK: reverses the stat increments REGISTER_KNOCK applied
+    // (doors - 1, floor at 0) and clears the pending modal. Only intended
+    // to run while pendingKnock is still non-null — once the rep has
+    // logged an interaction, its stats are tied to that row and undoing
+    // would need REPLACE/REMOVE. We no-op in that case rather than risk
+    // decrementing an already-recorded door.
+    case 'UNDO_LAST_KNOCK': {
+      if (!state.pendingKnock) return state
+      return {
+        ...state,
+        pendingKnock: null,
+        stats: {
+          ...state.stats,
+          doors: Math.max(0, state.stats.doors - 1),
+        },
+      }
+    }
+
     case 'LOG_INTERACTION': {
       const interaction = action.interaction
       const isConversation = ['not_interested', 'estimate_requested', 'booked'].includes(interaction.outcome)

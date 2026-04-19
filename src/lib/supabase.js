@@ -225,6 +225,52 @@ export async function wasAddressRecentlyVisited(address, repId, withinHours = 24
   return count > 0
 }
 
+/**
+ * Fetch this rep's lat/lng/created_at trail for the last `days` days —
+ * just what the coverage-heatmap needs to bucket into blocks. Small
+ * columns list keeps the payload tiny (a busy rep hits ~400 interactions
+ * over 30 days, so under 30 KB over the wire).
+ *
+ * Capped at 3000 rows defensively in case a rep logged an abnormal
+ * number of doors — the heatmap rounds into ~30m cells, so the extra
+ * rows don't buy fidelity, they just burn bandwidth.
+ */
+export async function getRepRecentInteractions(repId, days = 30) {
+  if (!repId) return []
+  const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString()
+  const { data } = await supabase
+    .from('interactions')
+    .select('lat, lng, created_at')
+    .eq('rep_id', repId)
+    .gte('created_at', since)
+    .not('lat', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(3000)
+  return data || []
+}
+
+/**
+ * Fetch this rep's outcome distribution by hour of day across the last
+ * `days` days. Used by the "best time of day" nudge on RepHome. We only
+ * need the minimal cols to bucket — created_at for the hour and outcome
+ * for the conversion numerator.
+ *
+ * Capped at 5000 rows so a prolific rep's analysis still finishes
+ * quickly; hour buckets stabilize well before that sample size.
+ */
+export async function getRepOutcomesForHour(repId, days = 60) {
+  if (!repId) return []
+  const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString()
+  const { data } = await supabase
+    .from('interactions')
+    .select('created_at, outcome')
+    .eq('rep_id', repId)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(5000)
+  return data || []
+}
+
 // ── Booking helpers ───────────────────────────────────────────────────────────
 
 export async function createBooking(booking) {
@@ -777,6 +823,64 @@ async function callManageTeam(body) {
     }
     if (payload?.error) return { error: new Error(payload.error) }
     return { data: payload, error: null }
+  } catch (err) {
+    return { error: err instanceof Error ? err : new Error(String(err)) }
+  }
+}
+
+/**
+ * Send a recorded audio blob to the transcribe-voice edge function and
+ * return the text. Used for rep-side voice notes.
+ *
+ *   const { text, error } = await transcribeVoiceNote(blob)
+ *
+ * The edge function proxies to OpenAI Whisper; see
+ * supabase/functions/transcribe-voice/index.ts. The caller must be an
+ * authenticated rep — we forward the current access token.
+ */
+export async function transcribeVoiceNote(audioBlob, { language, prompt } = {}) {
+  if (!audioBlob || !(audioBlob instanceof Blob)) {
+    return { error: new Error('Missing audio blob') }
+  }
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return { error: new Error('Not signed in') }
+
+    const form = new FormData()
+    // Hint the server/Whisper about the file type — MediaRecorder's default
+    // on iOS Safari is audio/mp4, on Chrome/desktop it's audio/webm. A
+    // matching extension lets Whisper detect the format.
+    const ext = audioBlob.type?.includes('mp4')
+      ? 'mp4'
+      : audioBlob.type?.includes('ogg')
+        ? 'ogg'
+        : audioBlob.type?.includes('wav')
+          ? 'wav'
+          : 'webm'
+    form.append('audio', audioBlob, `voice-note.${ext}`)
+    if (language) form.append('language', language)
+    if (prompt)   form.append('prompt',   prompt)
+
+    const url = `${supabaseUrl}/functions/v1/transcribe-voice`
+    const res = await fetch(url, {
+      method:  'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'apikey':        supabaseKey,
+      },
+      body: form,
+    })
+
+    let payload = null
+    try { payload = await res.json() } catch { /* non-JSON */ }
+
+    if (!res.ok) {
+      const msg = payload?.error || `Transcription failed (${res.status})`
+      return { error: new Error(msg) }
+    }
+    const text = (payload?.text || '').trim()
+    return { text, error: null }
   } catch (err) {
     return { error: err instanceof Error ? err : new Error(String(err)) }
   }

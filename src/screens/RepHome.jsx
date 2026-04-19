@@ -3,21 +3,24 @@ import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import {
   MapPin, DollarSign, Settings, Trophy, Play,
-  TrendingUp, Users, Target, ChevronRight, Sparkles,
+  TrendingUp, Users, Target, ChevronRight, Sparkles, Clock,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import {
   startSession, getRepSessions, getActiveSession,
   updateSessionStats, getMyCommissionConfig, getSessionInteractions,
-  getMyOrganization,
+  getMyOrganization, getRepOutcomesForHour,
 } from '../lib/supabase.js'
 import { requestGPSPermission } from '../lib/gps.js'
 import { gpsTracker } from '../lib/gps.js'
 import { DoorKnockDetector } from '../lib/doorKnock.js'
+import { motionClassifier } from '../lib/motion.js'
+import { dnkZones, pointInAnyZone, loadDnkZones } from '../lib/dnk.js'
 import {
   computePeriodStats, computeConversion,
   computeXP, computeLevel, calcCommission, describeCommission,
+  computeBestHour, formatHourRange,
 } from '../lib/repStats.js'
 
 const BRAND_BLUE = '#1B4FCC'  // KnockIQ blue
@@ -44,6 +47,10 @@ export default function RepHome() {
   const [goalCfg,       setGoalCfg]       = useState(DEFAULT_GOAL)
   const [period,        setPeriod]        = useState('week')  // 'week' | 'month' | 'lifetime'
   const [loadingData,   setLoadingData]   = useState(true)
+  // The rep's best hour-of-day for closes, computed from their history.
+  // Null until we've confirmed there's enough data for a credible nudge;
+  // the card stays hidden in that case rather than showing noise.
+  const [bestHour,      setBestHour]      = useState(null)
 
   useEffect(() => {
     loadData()
@@ -67,6 +74,14 @@ export default function RepHome() {
       })
     }
     setLoadingData(false)
+
+    // Compute the best-hour nudge off the main loading path — the card
+    // is a nice-to-have, not gating the start button. If the rep has no
+    // interactions or too few bookings, computeBestHour returns null
+    // and the card stays hidden.
+    getRepOutcomesForHour(user.id, 60)
+      .then((rows) => setBestHour(computeBestHour(rows)))
+      .catch(() => setBestHour(null))
   }
 
   // If an active session already exists in Supabase (e.g. rep closed the
@@ -106,6 +121,16 @@ export default function RepHome() {
       return
     }
 
+    // iOS 13+ requires DeviceMotionEvent.requestPermission() from a user
+    // gesture — this handler IS that gesture. We fire-and-forget; the
+    // detector falls back to GPS-only logic if motion is denied or
+    // unsupported, so we never block canvassing on the result.
+    motionClassifier.start().catch(() => {})
+
+    // Kick off DNK polygon load in the background. Non-blocking because
+    // the detector treats an empty zone list as "nothing to suppress".
+    loadDnkZones().catch(() => {})
+
     const { data: session, error } = await startSession(user.id)
     if (error) { setGpsError(error.message); setLoadingStart(false); return }
 
@@ -119,6 +144,13 @@ export default function RepHome() {
     const detector = new DoorKnockDetector({
       repId: user.id,
       onKnock: (knock) => dispatch({ type: 'REGISTER_KNOCK', knock }),
+      motionClassifier,
+      // Resolved each call against the latest dnkZones array — safe even
+      // if zones load after the detector is wired up.
+      isInDoNotKnockZone: (lat, lng) => !!pointInAnyZone(lat, lng, dnkZones),
+      // Adaptive polling: detector tells us when the rep is moving vs
+      // stopped and we dial GPS accuracy to match.
+      onModeChange: (mode) => gpsTracker.setMode(mode === 'stopped' ? 'stopped' : 'moving'),
     })
     doorKnockRef.current = detector
 
@@ -253,6 +285,11 @@ export default function RepHome() {
           </div>
         )}
 
+        {/* Best-time-of-day nudge. Renders only if the rep has enough
+            history AND one hour materially beats their average close rate.
+            When hidden it takes zero space — no "not enough data" stub. */}
+        {bestHour && <BestHourNudge info={bestHour} />}
+
         {/* Scoreboard row: Today's Goal + Level (2 cards, same styling) */}
         <div className="grid grid-cols-2 gap-2.5">
           <GoalCard
@@ -340,6 +377,47 @@ export default function RepHome() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+/**
+ * BestHourNudge
+ * ─────────────
+ * Tiny purple gradient card that surfaces the rep's personal best-close
+ * hour. It's motivating ("you're 2.4× more likely to book at 5-6pm") and
+ * also actionable — reps can decide whether the hour they're about to
+ * canvass is their strongest window, or time it better tomorrow.
+ *
+ * Honesty note: the "X × more likely" framing is lift vs. the rep's own
+ * average, not industry norms. That's both the strongest signal we can
+ * give with one rep's data and the only framing that scales as they
+ * improve (the bar moves as their baseline shifts).
+ */
+function BestHourNudge({ info }) {
+  const range = formatHourRange(info.hour)
+  return (
+    <div
+      className="rounded-2xl px-4 py-3 text-white shadow-sm relative overflow-hidden"
+      style={{ background: 'linear-gradient(135deg, #6D28D9 0%, #DB2777 100%)' }}
+    >
+      <div className="flex items-start gap-2.5 relative z-10">
+        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0 mt-0.5">
+          <Clock className="w-4 h-4 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] uppercase tracking-wide font-semibold text-purple-100/90">
+            Your hot hour
+          </p>
+          <p className="text-[15px] font-bold leading-tight mt-0.5">
+            {range} · {info.lift.toFixed(1)}× more bookings than your average
+          </p>
+          <p className="text-[11px] text-purple-100/90 mt-0.5">
+            Based on {info.knocks} doors in that window over the last 60 days.
+          </p>
+        </div>
+      </div>
+      <Clock className="absolute -bottom-3 -right-2 w-16 h-16 text-white/10" />
     </div>
   )
 }

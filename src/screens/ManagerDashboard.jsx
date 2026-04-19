@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns'
-import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight } from 'lucide-react'
+import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllSessions, getAllReps, getManagerMapData, signOut,
@@ -967,10 +967,45 @@ function elapsedSince(startedAt) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
+// ── Session SLA ─────────────────────────────────────────────────────────────
+// If a rep has been on a session for >25 minutes without any knocks, the
+// session is almost certainly stalled — they got stuck in a long conversation,
+// had a personal emergency, or their phone's GPS died. Rather than waking
+// the manager, we just flag the rep card + pin red so a glance at the Live
+// tab surfaces who needs a check-in. The threshold is generous enough that
+// a normal opening conversation won't trip it.
+const SLA_MS                 = 25 * 60 * 1000
+// If they HAVE knocked but their rate is under this floor, still flag — a
+// rep who got 1 knock in 40 min is likely stalled too. We cap the check to
+// sessions ≥ 20 min so new sessions don't false-alarm.
+const SLA_MIN_ELAPSED_MS     = 20 * 60 * 1000
+const SLA_MIN_DOORS_PER_HOUR = 2
+
+export function isSessionStalled(rep, now = Date.now()) {
+  const startedAt = rep?.session?.started_at
+    ? new Date(rep.session.started_at).getTime()
+    : null
+  if (!startedAt) return false
+  const elapsed = now - startedAt
+  if (elapsed < SLA_MIN_ELAPSED_MS) return false
+  const doors = Number(rep.session?.doors_knocked) || 0
+  // No knocks for 25+ minutes.
+  if (doors === 0 && elapsed >= SLA_MS) return true
+  // Elapsed ≥ 25 min AND doors/hour below the floor.
+  const hours = elapsed / 3600_000
+  if (elapsed >= SLA_MS && doors / hours < SLA_MIN_DOORS_PER_HOUR) return true
+  return false
+}
+
 function LiveTab({ allReps }) {
   const [activeReps, setActiveReps]   = useState([])
   const [refreshedAt, setRefreshedAt] = useState(null)
   const [loading, setLoading]         = useState(true)
+  // Rep ids the manager has already acknowledged for this session of
+  // the dashboard. Acked rows drop to a "muted" state so reloading or
+  // refetching doesn't keep re-flagging a rep the manager has checked in
+  // on. Kept local (not persisted) — a full page reload resets acks.
+  const [ackedIds, setAckedIds]       = useState(() => new Set())
 
   const refresh = async () => {
     try {
@@ -999,6 +1034,21 @@ function LiveTab({ allReps }) {
   const activeIds  = new Set(activeReps.map((r) => r.rep_id))
   const inactiveReps = allReps.filter((r) => !activeIds.has(r.id))
 
+  // Annotate each rep with a stalled flag before passing to the map so
+  // MapView can color stalled pins red without importing SLA logic.
+  const now = Date.now()
+  const annotatedReps = activeReps.map((rep) => ({
+    ...rep,
+    stalled: isSessionStalled(rep, now) && !ackedIds.has(rep.rep_id),
+  }))
+  const stalledCount = annotatedReps.filter((r) => r.stalled).length
+  const ackRep = (repId) =>
+    setAckedIds((prev) => {
+      const next = new Set(prev)
+      next.add(repId)
+      return next
+    })
+
   return (
     <div className="flex flex-col h-full">
       {/* Status bar */}
@@ -1014,15 +1064,32 @@ function LiveTab({ allReps }) {
         </button>
       </div>
 
+      {/* SLA alarm banner — surfaces reps whose session looks stalled. Tapping
+          "I've checked in" mutes the banner + red ring for that rep until the
+          manager reloads the page. */}
+      {stalledCount > 0 && (
+        <div className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-700">
+              {stalledCount} rep{stalledCount !== 1 ? 's' : ''} may need a check-in
+            </p>
+            <p className="text-xs text-red-600/80">
+              No knocks logged in 25+ minutes. GPS may have dropped or they could be stuck in a long conversation.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Live map */}
-      <div style={{ height: '380px' }}>
+      <div style={{ height: '380px' }} className={stalledCount > 0 ? 'mt-3' : ''}>
         {loading ? (
           <div className="flex items-center justify-center h-full bg-gray-50">
             <div className="animate-spin w-8 h-8 rounded-full"
               style={{ borderWidth: 3, borderStyle: 'solid', borderColor: `${BRAND_GREEN} transparent transparent transparent` }} />
           </div>
         ) : (
-          <MapView repLocations={activeReps} className="w-full h-full" followUser={false} />
+          <MapView repLocations={annotatedReps} className="w-full h-full" followUser={false} />
         )}
       </div>
 
@@ -1038,27 +1105,54 @@ function LiveTab({ allReps }) {
         </div>
       )}
       <div className="px-4 pb-3 space-y-2">
-        {activeReps.map((rep, idx) => {
+        {annotatedReps.map((rep, idx) => {
           const color = REP_COLORS[idx % REP_COLORS.length]
           const sess  = rep.session
+          // Stalled cards pop with a red border + soft blush so the manager's
+          // eye lands on them first.
+          const cardCls = rep.stalled
+            ? 'bg-red-50 border-2 border-red-300 rounded-xl px-4 py-3'
+            : 'bg-white border border-gray-200 rounded-xl px-4 py-3'
           return (
-            <div key={rep.rep_id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-                style={{ backgroundColor: color }}>
-                {repInitials(rep.user?.full_name)}
+            <div key={rep.rep_id} className={cardCls}>
+              <div className="flex items-center gap-3">
+                <div className="relative flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                    style={{ backgroundColor: color }}>
+                    {repInitials(rep.user?.full_name)}
+                  </div>
+                  {rep.stalled && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 border-2 border-white flex items-center justify-center">
+                      <span className="block w-1 h-1 rounded-full bg-white" />
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-semibold text-gray-900 text-sm truncate">{rep.user?.full_name || 'Rep'}</p>
+                    {rep.stalled && (
+                      <span className="text-[10px] uppercase tracking-wide bg-red-500 text-white font-bold px-1.5 py-0.5 rounded">
+                        stalled
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400">{elapsedSince(sess?.started_at)} elapsed</p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-right flex-shrink-0">
+                  <span className="text-xs text-gray-400">Doors</span>
+                  <span className="text-xs font-bold text-gray-900">{sess?.doors_knocked ?? '—'}</span>
+                  <span className="text-xs text-gray-400">Revenue</span>
+                  <span className="text-xs font-bold text-green-600">
+                    {sess?.revenue_booked != null ? `$${sess.revenue_booked.toFixed(0)}` : '—'}
+                  </span>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 text-sm truncate">{rep.user?.full_name || 'Rep'}</p>
-                <p className="text-xs text-gray-400">{elapsedSince(sess?.started_at)} elapsed</p>
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-right flex-shrink-0">
-                <span className="text-xs text-gray-400">Doors</span>
-                <span className="text-xs font-bold text-gray-900">{sess?.doors_knocked ?? '—'}</span>
-                <span className="text-xs text-gray-400">Revenue</span>
-                <span className="text-xs font-bold text-green-600">
-                  {sess?.revenue_booked != null ? `$${sess.revenue_booked.toFixed(0)}` : '—'}
-                </span>
-              </div>
+              {rep.stalled && (
+                <button onClick={() => ackRep(rep.rep_id)}
+                  className="mt-2.5 w-full py-1.5 rounded-lg bg-white border border-red-300 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors">
+                  I've checked in
+                </button>
+              )}
             </div>
           )
         })}

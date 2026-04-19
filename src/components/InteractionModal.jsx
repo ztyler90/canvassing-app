@@ -16,6 +16,7 @@ import {
   flagInteractionFollowUp,
 } from '../lib/supabase.js'
 import { reverseGeocodeCandidates } from '../lib/geocoding.js'
+import VoiceNoteButton from './VoiceNoteButton.jsx'
 
 const OUTCOMES = [
   { id: 'no_answer',          label: 'No Answer',       emoji: '🚪', color: '#9CA3AF', bg: '#F9FAFB' },
@@ -701,16 +702,29 @@ export default function InteractionModal({
               )}
             </div>
 
-            {/* Notes — free-form comments saved with the interaction record. */}
+            {/* Notes — free-form comments saved with the interaction record.
+                Voice-note button lives in the label row so the rep can dictate
+                a note hands-free (Whisper transcription). The transcription is
+                appended to whatever is already typed so reps can refine by
+                voice + keyboard without clobbering earlier input. */}
             <div>
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                <MessageSquare className="w-3.5 h-3.5" />
-                Notes <span className="text-gray-400 normal-case font-normal">(optional)</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Notes <span className="text-gray-400 normal-case font-normal">(optional)</span>
+                </label>
+                <VoiceNoteButton
+                  disabled={saving}
+                  onTranscribed={(text) => {
+                    if (!text) return
+                    setNotes((prev) => prev ? `${prev.trimEnd()} ${text}` : text)
+                  }}
+                />
+              </div>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any comments about this job…"
+                placeholder="Any comments about this job… or tap the mic to dictate."
                 rows={3}
                 className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none resize-none"
               />

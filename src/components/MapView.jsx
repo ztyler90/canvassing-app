@@ -64,22 +64,52 @@ const REP_COLORS = [
   '#F97316','#6366F1',
 ]
 
-function makeRepPin(initials, color) {
+// Stalled pins get a pulsing red halo. The halo is a second div behind the
+// normal avatar chip so we don't fight Leaflet's positioning math — iconSize
+// stays 36×36 and the halo just overflows via negative positioning.
+function makeRepPin(initials, color, stalled = false) {
+  const halo = stalled
+    ? `<span style="
+        position:absolute;inset:-8px;border-radius:50%;
+        background:rgba(220,38,38,0.35);
+        box-shadow:0 0 0 2px #DC2626, 0 0 14px 2px rgba(220,38,38,0.55);
+        animation:knockiq-stalled-pulse 1.6s ease-out infinite;
+      "></span>`
+    : ''
   return L.divIcon({
     className: '',
-    html: `<div style="
+    html: `<div style="position:relative;width:36px;height:36px">${halo}<div style="
+      position:relative;
       width:36px;height:36px;
       background:${color};
-      border:3px solid white;
+      border:3px solid ${stalled ? '#DC2626' : 'white'};
       border-radius:50%;
       box-shadow:0 2px 8px rgba(0,0,0,0.4);
       display:flex;align-items:center;justify-content:center;
       color:white;font-weight:700;font-size:12px;font-family:system-ui;
       letter-spacing:0.5px;
-    ">${initials}</div>`,
+    ">${initials}</div></div>`,
     iconSize:   [36, 36],
     iconAnchor: [18, 18],
   })
+}
+
+// Inject the stalled-pin pulse keyframes once per app. Safe to call from
+// module scope: it runs in the browser where the component is used, and
+// the id-guard prevents duplicate style tags on hot-reload.
+function ensureStalledPulseStyles() {
+  if (typeof document === 'undefined') return
+  if (document.getElementById('knockiq-stalled-pulse-styles')) return
+  const style = document.createElement('style')
+  style.id = 'knockiq-stalled-pulse-styles'
+  style.textContent = `
+    @keyframes knockiq-stalled-pulse {
+      0%   { transform: scale(1);   opacity: 0.9 }
+      70%  { transform: scale(1.25); opacity: 0   }
+      100% { transform: scale(1.25); opacity: 0   }
+    }
+  `
+  document.head.appendChild(style)
 }
 
 function repInitials(name) {
@@ -107,10 +137,12 @@ function elapsedLabel(startedAt) {
  * @param {boolean} props.followUser    - auto-pan to current position
  * @param {Array}   props.territories   - [{ polygon: [[lat,lng]], color, name }] rep's assigned zones
  * @param {Array}   props.doNotKnock    - [{ lat, lng, address, reason }] DNK list
+ * @param {Array}   props.dnkZones      - [{ polygon: [[lng,lat]...], name, reason }] DNK polygons
+ * @param {Array}   props.heatmapCells  - [{ bbox, bucket, count }] block coverage heatmap cells
  * @param {Array}   props.repLocations  - [{ rep_id, lat, lng, user, session }] live rep positions
  * @param {Function} props.onInteractionClick - (interaction) => void   Tap an existing pin to edit
  */
-export default function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], repLocations = [], onInteractionClick = null }) {
+export default function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null }) {
   const containerRef       = useRef(null)
   const mapRef             = useRef(null)
   const trailRef           = useRef(null)
@@ -118,6 +150,8 @@ export default function MapView({ trail = [], interactions = [], currentPos = nu
   const currentMarker      = useRef(null)
   const territoryLayersRef = useRef([])
   const dnkLayersRef       = useRef([])
+  const dnkZoneLayersRef   = useRef([])
+  const heatmapLayersRef   = useRef([])
   const repMarkersRef      = useRef([])
 
   // Initialize map
@@ -262,9 +296,67 @@ export default function MapView({ trail = [], interactions = [], currentPos = nu
     })
   }, [doNotKnock])
 
+  // Render Do-Not-Knock POLYGON zones (HOAs, school zones, cooldown
+  // regions). Polygons are stored in GeoJSON [lng, lat] order; Leaflet
+  // wants [lat, lng] pairs so we flip each pair on mount. Zones are
+  // filled with a semi-transparent red with a dashed border so they
+  // stand out from rep territory overlays, which use a colored dashed
+  // line without fill.
+  useEffect(() => {
+    if (!mapRef.current) return
+    dnkZoneLayersRef.current.forEach((l) => l.remove())
+    dnkZoneLayersRef.current = []
+    dnkZones.forEach((z) => {
+      if (!z?.polygon || z.polygon.length < 3) return
+      // Flip [lng, lat] → [lat, lng] for Leaflet.
+      const latlngs = z.polygon.map(([lng, lat]) => [lat, lng])
+      const poly = L.polygon(latlngs, {
+        color:       '#B91C1C',
+        weight:      2,
+        fillColor:   '#DC2626',
+        fillOpacity: 0.18,
+        dashArray:   '4 4',
+      })
+      const reason  = z.reason ? `<br/><span style="color:#6B7280">${String(z.reason).replace(/[<>&]/g, '')}</span>` : ''
+      poly.bindTooltip(
+        `<b style="color:#B91C1C">🚫 ${z.name || 'Do Not Knock zone'}</b>${reason}`,
+        { sticky: true }
+      )
+      poly.addTo(mapRef.current)
+      dnkZoneLayersRef.current.push(poly)
+    })
+  }, [dnkZones])
+
+  // Render coverage heatmap cells. Rendered UNDER interaction pins so
+  // the pins stay tappable; we also keep fill opacity low (25%) so the
+  // underlying street map remains legible.
+  useEffect(() => {
+    if (!mapRef.current) return
+    heatmapLayersRef.current.forEach((l) => l.remove())
+    heatmapLayersRef.current = []
+    const bucketColor = {
+      fresh:  { fill: '#EF4444', border: '#B91C1C' },
+      recent: { fill: '#F59E0B', border: '#B45309' },
+      older:  { fill: '#10B981', border: '#047857' },
+    }
+    heatmapCells.forEach((c) => {
+      const style = bucketColor[c.bucket] || bucketColor.older
+      const rect = L.rectangle(c.bbox, {
+        color:       style.border,
+        weight:      0.5,
+        fillColor:   style.fill,
+        fillOpacity: 0.25,
+        interactive: false,
+      })
+      rect.addTo(mapRef.current)
+      heatmapLayersRef.current.push(rect)
+    })
+  }, [heatmapCells])
+
   // Render live rep avatar pins (manager live map)
   useEffect(() => {
     if (!mapRef.current) return
+    ensureStalledPulseStyles()
     repMarkersRef.current.forEach((m) => m.remove())
     repMarkersRef.current = []
 
@@ -272,8 +364,10 @@ export default function MapView({ trail = [], interactions = [], currentPos = nu
       if (!rep.lat || !rep.lng) return
       const color    = REP_COLORS[idx % REP_COLORS.length]
       const initials = repInitials(rep.user?.full_name)
-      const icon     = makeRepPin(initials, color)
-      const marker   = L.marker([rep.lat, rep.lng], { icon, zIndexOffset: 2000 })
+      const icon     = makeRepPin(initials, color, !!rep.stalled)
+      // Stalled reps pop above the stack so the pulse is never hidden
+      // behind a neighbor's pin when two reps cluster.
+      const marker   = L.marker([rep.lat, rep.lng], { icon, zIndexOffset: rep.stalled ? 3000 : 2000 })
 
       const sess      = rep.session
       const name      = rep.user?.full_name || 'Rep'
@@ -281,10 +375,17 @@ export default function MapView({ trail = [], interactions = [], currentPos = nu
       const doors     = sess?.doors_knocked  ?? '—'
       const convos    = sess?.conversations  ?? '—'
       const revenue   = sess?.revenue_booked != null ? `$${sess.revenue_booked.toFixed(0)}` : '—'
+      // Stall banner inside the popup gives the manager immediate context
+      // when they tap a red pin, without forcing them to cross-reference
+      // the card list.
+      const stalledBadge = rep.stalled
+        ? `<div style="margin-bottom:6px;padding:4px 6px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:4px;color:#B91C1C;font-weight:700;font-size:11px">⚠ Possible stall — may need check-in</div>`
+        : ''
 
       marker.bindPopup(`
         <div style="font-family:system-ui;font-size:13px;min-width:170px">
           <div style="font-weight:700;font-size:14px;color:#111827;margin-bottom:6px">${name}</div>
+          ${stalledBadge}
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
             <div style="color:#6B7280;font-size:11px">Session time</div>
             <div style="font-weight:600;font-size:11px">${elapsed}</div>
