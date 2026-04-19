@@ -9,8 +9,8 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Eye, EyeOff, Building2, Shield, DollarSign, Plus, X, Target, Hash } from 'lucide-react'
-import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal } from '../lib/supabase.js'
+import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send } from 'lucide-react'
+import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal } from '../lib/supabase.js'
 import { describeCommission, DEFAULT_COMMISSION_CONFIG } from '../lib/repStats.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -35,11 +35,10 @@ export default function Settings() {
   const [showAddRep, setShowAddRep]   = useState(false)
   const [newRepName, setNewRepName]   = useState('')
   const [newRepEmail, setNewRepEmail] = useState('')
-  const [newRepPass, setNewRepPass]   = useState('')
-  const [showPass, setShowPass]       = useState(false)
   const [addingRep, setAddingRep]     = useState(false)
   const [deletingRepId, setDeletingRepId] = useState(null)
-  const [commissionRepId, setCommissionRepId] = useState(null)  // rep whose commission is being edited
+  const [resendingRepId, setResendingRepId] = useState(null)   // rep id currently being re-invited
+  const [commissionRepId, setCommissionRepId] = useState(null) // rep whose commission is being edited
 
   // Daily goal config — hydrated from org on load, edited in-place.
   const [goalType,     setGoalType]     = useState('revenue')  // 'revenue' | 'count'
@@ -112,23 +111,52 @@ export default function Settings() {
   }
 
   async function handleAddRep() {
-    if (!newRepName.trim() || !newRepEmail.trim() || !newRepPass.trim()) {
-      showToast('Name, email, and password are all required.', 'error'); return
+    if (!newRepName.trim() || !newRepEmail.trim()) {
+      showToast('Name and email are required.', 'error'); return
     }
     setAddingRep(true)
-    const { user: created, error } = await createRep({
+    const { user: created, emailSent, emailError, error } = await createRep({
       fullName: newRepName.trim(),
       email:    newRepEmail.trim(),
-      password: newRepPass.trim(),
     })
     setAddingRep(false)
     if (error) {
       showToast('Failed to create rep: ' + error.message, 'error')
+      return
+    }
+    setReps(prev => [...prev, { id: created.id, email: created.email, full_name: created.full_name, role: 'rep' }])
+    setNewRepName(''); setNewRepEmail('')
+    setShowAddRep(false)
+    // The edge function returns { email_sent: true } on Resend success. If
+    // the rep row was created but the email couldn't be sent (Resend key
+    // missing, domain unverified, etc.), call that out so the manager knows
+    // to use "Resend invite" instead of assuming everything went through.
+    if (emailSent) {
+      showToast(`${created.full_name} added — invite emailed.`)
     } else {
-      setReps(prev => [...prev, { id: created.id, email: created.email, full_name: created.full_name, role: 'rep' }])
-      setNewRepName(''); setNewRepEmail(''); setNewRepPass('')
-      setShowAddRep(false)
-      showToast(`${created.full_name} added!`)
+      showToast(
+        `${created.full_name} added, but we couldn't send the invite email` +
+        (emailError ? `: ${emailError}` : '.') +
+        ' Use "Resend invite" once your email setup is working.',
+        'error',
+      )
+    }
+  }
+
+  async function handleResendInvite(rep) {
+    setResendingRepId(rep.id)
+    const { emailSent, emailError, error } = await resendRepInvite(rep.id)
+    setResendingRepId(null)
+    if (error) {
+      showToast('Could not resend invite: ' + error.message, 'error')
+    } else if (emailSent) {
+      showToast(`Invite resent to ${rep.email}`)
+    } else {
+      showToast(
+        `Invite link regenerated but email send failed` +
+        (emailError ? `: ${emailError}` : '') + '.',
+        'error',
+      )
     }
   }
 
@@ -450,28 +478,21 @@ export default function Settings() {
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
               </div>
-              <div>
-                <label className="text-xs text-gray-400 font-medium block mb-1">Temporary Password</label>
-                <div className="relative">
-                  <input
-                    type={showPass ? 'text' : 'password'}
-                    value={newRepPass}
-                    onChange={e => setNewRepPass(e.target.value)}
-                    placeholder="At least 8 characters"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPass(v => !v)}
-                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
-                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">They can change this in their profile after first login.</p>
+
+              {/* Invite-flow explainer. Replaces the old "Temporary Password"
+                  input — reps now set their own password via a one-time link
+                  so no credentials are ever typed or stored by the manager. */}
+              <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
+                <Mail className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-blue-700 leading-relaxed">
+                  We'll email {newRepName.trim() || 'them'} a secure invite link. They'll set their own password
+                  on first sign-in — you never see or handle their credentials.
+                </p>
               </div>
+
               <div className="flex gap-2">
                 <button
-                  onClick={() => { setShowAddRep(false); setNewRepName(''); setNewRepEmail(''); setNewRepPass('') }}
+                  onClick={() => { setShowAddRep(false); setNewRepName(''); setNewRepEmail('') }}
                   className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium">
                   Cancel
                 </button>
@@ -480,7 +501,7 @@ export default function Settings() {
                   disabled={addingRep}
                   className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50"
                   style={{ backgroundColor: BRAND_BLUE }}>
-                  {addingRep ? 'Creating…' : 'Create Rep'}
+                  {addingRep ? 'Sending invite…' : 'Send Invite'}
                 </button>
               </div>
             </div>
@@ -516,6 +537,15 @@ export default function Settings() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleResendInvite(rep)}
+                        disabled={resendingRepId === rep.id}
+                        title="Resend invite email"
+                        className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-40 transition-colors">
+                        {resendingRepId === rep.id
+                          ? <Loader className="w-4 h-4 animate-spin" />
+                          : <Send className="w-4 h-4" />}
+                      </button>
                       <button
                         onClick={() => setCommissionRepId(isEditing ? null : rep.id)}
                         className="p-2 rounded-xl text-xs font-semibold"

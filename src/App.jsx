@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'
 import { SessionProvider } from './contexts/SessionContext.jsx'
 import Login             from './screens/Login.jsx'
 import Signup            from './screens/Signup.jsx'
+import SetPassword       from './screens/SetPassword.jsx'
 import RepHome           from './screens/RepHome.jsx'
 import ActiveCanvassing  from './screens/ActiveCanvassing.jsx'
 import SessionSummary    from './screens/SessionSummary.jsx'
@@ -44,9 +45,14 @@ function AppRoutes() {
 
   if (!user) return (
     <Routes>
-      <Route path="/signup" element={<Signup />} />
-      <Route path="/login"  element={<Login />} />
-      <Route path="*"       element={<WelcomeRedirect />} />
+      <Route path="/signup"        element={<Signup />} />
+      <Route path="/login"         element={<Login />} />
+      {/* /set-password renders both pre-auth (while Supabase is still
+          parsing the invite link from the URL hash) and post-auth (once
+          the session has landed and the rep needs to pick a password),
+          so it needs to be reachable in both trees. */}
+      <Route path="/set-password"  element={<SetPassword />} />
+      <Route path="*"              element={<WelcomeRedirect />} />
     </Routes>
   )
 
@@ -71,6 +77,11 @@ function AppRoutes() {
         <Route path="/canvassing"    element={<ActiveCanvassing />} />
         <Route path="/summary"       element={<SessionSummary />} />
         <Route path="/session/:id"   element={<SessionDetail />} />
+        {/* Reachable post-auth so a freshly-invited rep lands here after
+            Supabase processes the invite link's hash and establishes a
+            session — they still need to set a password before anything
+            else makes sense. */}
+        <Route path="/set-password"  element={<SetPassword />} />
         <Route path="*"              element={<Navigate to="/" replace />} />
       </Routes>
     </SessionProvider>

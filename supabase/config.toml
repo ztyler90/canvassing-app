@@ -43,5 +43,14 @@ enabled = true
 policy = "per_worker"
 inspector_port = 8083
 
+# manage-team does its own in-function authentication check via
+# adminClient.auth.getUser(token) + role === 'manager' — so we skip the
+# runtime's built-in JWT pre-verifier. The built-in verifier is pinned to
+# a djwt version that doesn't support ES256, so when the project uses
+# the new asymmetric signing keys it rejects all tokens with
+# "Unsupported JWT algorithm ES256" before the function can run.
+[functions.manage-team]
+verify_jwt = false
+
 [[analytics]]
 enabled = false

@@ -929,15 +929,43 @@ export async function transcribeVoiceNote(audioBlob, { language, prompt } = {}) 
 }
 
 /**
- * Create a new rep under this manager.
- * Calls the manage-team Edge Function (service role required).
+ * Create a new rep under this manager and email them a one-time invite link
+ * to set their own password. No plaintext credentials are ever sent — the
+ * edge function calls supabase.auth.admin.generateLink({ type: 'invite' })
+ * and delivers the resulting action link via Resend.
+ *
+ * Returns { user, emailSent, emailError } so the UI can render a partial-
+ * success toast if the rep row was created but the email send failed (e.g.
+ * Resend API key not configured, domain not verified, etc.).
  */
-export async function createRep({ fullName, email, password }) {
+export async function createRep({ fullName, email }) {
   const { data, error } = await callManageTeam({
-    action: 'create', fullName, email, password,
+    action: 'create', fullName, email,
   })
   if (error) return { error }
-  return { user: data?.user, error: null }
+  return {
+    user:       data?.user,
+    emailSent:  Boolean(data?.email_sent),
+    emailError: data?.email_error || null,
+    error:      null,
+  }
+}
+
+/**
+ * Re-send the onboarding invite email to an existing rep. Used when the
+ * original email didn't arrive, bounced, or the rep lost the link before
+ * setting a password. The edge function uses type='magiclink' here (not
+ * 'invite') because Supabase's invite generator errors on users that are
+ * already registered.
+ */
+export async function resendRepInvite(repId) {
+  const { data, error } = await callManageTeam({ action: 'resend_invite', repId })
+  if (error) return { error }
+  return {
+    emailSent:  Boolean(data?.email_sent),
+    emailError: data?.email_error || null,
+    error:      null,
+  }
 }
 
 /**
