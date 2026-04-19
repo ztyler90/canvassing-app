@@ -1,24 +1,33 @@
 /**
- * Door Knock Detection Algorithm  (v2 — loosened & resilient)
+ * Door Knock Detection Algorithm  (v3 — speed-gated stop detection)
  *
  * A "door knock" is registered when a rep:
- *   1. Stops within STOP_RADIUS_M meters of a position
- *   2. Remains there for at least MIN_STOP_SECS seconds (5 s)
- *   3. The resolved address hasn't been logged in the last 24 hours
+ *   1. Slows below walking pace (device speed OR recent path length)
+ *   2. Remains stopped for MIN_STOP_SECS seconds
+ *   3. Drifts no more than STOP_RADIUS_M from the stop anchor
+ *   4. And the resolved address hasn't been logged in the last 24 h
  *
- * Key v2 changes
- * ─────────────
- * • Knock fires **proactively** when the dwell threshold is met,
- *   not only when the rep walks away.
- * • GPS jitter compensation — uses the position accuracy value
- *   so that a 6 m "jump" on a phone with 12 m accuracy is treated
- *   as noise rather than real movement.
- * • feed() is never blocked — the old `pending` flag silently
- *   dropped GPS points during geocoding, causing missed knocks.
- * • The centroid of all GPS points captured during a stop is used
- *   for reverse-geocoding (more accurate than a single reading).
- * • Knocks still fire when address is null — the user can fill it
- *   in manually via the InteractionModal.
+ * v3 — why it changed
+ * ───────────────────
+ * v2 fired a knock whenever the rep stayed within 15 m of an anchor
+ * for 5 seconds. A brisk walk (~1.4 m/s) only covers 7 m in 5 s — which
+ * is INSIDE the old 15 m radius — so reps were getting false-triggered
+ * modals while walking between houses. v3 fixes this by:
+ *
+ * • **Gating on actual speed.** Every modern phone reports
+ *   `pos.coords.speed` in m/s. If it's below 0.6 m/s we consider the
+ *   rep "stopped" (walking is 1.2–1.8 m/s).
+ * • **Sliding-window fallback.** On devices that report speed as null,
+ *   we compute total path length over the last 5 seconds and require
+ *   < 3 m of travel to call the rep stopped.
+ * • **Tighter anchor radius** (15 m → 4 m). Once stopped, drift beyond
+ *   4 m re-anchors the stop rather than continuing it.
+ * • **Post-knock lockout.** After firing a knock, the rep must move
+ *   > 12 m from the knock center before another can fire. Prevents
+ *   a second phantom knock from being triggered while still at the door.
+ * • The 45 s auto-prompt (for when the rep is in conversation) is
+ *   preserved — it still fires through the same onKnock callback so
+ *   ActiveCanvassing can choose whether to auto-open the modal.
  */
 
 import { reverseGeocode } from './geocoding.js'
@@ -26,11 +35,13 @@ import { distanceMeters }  from './gps.js'
 import { wasAddressRecentlyVisited } from './supabase.js'
 
 // ── Thresholds ──────────────────────────────────────────────────
-const STOP_RADIUS_M      = 15    // ~50 ft — max drift while "stopped"
-const MIN_STOP_SECS      = 5     // seconds to qualify as a door knock
-const AUTO_PROMPT_SECS   = 45    // auto-open modal (likely in conversation)
-const MIN_MOVE_M         = 5     // metres to count as "left the stop"
-const JITTER_FACTOR      = 0.5   // movement < accuracy × this → GPS noise
+const STOP_RADIUS_M      = 4      // anchor drift tolerance once stopped
+const MIN_STOP_SECS      = 4      // seconds stopped to qualify as a knock
+const STOP_SPEED_MPS     = 0.6    // below walking pace (~1.4 m/s)
+const WINDOW_MS          = 5000   // sliding window for fallback speed test
+const WINDOW_MAX_DIST_M  = 3      // total path length in window → "stopped"
+const POST_KNOCK_MOVE_M  = 12     // must move this far before firing again
+const AUTO_PROMPT_SECS   = 45     // long-stop auto-prompt (handled downstream)
 
 export class DoorKnockDetector {
   /**
@@ -40,78 +51,136 @@ export class DoorKnockDetector {
    * @param {string}   opts.repId
    */
   constructor({ onKnock, repId }) {
-    this.onKnock       = onKnock
-    this.repId         = repId
-    this.stopOrigin    = null   // { lat, lng, startedAt }
-    this.stopPoints    = []     // all { lat, lng } received during this stop
-    this.lastPoint     = null
-    this.knockFired    = false  // true once we've fired a knock for this stop
-    this.longStopFired = false  // true once we've auto-prompted for this stop
-    this.recentKnocks  = new Map()  // address → timestamp (in-memory dedup)
+    this.onKnock      = onKnock
+    this.repId        = repId
+    // Address-level dedup persists across resets within a session — we
+    // don't want a rep re-knocking the same door after a momentary
+    // detector reset.
+    this.recentKnocks = new Map()
+    this.reset()
+  }
+
+  /** Clear per-stop state; preserves in-memory dedup map. */
+  reset() {
+    this.windowPoints    = []    // [{ lat, lng, speed, ts }] in last WINDOW_MS
+    this.stopOrigin      = null  // anchor { lat, lng }
+    this.stopPoints      = []    // all positions captured during current stop
+    this.stoppedSince    = null  // ts when stop began
+    this.knockFired      = false // true once knock fired for this stop
+    this.longStopFired   = false // true once 45 s auto-prompt fired
+    this.lastKnockCenter = null  // last knock center, for post-knock lockout
   }
 
   /**
-   * Call for every incoming GPS point.
-   * Never blocks — geocoding runs in the background.
+   * Call for every incoming GPS point. Never blocks — reverse-geocoding
+   * runs in the background.
    */
   feed(point) {
     if (!point) return
-    // Guard against corrupted GPS data
     if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return
 
-    const now      = Date.now()
-    const accuracy = point.accuracy || 15
+    const now = Date.now()
 
-    // ── First point ever: start a potential stop ────────────
-    if (!this.stopOrigin) {
-      this.stopOrigin = { lat: point.lat, lng: point.lng, startedAt: now }
-      this.stopPoints = [{ lat: point.lat, lng: point.lng }]
-      this.lastPoint  = point
+    // ── Maintain sliding window ─────────────────────────────
+    this.windowPoints.push({
+      lat:   point.lat,
+      lng:   point.lng,
+      speed: point.speed,
+      ts:    now,
+    })
+    while (
+      this.windowPoints.length &&
+      (now - this.windowPoints[0].ts) > WINDOW_MS
+    ) {
+      this.windowPoints.shift()
+    }
+
+    // ── Post-knock lockout ──────────────────────────────────
+    // After a knock fires, ignore stop detection until the rep has
+    // clearly left the door. Prevents a second phantom knock on the
+    // same porch.
+    if (this.lastKnockCenter) {
+      const dFromLast = distanceMeters(this.lastKnockCenter, point)
+      if (dFromLast < POST_KNOCK_MOVE_M) return
+      this.lastKnockCenter = null
+    }
+
+    const stopped = this._isStopped(point)
+
+    if (!stopped) {
+      // Moving — abandon any in-progress stop.
+      this.stopOrigin    = null
+      this.stopPoints    = []
+      this.stoppedSince  = null
+      this.knockFired    = false
+      this.longStopFired = false
       return
     }
 
-    const dist    = distanceMeters(this.stopOrigin, point)
-    const elapsed = (now - this.stopOrigin.startedAt) / 1000
-
-    // Effective movement threshold — account for GPS noise.
-    // If the phone reports 12 m accuracy, a 5 m "move" is jitter.
-    const moveThreshold = Math.max(MIN_MOVE_M, accuracy * JITTER_FACTOR)
-
-    if (dist > STOP_RADIUS_M) {
-      // ── Real movement — rep has left this spot ────────────
-      // Fire a knock if they stayed long enough and we haven't already
-      if (elapsed >= MIN_STOP_SECS && !this.knockFired) {
-        this._tryKnock(elapsed, false)
-      }
-      // Reset for next potential stop
-      this.stopOrigin    = { lat: point.lat, lng: point.lng, startedAt: now }
-      this.stopPoints    = [{ lat: point.lat, lng: point.lng }]
-      this.knockFired    = false
-      this.longStopFired = false
-    } else {
-      // ── Still at the same spot ────────────────────────────
-      this.stopPoints.push({ lat: point.lat, lng: point.lng })
-
-      // Proactive knock: fire as soon as dwell threshold is met
-      if (elapsed >= MIN_STOP_SECS && !this.knockFired) {
-        this.knockFired = true
-        this._tryKnock(elapsed, false)
-      }
-
-      // Auto-prompt for longer stops (rep is likely talking to someone)
-      if (elapsed >= AUTO_PROMPT_SECS && !this.longStopFired) {
-        this.longStopFired = true
-        this._tryKnock(elapsed, true)
-      }
+    // ── Handle stopped state ────────────────────────────────
+    if (!this.stopOrigin) {
+      this.stopOrigin   = { lat: point.lat, lng: point.lng }
+      this.stopPoints   = [{ lat: point.lat, lng: point.lng }]
+      this.stoppedSince = now
+      return
     }
 
-    this.lastPoint = point
+    // Drifted outside the anchor radius? Treat as a new stop.
+    if (distanceMeters(this.stopOrigin, point) > STOP_RADIUS_M) {
+      this.stopOrigin    = { lat: point.lat, lng: point.lng }
+      this.stopPoints    = [{ lat: point.lat, lng: point.lng }]
+      this.stoppedSince  = now
+      this.knockFired    = false
+      this.longStopFired = false
+      return
+    }
+
+    // Continuing the same stop.
+    this.stopPoints.push({ lat: point.lat, lng: point.lng })
+    const elapsed = (now - this.stoppedSince) / 1000
+
+    if (elapsed >= MIN_STOP_SECS && !this.knockFired) {
+      this.knockFired = true
+      this._tryKnock(elapsed, false)
+    }
+
+    if (elapsed >= AUTO_PROMPT_SECS && !this.longStopFired) {
+      this.longStopFired = true
+      this._tryKnock(elapsed, true)
+    }
   }
 
   // ── Private helpers ─────────────────────────────────────────
 
-  /** Compute centroid of all GPS points captured during this stop.
-   *  Averaging multiple readings is more accurate than any single one. */
+  /**
+   * Decide whether the rep is stopped right now.
+   * Prefers device-reported speed; falls back to sliding-window path length.
+   */
+  _isStopped(point) {
+    // Preferred: device speed (reliable on iOS, most modern Androids).
+    if (point.speed != null && Number.isFinite(point.speed)) {
+      return point.speed < STOP_SPEED_MPS
+    }
+
+    // Fallback: compute total path length across the sliding window.
+    // Need at least 3 points spanning ≥3 s so a single cached reading
+    // doesn't prematurely call the rep stopped.
+    const pts = this.windowPoints
+    if (pts.length < 3) return false
+
+    const span = (pts[pts.length - 1].ts - pts[0].ts) / 1000
+    if (span < 3) return false
+
+    // Path length (not endpoint distance) — catches jittery motion that
+    // would look stopped if we only measured start-to-end.
+    let totalDist = 0
+    for (let i = 1; i < pts.length; i++) {
+      totalDist += distanceMeters(pts[i - 1], pts[i])
+    }
+    return totalDist < WINDOW_MAX_DIST_M
+  }
+
+  /** Centroid of all GPS readings captured during the current stop. */
   _centroid() {
     const n = this.stopPoints.length
     if (n === 0) return this.stopOrigin
@@ -122,15 +191,20 @@ export class DoorKnockDetector {
     return { lat: sum.lat / n, lng: sum.lng / n }
   }
 
-  /** Attempt to register a knock. Runs async but does NOT block feed(). */
+  /**
+   * Attempt to register a knock. Runs the reverse-geocode + DB dedup
+   * asynchronously so feed() never blocks.
+   */
   async _tryKnock(elapsedSecs, autoPrompt = false) {
     const center = this._centroid()
+    // Engage the post-knock lockout around the fire location.
+    this.lastKnockCenter = { lat: center.lat, lng: center.lng }
+
     try {
       const address = await reverseGeocode(center.lat, center.lng)
 
-      // If we got an address, run dedup checks
       if (address) {
-        // Fast in-memory dedup
+        // Fast in-memory dedup (session-scoped)
         const lastVisit = this.recentKnocks.get(address)
         if (lastVisit && (Date.now() - lastVisit) < 24 * 3600 * 1000) return
 
@@ -143,7 +217,6 @@ export class DoorKnockDetector {
         this.recentKnocks.set(address, Date.now())
       }
 
-      // Fire the knock — address may be null; user can fill it in manually
       this.onKnock?.({
         lat:         center.lat,
         lng:         center.lng,
@@ -154,7 +227,7 @@ export class DoorKnockDetector {
       })
     } catch (e) {
       console.warn('[DoorKnock] Detection error:', e.message)
-      // Still fire the knock so the user can enter the address manually
+      // Fire anyway so the rep can fill in the address manually.
       this.onKnock?.({
         lat:         center.lat,
         lng:         center.lng,
@@ -164,13 +237,5 @@ export class DoorKnockDetector {
         autoPrompt,
       })
     }
-  }
-
-  reset() {
-    this.stopOrigin    = null
-    this.stopPoints    = []
-    this.lastPoint     = null
-    this.knockFired    = false
-    this.longStopFired = false
   }
 }

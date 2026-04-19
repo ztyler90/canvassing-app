@@ -15,7 +15,7 @@ import {
   updateInteractionPhotos,
   flagInteractionFollowUp,
 } from '../lib/supabase.js'
-import { reverseGeocode } from '../lib/geocoding.js'
+import { reverseGeocodeCandidates } from '../lib/geocoding.js'
 
 const OUTCOMES = [
   { id: 'no_answer',          label: 'No Answer',       emoji: '🚪', color: '#9CA3AF', bg: '#F9FAFB' },
@@ -50,6 +50,11 @@ export default function InteractionModal({
   const [address, setAddress]         = useState(existingInteraction?.address || knock?.address || '')
   const [editingAddress, setEditingAddress] = useState(false)
   const [addressDraft, setAddressDraft]     = useState('')
+  // Ranked list of nearby address candidates, fetched after mount. Drives
+  // the "Not this one?" picker so reps can tap the correct door when the
+  // geocoder's top pick is off by a house or two.
+  const [candidates, setCandidates]     = useState([])
+  const [showPicker, setShowPicker]     = useState(false)
   const [contactName, setContactName]   = useState(existingInteraction?.contact_name  || '')
   const [contactPhone, setContactPhone] = useState(existingInteraction?.contact_phone || '')
   const [contactEmail, setContactEmail] = useState(existingInteraction?.contact_email || '')
@@ -75,14 +80,27 @@ export default function InteractionModal({
   const slideDownTimer     = useRef(null)
   const dismissTimer       = useRef(null)
 
-  // Geocode address if not already provided
+  // Fetch address candidates from the geocoder. We prefer the multi-candidate
+  // call so the rep can pick a neighbor if the top pick is a house or two
+  // off — reverse geocoding on suburban streets is frequently interpolated
+  // along the segment rather than keyed to the actual parcel.
+  //
+  // Skip when editing an existing interaction — its address is already
+  // authoritative and we don't want to override it on open.
   useEffect(() => {
-    if (!address && knock?.lat && knock?.lng) {
-      reverseGeocode(knock.lat, knock.lng).then((addr) => {
-        if (addr) setAddress(addr)
-      })
-    }
-  }, [knock])
+    if (isEditing) return
+    if (!knock?.lat || !knock?.lng) return
+    let cancelled = false
+    reverseGeocodeCandidates(knock.lat, knock.lng).then((cands) => {
+      if (cancelled || !cands.length) return
+      setCandidates(cands)
+      // Only auto-pick if we don't already have an address. If `knock.address`
+      // was pre-filled by the detector, respect it — the rep can still swap
+      // via the picker.
+      setAddress((cur) => cur || cands[0].formatted)
+    })
+    return () => { cancelled = true }
+  }, [knock, isEditing])
 
   // Slide in on mount; clean up all timers on unmount
   useEffect(() => {
@@ -315,7 +333,18 @@ export default function InteractionModal({
   const toggleService = (svc) =>
     setServices((prev) => prev.includes(svc) ? prev.filter((s) => s !== svc) : [...prev, svc])
 
-  const confirmAddress = () => { setAddress(addressDraft); setEditingAddress(false) }
+  const confirmAddress = () => {
+    setAddress(addressDraft)
+    setEditingAddress(false)
+    // A manual edit supersedes the geocoded candidates — close the picker so
+    // the rep doesn't think they still need to tap one of the chips.
+    setShowPicker(false)
+  }
+
+  const pickCandidate = (formatted) => {
+    setAddress(formatted)
+    setShowPicker(false)
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -457,6 +486,61 @@ export default function InteractionModal({
             </div>
           )}
         </div>
+
+        {/* Address picker — shown when the geocoder returned multiple nearby
+            candidates. Lets the rep swap if the top pick is off by a house
+            or two. Hidden entirely while editing the address manually. */}
+        {!editingAddress && candidates.length > 1 && (
+          <div className="px-5 pt-2 pb-3 border-b bg-gray-50/60">
+            <button
+              type="button"
+              onClick={() => setShowPicker((s) => !s)}
+              className="text-xs font-medium text-blue-600 active:text-blue-700"
+            >
+              {showPicker ? 'Hide nearby addresses ▲' : 'Wrong address? Pick from nearby ▾'}
+            </button>
+            {showPicker && (
+              <div className="mt-2 space-y-1.5">
+                {candidates.map((c, i) => {
+                  const selected = c.formatted === address
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => pickCandidate(c.formatted)}
+                      className="w-full flex items-center justify-between gap-2 p-2.5 rounded-xl border-2 text-left text-sm active:scale-[0.99] transition-transform"
+                      style={{
+                        borderColor:     selected ? '#1A6B3A' : '#E5E7EB',
+                        backgroundColor: selected ? '#ECFDF5' : 'white',
+                      }}
+                    >
+                      <span className="flex-1 text-gray-700 leading-snug">
+                        {c.formatted}
+                      </span>
+                      <span className="shrink-0 flex flex-col items-end gap-0.5 text-[10px]">
+                        <span className="text-gray-400">
+                          ~{Math.round(c.distanceM)}m
+                        </span>
+                        <span
+                          className="px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide"
+                          style={{
+                            backgroundColor: c.precise ? '#ECFDF5' : '#FFFBEB',
+                            color:           c.precise ? '#047857' : '#B45309',
+                          }}
+                        >
+                          {c.precise ? 'rooftop' : 'approx'}
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })}
+                <p className="text-[11px] text-gray-400 pt-1">
+                  Tap the door you're actually standing at. Rooftop matches are keyed to the building; approx picks are interpolated along the street.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Step: outcome ─────────────────────────────────────────────── */}
         {step === 'outcome' && (

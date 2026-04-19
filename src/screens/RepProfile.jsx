@@ -9,11 +9,12 @@
  */
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, User, Mail, Lock, Camera } from 'lucide-react'
+import { ChevronLeft, User, Mail, Lock, Camera, Bell } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   updateUserProfile, sendPasswordReset, uploadAvatar,
 } from '../lib/supabase.js'
+import { usePrefs, setPref } from '../lib/prefs.js'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
@@ -31,6 +32,7 @@ export default function RepProfile() {
   const [resetting, setResetting]   = useState(false)
   const [toast, setToast]           = useState(null)
   const fileInputRef = useRef(null)
+  const prefs = usePrefs()
 
   const nameChanged  = fullName.trim() !== (user?.full_name || '')
   const emailChanged = email.trim()    !== (user?.email     || '')
@@ -284,6 +286,36 @@ export default function RepProfile() {
           </button>
         </section>
 
+        {/* Preferences — device-local, stored in localStorage */}
+        <section>
+          <h2 className="text-gray-600 font-semibold text-sm mb-3 uppercase tracking-wide">Preferences</h2>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 py-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                <Bell className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <label htmlFor="pref-auto-open" className="flex items-center justify-between gap-3 cursor-pointer">
+                  <span className="block">
+                    <span className="block text-gray-800 font-semibold text-sm">
+                      Auto-open Log Interaction
+                    </span>
+                    <span className="block text-gray-500 text-xs mt-0.5 leading-snug">
+                      Pop the interaction screen automatically when a door knock is detected.
+                      Turn off to get a "Log this door" pill instead — tap it to open.
+                    </span>
+                  </span>
+                  <Toggle
+                    id="pref-auto-open"
+                    checked={prefs.autoOpenInteractionModal}
+                    onChange={(v) => setPref('autoOpenInteractionModal', v)}
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Password reset */}
         <section>
           <h2 className="text-gray-600 font-semibold text-sm mb-3 uppercase tracking-wide">Security</h2>
@@ -320,5 +352,32 @@ export default function RepProfile() {
         </p>
       </div>
     </div>
+  )
+}
+
+/**
+ * Minimal iOS-style toggle. Controlled component — checked + onChange(bool).
+ * Keeps the whole Preferences section self-contained (no dep on shadcn).
+ */
+function Toggle({ id, checked, onChange }) {
+  return (
+    <button
+      type="button"
+      id={id}
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={
+        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 ' +
+        (checked ? 'bg-blue-600' : 'bg-gray-300')
+      }
+    >
+      <span
+        className={
+          'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ' +
+          (checked ? 'translate-x-5' : 'translate-x-0.5')
+        }
+      />
+    </button>
   )
 }

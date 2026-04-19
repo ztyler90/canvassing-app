@@ -1,13 +1,18 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Square, MapPin, Clock, Home } from 'lucide-react'
+import { Square, MapPin, Clock, Home, Pin, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import { gpsTracker } from '../lib/gps.js'
 import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, getWebhookUrl, fireZapierWebhook } from '../lib/supabase.js'
 import { acquireWakeLock, releaseWakeLock, isWakeLockSupported } from '../lib/wakeLock.js'
+import { usePrefs } from '../lib/prefs.js'
 import MapView from '../components/MapView.jsx'
 import InteractionModal from '../components/InteractionModal.jsx'
+
+// How long a "Log this door" pill stays on screen when auto-open is off.
+// After this the pending knock is cleared; the rep can still log manually.
+const PENDING_PILL_TIMEOUT_MS = 60_000
 
 const BRAND_GREEN = '#1B4FCC'  // KnockIQ blue
 
@@ -20,6 +25,9 @@ export default function ActiveCanvassing() {
   const [stopping, setStopping]     = useState(false)
   const [showManualLog, setShowManualLog] = useState(false)
   const [editingInteraction, setEditingInteraction] = useState(null)
+  // When auto-open is off, tapping the pill sets this — it drives the modal
+  // render path so the pendingKnock pill and opened modal don't both show.
+  const [tappedKnock, setTappedKnock] = useState(null)
   const [currentPos, setCurrentPos] = useState(null)
   const [territories, setTerritories] = useState([])
   const [doNotKnock, setDoNotKnock]   = useState([])
@@ -27,6 +35,7 @@ export default function ActiveCanvassing() {
   const timerRef                    = useRef(null)
   const locationBroadcastRef        = useRef(null)
   const currentPosRef               = useRef(null)
+  const prefs                       = usePrefs()
 
   // Load rep's assigned territories and DNK list
   useEffect(() => {
@@ -216,6 +225,20 @@ export default function ActiveCanvassing() {
   // Auto-prompt when a door knock is detected
   const pendingKnock = state.pendingKnock
 
+  // Auto-dismiss the "Log this door" pill after PENDING_PILL_TIMEOUT_MS.
+  // Only active when auto-open is off — in auto-open mode the modal itself
+  // handles dismissal. The long-stop (45 s) auto-prompt always honors the
+  // auto-open pref too, so we don't auto-bump the modal in manual mode.
+  useEffect(() => {
+    if (prefs.autoOpenInteractionModal) return
+    if (!pendingKnock) return
+    if (tappedKnock) return   // rep already engaged — don't auto-dismiss
+    const t = setTimeout(() => {
+      dispatch({ type: 'CLEAR_PENDING_KNOCK' })
+    }, PENDING_PILL_TIMEOUT_MS)
+    return () => clearTimeout(t)
+  }, [prefs.autoOpenInteractionModal, pendingKnock, tappedKnock, dispatch])
+
   return (
     <div className="flex flex-col bg-gray-100 overflow-hidden" style={{ height: '100dvh' }}>
 
@@ -308,18 +331,49 @@ export default function ActiveCanvassing() {
         </button>
       </div>
 
-      {/* Auto-prompt modal (door knock detected) */}
-      {pendingKnock && (
+      {/*
+        Door-knock pending UX. Two paths based on the auto-open pref:
+        • ON  → open the modal automatically (legacy behavior).
+        • OFF → show a dismissible "Log this door" pill at the top of the
+                map; rep taps to open the modal. Pill auto-dismisses after
+                60 s. The door has already been counted by REGISTER_KNOCK
+                in either path, so saving the interaction never double-counts.
+      */}
+      {pendingKnock && prefs.autoOpenInteractionModal && (
         <InteractionModal
           knock={pendingKnock}
           sessionId={state.session?.id}
           repId={user?.id}
           onClose={() => dispatch({ type: 'CLEAR_PENDING_KNOCK' })}
           onSave={(interaction) => {
-            // Door was already counted by REGISTER_KNOCK — don't double-count
             dispatch({ type: 'LOG_INTERACTION', interaction, countDoor: false })
           }}
           isAuto
+        />
+      )}
+
+      {pendingKnock && !prefs.autoOpenInteractionModal && !tappedKnock && (
+        <PendingKnockPill
+          knock={pendingKnock}
+          onOpen={() => setTappedKnock(pendingKnock)}
+          onDismiss={() => dispatch({ type: 'CLEAR_PENDING_KNOCK' })}
+        />
+      )}
+
+      {tappedKnock && (
+        <InteractionModal
+          knock={tappedKnock}
+          sessionId={state.session?.id}
+          repId={user?.id}
+          onClose={() => {
+            setTappedKnock(null)
+            dispatch({ type: 'CLEAR_PENDING_KNOCK' })
+          }}
+          onSave={(interaction) => {
+            dispatch({ type: 'LOG_INTERACTION', interaction, countDoor: false })
+            setTappedKnock(null)
+          }}
+          isAuto={false}
         />
       )}
 
@@ -373,6 +427,47 @@ function MiniStat({ label, value, color = 'text-gray-900' }) {
     <div className="flex-1 py-1.5 text-center">
       <p className={`font-bold text-base ${color}`}>{value}</p>
       <p className="text-gray-400 text-xs">{label}</p>
+    </div>
+  )
+}
+
+/**
+ * Non-modal pending-knock indicator. Rendered when auto-open is OFF and
+ * the detector has flagged a stop. Shows the resolved address (or
+ * "Door detected" if geocoding failed) with Log / dismiss affordances.
+ * Positioned floating above the map, below the tracking pulse.
+ */
+function PendingKnockPill({ knock, onOpen, onDismiss }) {
+  const addressLine = knock.address || 'Door detected'
+  return (
+    <div className="absolute top-14 left-3 right-3 sm:left-auto sm:right-3 sm:w-[360px] z-20">
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 px-3 py-2.5 flex items-center gap-2">
+        <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+          <Pin className="w-4 h-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-400">
+            Log this door
+          </p>
+          <p className="text-sm font-semibold text-gray-800 truncate">
+            {addressLine}
+          </p>
+        </div>
+        <button
+          onClick={onOpen}
+          className="px-3 py-2 rounded-xl text-xs font-bold text-white active:scale-[0.98]"
+          style={{ backgroundColor: '#1B4FCC' }}
+        >
+          Log
+        </button>
+        <button
+          onClick={onDismiss}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 active:bg-gray-50"
+          aria-label="Dismiss"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   )
 }
