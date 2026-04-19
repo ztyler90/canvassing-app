@@ -6,7 +6,7 @@
  * Extras: editable address, photo attachments, booking celebration animation
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { X, User, Phone, Mail, DollarSign, MapPin, Edit2, Check, Camera, MessageSquare } from 'lucide-react'
+import { X, User, Phone, Mail, DollarSign, MapPin, Camera, MessageSquare } from 'lucide-react'
 import {
   logInteraction,
   updateInteraction,
@@ -49,13 +49,10 @@ export default function InteractionModal({
   const [step, setStep]               = useState('outcome')   // 'outcome' | 'details' | 'followup'
   const [selectedOutcome, setOutcome] = useState(existingInteraction?.outcome || null)
   const [address, setAddress]         = useState(existingInteraction?.address || knock?.address || '')
-  const [editingAddress, setEditingAddress] = useState(false)
-  const [addressDraft, setAddressDraft]     = useState('')
-  // Ranked list of nearby address candidates, fetched after mount. Drives
-  // the "Not this one?" picker so reps can tap the correct door when the
-  // geocoder's top pick is off by a house or two.
+  // Ranked list of nearby address candidates (currently from OSM Overpass,
+  // with Google / Nominatim as fallbacks). Surfaced as tap-to-fill chips
+  // above the manual-entry input so reps can one-tap the correct house.
   const [candidates, setCandidates]     = useState([])
-  const [showPicker, setShowPicker]     = useState(false)
   // Track geocode status so "Detecting address…" doesn't linger forever
   // when the geocoder returns nothing or errors out. 'idle' | 'loading' |
   // 'ok' | 'empty' | 'error'. We only move beyond 'loading' after the
@@ -86,13 +83,34 @@ export default function InteractionModal({
   const slideDownTimer     = useRef(null)
   const dismissTimer       = useRef(null)
 
-  // Fetch address candidates from the geocoder. We prefer the multi-candidate
-  // call so the rep can pick a neighbor if the top pick is a house or two
-  // off — reverse geocoding on suburban streets is frequently interpolated
-  // along the segment rather than keyed to the actual parcel.
+  // Fetch address candidates from Overpass (with interpolation-based
+  // fallbacks). The top hit pre-fills the manual-entry input; every hit
+  // also becomes a tap-to-fill suggestion chip, so the rep can one-tap
+  // a neighbor when GPS lands them a house off.
   //
   // Skip when editing an existing interaction — its address is already
   // authoritative and we don't want to override it on open.
+  const fetchCandidates = async (opts = {}) => {
+    const { preserveManualInput = false } = opts
+    if (!knock?.lat || !knock?.lng) return
+    setGeocodeStatus('loading')
+    try {
+      const cands = await reverseGeocodeCandidates(knock.lat, knock.lng)
+      if (!cands?.length) { setGeocodeStatus('empty'); return }
+      setCandidates(cands)
+      // Only auto-fill when the input is still empty. If the rep has
+      // already typed or tapped a chip, respect their input — we never
+      // want the late-arriving geocoder to clobber manual entry.
+      if (!preserveManualInput) {
+        setAddress((cur) => cur || cands[0].formatted)
+      }
+      setGeocodeStatus('ok')
+    } catch (err) {
+      console.warn('[Geocode] candidates fetch failed', err?.message || err)
+      setGeocodeStatus('error')
+    }
+  }
+
   useEffect(() => {
     if (isEditing) return
     if (!knock?.lat || !knock?.lng) return
@@ -101,14 +119,8 @@ export default function InteractionModal({
     reverseGeocodeCandidates(knock.lat, knock.lng)
       .then((cands) => {
         if (cancelled) return
-        if (!cands?.length) {
-          setGeocodeStatus('empty')
-          return
-        }
+        if (!cands?.length) { setGeocodeStatus('empty'); return }
         setCandidates(cands)
-        // Only auto-pick if we don't already have an address. If
-        // `knock.address` was pre-filled by the detector, respect it —
-        // the rep can still swap via the picker.
         setAddress((cur) => cur || cands[0].formatted)
         setGeocodeStatus('ok')
       })
@@ -351,19 +363,6 @@ export default function InteractionModal({
   const toggleService = (svc) =>
     setServices((prev) => prev.includes(svc) ? prev.filter((s) => s !== svc) : [...prev, svc])
 
-  const confirmAddress = () => {
-    setAddress(addressDraft)
-    setEditingAddress(false)
-    // A manual edit supersedes the geocoded candidates — close the picker so
-    // the rep doesn't think they still need to tap one of the chips.
-    setShowPicker(false)
-  }
-
-  const pickCandidate = (formatted) => {
-    setAddress(formatted)
-    setShowPicker(false)
-  }
-
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -455,146 +454,93 @@ export default function InteractionModal({
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
         </div>
 
-        {/* Address row — always visible */}
+        {/* Address entry — manual input is always visible, with tap-to-fill
+            suggestion chips above for the nearest OSM-tagged buildings.
+            Manual entry is first-class because geocoders frequently miss the
+            exact parcel, or fail entirely on new construction / rural areas.
+            Reps can always type; chips are a shortcut, not a gate. */}
         <div className="px-5 pt-2 pb-3 border-b">
-          {editingAddress ? (
-            <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
-              <input
-                autoFocus
-                type="text"
-                value={addressDraft}
-                onChange={(e) => setAddressDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter')  confirmAddress()
-                  if (e.key === 'Escape') setEditingAddress(false)
-                }}
-                placeholder="Enter address"
-                className="flex-1 text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400"
-              />
-              <button
-                onClick={confirmAddress}
-                className="p-1.5 rounded-lg bg-green-50 text-green-600 active:bg-green-100"
-              >
-                <Check className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setEditingAddress(false)}
-                className="p-1.5 rounded-lg bg-gray-50 text-gray-400"
-              >
-                <X className="w-4 h-4" />
-              </button>
+
+          {/* Suggestion chips row — horizontally scrollable so 5 long
+              addresses don't wrap into a two-row mess on small phones.
+              Only rendered when we have at least one candidate. */}
+          {candidates.length > 0 && (
+            <div
+              className="mb-2 flex gap-1.5 overflow-x-auto pb-1"
+              style={{ scrollbarWidth: 'none' }}
+            >
+              {candidates.slice(0, 5).map((c, i) => {
+                const selected   = c.formatted === address
+                // Trim to just the "123 Main St" portion for the chip face
+                // — city/state/zip would blow out every chip's width.
+                const shortLabel = c.formatted.split(',')[0]
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setAddress(c.formatted)}
+                    title={c.formatted}
+                    className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-colors active:scale-95"
+                    style={{
+                      borderColor:     selected ? '#1A6B3A' : '#D1D5DB',
+                      backgroundColor: selected ? '#ECFDF5' : 'white',
+                      color:           selected ? '#047857' : '#374151',
+                    }}
+                  >
+                    {shortLabel}
+                    {!c.precise && <span className="ml-0.5 text-gray-400">~</span>}
+                  </button>
+                )
+              })}
             </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <MapPin className={`w-4 h-4 shrink-0 ${geocodeStatus === 'error' || geocodeStatus === 'empty' ? 'text-amber-500' : 'text-gray-400'}`} />
-              <span className={`text-sm truncate flex-1 ${
-                address
-                  ? 'text-gray-600'
-                  : geocodeStatus === 'loading' || geocodeStatus === 'idle'
-                    ? 'text-gray-400 italic'
-                    : 'text-amber-600'
-              }`}>
-                {address
-                  ? address
-                  : geocodeStatus === 'loading' || geocodeStatus === 'idle'
-                    ? 'Detecting address…'
-                    : geocodeStatus === 'error'
-                      ? 'Address lookup failed — tap ✏️ to type it'
-                      : 'No address found — tap ✏️ to type it'}
+          )}
+
+          {/* Manual input row — always editable. Pin color turns amber when
+              detection failed so the rep notices they need to type. */}
+          <div className="flex items-center gap-2">
+            <MapPin className={`w-4 h-4 shrink-0 ${
+              (geocodeStatus === 'error' || geocodeStatus === 'empty') && !address
+                ? 'text-amber-500'
+                : 'text-gray-400'
+            }`} />
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder={
+                geocodeStatus === 'loading' || geocodeStatus === 'idle'
+                  ? 'Detecting address…'
+                  : 'Enter address'
+              }
+              className="flex-1 min-w-0 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-400 bg-white"
+            />
+            <button onClick={onClose} className="p-1" aria-label="Close">
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+
+          {/* Status strip — only shown when detection failed AND nothing has
+              been entered. Once the rep types or taps a chip, this noise
+              disappears. */}
+          {(geocodeStatus === 'error' || geocodeStatus === 'empty') && !candidates.length && (
+            <div className="mt-1.5 flex items-center gap-2 text-[11px]">
+              <span className="text-amber-600">
+                {geocodeStatus === 'error'
+                  ? 'Address lookup failed.'
+                  : 'No addresses found nearby.'}
               </span>
-              {(geocodeStatus === 'error' || geocodeStatus === 'empty') && (
-                <button
-                  type="button"
-                  onClick={() => { /* bumping knock ref not possible — just retry directly */
-                    if (!knock?.lat || !knock?.lng) return
-                    setGeocodeStatus('loading')
-                    reverseGeocodeCandidates(knock.lat, knock.lng)
-                      .then((cands) => {
-                        if (!cands?.length) { setGeocodeStatus('empty'); return }
-                        setCandidates(cands)
-                        setAddress((cur) => cur || cands[0].formatted)
-                        setGeocodeStatus('ok')
-                      })
-                      .catch((err) => {
-                        console.warn('[Geocode] retry failed', err?.message || err)
-                        setGeocodeStatus('error')
-                      })
-                  }}
-                  className="text-[11px] font-semibold text-blue-600 active:text-blue-700 px-1.5"
-                  title="Try address lookup again"
-                >
-                  Retry
-                </button>
-              )}
               <button
-                onClick={() => { setAddressDraft(address); setEditingAddress(true) }}
-                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                title="Edit address"
+                type="button"
+                onClick={() => fetchCandidates({ preserveManualInput: !!address })}
+                className="font-semibold text-blue-600 active:text-blue-700"
+                title="Try address lookup again"
               >
-                <Edit2 className="w-3.5 h-3.5" />
+                Retry
               </button>
-              <button onClick={onClose} className="ml-0.5 p-1">
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
+              <span className="text-gray-400">or type the address above.</span>
             </div>
           )}
         </div>
-
-        {/* Address picker — shown when the geocoder returned multiple nearby
-            candidates. Lets the rep swap if the top pick is off by a house
-            or two. Hidden entirely while editing the address manually. */}
-        {!editingAddress && candidates.length > 1 && (
-          <div className="px-5 pt-2 pb-3 border-b bg-gray-50/60">
-            <button
-              type="button"
-              onClick={() => setShowPicker((s) => !s)}
-              className="text-xs font-medium text-blue-600 active:text-blue-700"
-            >
-              {showPicker ? 'Hide nearby addresses ▲' : 'Wrong address? Pick from nearby ▾'}
-            </button>
-            {showPicker && (
-              <div className="mt-2 space-y-1.5">
-                {candidates.map((c, i) => {
-                  const selected = c.formatted === address
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => pickCandidate(c.formatted)}
-                      className="w-full flex items-center justify-between gap-2 p-2.5 rounded-xl border-2 text-left text-sm active:scale-[0.99] transition-transform"
-                      style={{
-                        borderColor:     selected ? '#1A6B3A' : '#E5E7EB',
-                        backgroundColor: selected ? '#ECFDF5' : 'white',
-                      }}
-                    >
-                      <span className="flex-1 text-gray-700 leading-snug">
-                        {c.formatted}
-                      </span>
-                      <span className="shrink-0 flex flex-col items-end gap-0.5 text-[10px]">
-                        <span className="text-gray-400">
-                          ~{Math.round(c.distanceM)}m
-                        </span>
-                        <span
-                          className="px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide"
-                          style={{
-                            backgroundColor: c.precise ? '#ECFDF5' : '#FFFBEB',
-                            color:           c.precise ? '#047857' : '#B45309',
-                          }}
-                        >
-                          {c.precise ? 'rooftop' : 'approx'}
-                        </span>
-                      </span>
-                    </button>
-                  )
-                })}
-                <p className="text-[11px] text-gray-400 pt-1">
-                  Tap the door you're actually standing at. Rooftop matches are keyed to the building; approx picks are interpolated along the street.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ── Step: outcome ─────────────────────────────────────────────── */}
         {step === 'outcome' && (

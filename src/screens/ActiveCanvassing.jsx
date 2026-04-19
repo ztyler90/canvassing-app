@@ -4,7 +4,7 @@ import { Square, MapPin, Clock, Home, Pin, X, Signal } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import { gpsTracker } from '../lib/gps.js'
-import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, getWebhookUrl, fireZapierWebhook, getRepRecentInteractions } from '../lib/supabase.js'
+import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, getWebhookUrl, fireZapierWebhook, getOrgRecentInteractions } from '../lib/supabase.js'
 import { acquireWakeLock, releaseWakeLock, isWakeLockSupported } from '../lib/wakeLock.js'
 import { usePrefs } from '../lib/prefs.js'
 import { dnkZones, pointInAnyZone, loadDnkZones } from '../lib/dnk.js'
@@ -84,17 +84,18 @@ export default function ActiveCanvassing() {
 
   // ── Coverage heatmap ────────────────────────────────────────────
   // Off by default — some reps find it visually noisy. When enabled, we
-  // pull up to 30d of history once per session and filter client-side as
-  // the rep flips the window selector. Skipping the pull when the layer
-  // is off keeps the session start path fast.
+  // pull up to 30d of ORG-WIDE history once per session and filter
+  // client-side as the rep flips the window selector. Team-wide coverage
+  // lets a rep see where a teammate was yesterday so they don't
+  // double-knock a block.
   const [heatmapOn, setHeatmapOn]         = useState(false)
-  const [heatmapWindow, setHeatmapWindow] = useState(7)     // 1 | 7 | 30 days
+  const [heatmapWindow, setHeatmapWindow] = useState(7)     // 7 | 30 days
   const [heatmapRows, setHeatmapRows]     = useState([])
   const [heatmapLoading, setHeatmapLoading] = useState(false)
   useEffect(() => {
     if (!heatmapOn || !user?.id || heatmapRows.length) return
     setHeatmapLoading(true)
-    getRepRecentInteractions(user.id, 30)
+    getOrgRecentInteractions(30)
       .then((rows) => setHeatmapRows(rows))
       .catch(() => {})
       .finally(() => setHeatmapLoading(false))
@@ -576,14 +577,16 @@ function MiniStat({ label, value, color = 'text-gray-900' }) {
 /**
  * HeatmapControl
  * ──────────────
- * Compact top-right control with a toggle button and three radio chips
- * for the lookback window. When the toggle is off we hide the chips
- * entirely — a rep who doesn't want the heatmap shouldn't see clutter.
+ * Compact top-right control with a toggle button and two radio chips
+ * for the lookback window (7d / 30d). When the toggle is off we hide
+ * the chips entirely — a rep who doesn't want the heatmap shouldn't
+ * see clutter.
  *
- * Legend is intentionally terse (color dots + "24h / 7d / 30d") because
- * the map shading itself teaches the recency scale. Tapping the label
- * cycles the window, which matches the "flip fast" mental model better
- * than a dropdown.
+ * Shows org-wide coverage: any rep at the same company, not just the
+ * caller. Lets a rep avoid double-knocking a block a teammate just hit.
+ *
+ * Cells are still shaded by recency (≤24h / ≤7d / ≤30d) within the
+ * chosen lookback — the shading teaches the "hot → cold" scale.
  */
 function HeatmapControl({ on, loading, windowDays, onToggle, onWindow }) {
   return (
@@ -596,12 +599,11 @@ function HeatmapControl({ on, loading, windowDays, onToggle, onWindow }) {
         <span
           className={`w-2 h-2 rounded-full ${on ? 'bg-blue-500' : 'bg-gray-400'}`}
         />
-        Coverage{loading ? '…' : ''}
+        Team Coverage{loading ? '…' : ''}
       </button>
       {on && (
         <div className="bg-white/95 backdrop-blur rounded-full shadow flex text-[11px] font-semibold overflow-hidden">
           {[
-            { d: 1,  label: '24h', color: HEATMAP_COLORS.fresh.fill  },
             { d: 7,  label: '7d',  color: HEATMAP_COLORS.recent.fill },
             { d: 30, label: '30d', color: HEATMAP_COLORS.older.fill  },
           ].map((w) => (

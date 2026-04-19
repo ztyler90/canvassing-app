@@ -250,6 +250,48 @@ export async function getRepRecentInteractions(repId, days = 30) {
 }
 
 /**
+ * Org-wide coverage — returns lat/lng/created_at for every interaction
+ * logged by ANY rep in the caller's organization in the last `days` days.
+ * Powers the team-coverage heatmap so reps can see where their colleagues
+ * have recently been (and avoid re-knocking a block a teammate just hit).
+ *
+ * Payload stays lean: only the three columns the heatmap needs, so an
+ * org with 20 reps logging ~50 doors/day stays under ~400 KB even at the
+ * 30-day window. Cap is 10,000 rows for the same reason the single-rep
+ * query is capped at 3,000 — the heatmap rounds into ~30m cells and more
+ * rows don't add fidelity.
+ *
+ * Depends on an RLS policy that lets any authenticated user in an org
+ * read `interactions` rows whose rep sits in the same `organization_id`
+ * (see `supabase/migrations/2026_team_coverage_rls.sql`).
+ */
+export async function getOrgRecentInteractions(days = 30) {
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
+  const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString()
+  // `interactions.organization_id` is denormalized from `users.organization_id`
+  // at insert time (and enforced consistent by the `tenant_isolation`
+  // RESTRICTIVE policy on the table), so we can filter the column directly
+  // instead of joining through users. Row-level access is still gated by
+  // RLS: the tenant policy requires org match, and the
+  // "Reps can read same-org interactions" permissive policy unlocks
+  // teammate rows for SELECT.
+  const { data, error } = await supabase
+    .from('interactions')
+    .select('lat, lng, created_at')
+    .eq('organization_id', orgId)
+    .gte('created_at', since)
+    .not('lat', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(10000)
+  if (error) {
+    console.warn('[Coverage] org fetch failed', error.message)
+    return []
+  }
+  return data || []
+}
+
+/**
  * Fetch this rep's outcome distribution by hour of day across the last
  * `days` days. Used by the "best time of day" nudge on RepHome. We only
  * need the minimal cols to bucket — created_at for the hour and outcome
