@@ -56,6 +56,11 @@ export default function InteractionModal({
   // geocoder's top pick is off by a house or two.
   const [candidates, setCandidates]     = useState([])
   const [showPicker, setShowPicker]     = useState(false)
+  // Track geocode status so "Detecting address…" doesn't linger forever
+  // when the geocoder returns nothing or errors out. 'idle' | 'loading' |
+  // 'ok' | 'empty' | 'error'. We only move beyond 'loading' after the
+  // fetch resolves, so there's always a clear next state to render.
+  const [geocodeStatus, setGeocodeStatus] = useState('idle')
   const [contactName, setContactName]   = useState(existingInteraction?.contact_name  || '')
   const [contactPhone, setContactPhone] = useState(existingInteraction?.contact_phone || '')
   const [contactEmail, setContactEmail] = useState(existingInteraction?.contact_email || '')
@@ -92,14 +97,26 @@ export default function InteractionModal({
     if (isEditing) return
     if (!knock?.lat || !knock?.lng) return
     let cancelled = false
-    reverseGeocodeCandidates(knock.lat, knock.lng).then((cands) => {
-      if (cancelled || !cands.length) return
-      setCandidates(cands)
-      // Only auto-pick if we don't already have an address. If `knock.address`
-      // was pre-filled by the detector, respect it — the rep can still swap
-      // via the picker.
-      setAddress((cur) => cur || cands[0].formatted)
-    })
+    setGeocodeStatus('loading')
+    reverseGeocodeCandidates(knock.lat, knock.lng)
+      .then((cands) => {
+        if (cancelled) return
+        if (!cands?.length) {
+          setGeocodeStatus('empty')
+          return
+        }
+        setCandidates(cands)
+        // Only auto-pick if we don't already have an address. If
+        // `knock.address` was pre-filled by the detector, respect it —
+        // the rep can still swap via the picker.
+        setAddress((cur) => cur || cands[0].formatted)
+        setGeocodeStatus('ok')
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.warn('[Geocode] candidates fetch failed', err?.message || err)
+        setGeocodeStatus('error')
+      })
     return () => { cancelled = true }
   }, [knock, isEditing])
 
@@ -470,10 +487,46 @@ export default function InteractionModal({
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
-              <span className="text-sm text-gray-600 truncate flex-1">
-                {address || 'Detecting address…'}
+              <MapPin className={`w-4 h-4 shrink-0 ${geocodeStatus === 'error' || geocodeStatus === 'empty' ? 'text-amber-500' : 'text-gray-400'}`} />
+              <span className={`text-sm truncate flex-1 ${
+                address
+                  ? 'text-gray-600'
+                  : geocodeStatus === 'loading' || geocodeStatus === 'idle'
+                    ? 'text-gray-400 italic'
+                    : 'text-amber-600'
+              }`}>
+                {address
+                  ? address
+                  : geocodeStatus === 'loading' || geocodeStatus === 'idle'
+                    ? 'Detecting address…'
+                    : geocodeStatus === 'error'
+                      ? 'Address lookup failed — tap ✏️ to type it'
+                      : 'No address found — tap ✏️ to type it'}
               </span>
+              {(geocodeStatus === 'error' || geocodeStatus === 'empty') && (
+                <button
+                  type="button"
+                  onClick={() => { /* bumping knock ref not possible — just retry directly */
+                    if (!knock?.lat || !knock?.lng) return
+                    setGeocodeStatus('loading')
+                    reverseGeocodeCandidates(knock.lat, knock.lng)
+                      .then((cands) => {
+                        if (!cands?.length) { setGeocodeStatus('empty'); return }
+                        setCandidates(cands)
+                        setAddress((cur) => cur || cands[0].formatted)
+                        setGeocodeStatus('ok')
+                      })
+                      .catch((err) => {
+                        console.warn('[Geocode] retry failed', err?.message || err)
+                        setGeocodeStatus('error')
+                      })
+                  }}
+                  className="text-[11px] font-semibold text-blue-600 active:text-blue-700 px-1.5"
+                  title="Try address lookup again"
+                >
+                  Retry
+                </button>
+              )}
               <button
                 onClick={() => { setAddressDraft(address); setEditingAddress(true) }}
                 className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"

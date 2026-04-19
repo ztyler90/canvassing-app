@@ -161,6 +161,12 @@ export default function MapView({ trail = [], interactions = [], currentPos = nu
     const map = L.map(containerRef.current, {
       zoomControl: true,
       attributionControl: false,
+      // Allow fractional zoom steps so we can land between whole zoom
+      // levels (e.g. 17.75 ≈ 1.68× the detail of 17). Default zoomSnap=1
+      // forces integer-only zoom which makes the default feel either
+      // too loose or too tight.
+      zoomSnap:  0.25,
+      zoomDelta: 0.5,
     })
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -175,8 +181,11 @@ export default function MapView({ trail = [], interactions = [], currentPos = nu
 
     mapRef.current = map
 
-    // Default center: Tampa, FL
-    map.setView([27.9506, -82.4572], 15)
+    // Default center: Tampa, FL. Zoom 17.75 ≈ 1.75× the detail of the
+    // previous default (15) — close enough that reps see individual
+    // houses as soon as Start Canvassing opens the map, before GPS
+    // arrives and re-centers on them.
+    map.setView([27.9506, -82.4572], 17.75)
 
     return () => {
       map.remove()
@@ -256,7 +265,11 @@ export default function MapView({ trail = [], interactions = [], currentPos = nu
     }
 
     if (followUser) {
-      mapRef.current.setView([currentPos.lat, currentPos.lng], mapRef.current.getZoom() || 17)
+      // Preserve the rep's current zoom if they've pinched, but floor at
+      // 17.75 so the first-GPS-fix view stays at the tight default rather
+      // than sticking at whatever the map was initialized with.
+      const z = Math.max(mapRef.current.getZoom() || 17.75, 17.75)
+      mapRef.current.setView([currentPos.lat, currentPos.lng], z)
     }
   }, [currentPos, followUser])
 

@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import {
   MapPin, DollarSign, Settings, Trophy, Play,
-  TrendingUp, Users, Target, ChevronRight, Sparkles, Clock,
+  TrendingUp, Users, Target, ChevronRight, Sparkles, Clock, LogOut,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import {
   startSession, getRepSessions, getActiveSession,
   updateSessionStats, getMyCommissionConfig, getSessionInteractions,
-  getMyOrganization, getRepOutcomesForHour,
+  getMyOrganization, getRepOutcomesForHour, signOut,
 } from '../lib/supabase.js'
 import { requestGPSPermission } from '../lib/gps.js'
 import { gpsTracker } from '../lib/gps.js'
@@ -108,6 +108,27 @@ export default function RepHome() {
     }
     startGPS(existing)
     navigate('/canvassing')
+  }
+
+  async function handleLogout() {
+    // Guard against accidental taps on a small target. If a session is
+    // actively hydrated in state we warn loudly; otherwise a light confirm
+    // is enough.
+    const hasActive = !!state.session
+    const msg = hasActive
+      ? 'You have an active canvassing session. Logging out will stop tracking. Continue?'
+      : 'Log out of KnockIQ?'
+    if (!window.confirm(msg)) return
+    try {
+      // Stop GPS + detector so the browser doesn't keep a watchPosition
+      // handle alive across the sign-in boundary.
+      try { gpsTracker.stop?.() } catch { /* ignore */ }
+      try { motionClassifier.stop?.() } catch { /* ignore */ }
+      await signOut()
+    } catch (err) {
+      console.warn('[Logout] signOut failed', err)
+    }
+    navigate('/login', { replace: true })
   }
 
   const handleStartCanvassing = async () => {
@@ -242,6 +263,13 @@ export default function RepHome() {
             aria-label="Settings"
           >
             <Settings className="w-5 h-5 text-white" />
+          </button>
+          <button
+            onClick={handleLogout}
+            className="p-2 rounded-full bg-white/20 active:bg-white/30 shrink-0"
+            aria-label="Log out"
+          >
+            <LogOut className="w-5 h-5 text-white" />
           </button>
         </div>
       </div>
