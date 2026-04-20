@@ -79,66 +79,121 @@ serve(async (req) => {
     const body = await req.json()
     const { action } = body
 
-    // ── CREATE REP (invite-link flow) ────────────────────────────────────────
-    // Flow:
-    //   1. Validate payload
-    //   2. `admin.generateLink({ type: 'invite', ... })` — creates the auth
-    //      user as invited (unconfirmed, no password) AND returns a one-time
-    //      action link pointing at our /set-password route.
-    //   3. Insert a public.users row stamped with the caller's org so
-    //      RLS + seat-count aggregation work immediately.
-    //   4. POST the welcome email to Resend with the action link embedded.
-    //      We don't block on failure — the rep is already created, and the
-    //      manager can resend the invite (coming soon) if the email didn't
-    //      make it through. We DO surface the failure in the response so
-    //      the UI can show a toast.
+    // ── CREATE REP ───────────────────────────────────────────────────────────
+    // Two modes, selected by the client via `mode`:
+    //
+    //   mode: 'invite' (default)
+    //     Magic-link invite flow — Supabase generates a one-time action
+    //     link and we email it via Resend. The rep clicks the link,
+    //     lands on /set-password, and picks their own password. The
+    //     manager never sees any credential. Requires a working Resend
+    //     key + verified sending domain to be useful in production.
+    //
+    //   mode: 'temp_password'
+    //     Manager-set credential flow — used when email isn't wired up
+    //     yet. Caller passes a plaintext `password`; we create the auth
+    //     user with `email_confirm: true` (skipping email verification
+    //     entirely) and stamp `force_password_change = true` on
+    //     public.users so the app forces the rep to pick a real
+    //     password on first login. No email is sent; the manager is
+    //     expected to deliver the credentials out-of-band (SMS, chat,
+    //     in person). `phone` is also stored so the UI can offer a
+    //     pre-filled SMS deep-link.
+    //
+    // Both modes persist `phone` when provided. `phone` is optional.
     if (action === 'create') {
-      const { fullName, email } = body
+      const { fullName, email, mode = 'invite', password, phone } = body
       if (!fullName || !email) {
         return new Response(JSON.stringify({ error: 'fullName and email are required' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-
-      // Step 1/2: Generate the invite link. We do NOT call createUser first
-      // because generateLink({ type: 'invite' }) creates the user itself —
-      // double-creating would 422 on "User already registered".
-      const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
-        type: 'invite',
-        email,
-        options: {
-          redirectTo: `${APP_BASE_URL}/set-password`,
-          // Mirrored into auth.users.raw_user_meta_data so downstream
-          // triggers (if any) and the /set-password screen can read it.
-          data: { full_name: fullName, role: 'rep' },
-        },
-      })
-      if (linkError || !linkData?.user || !linkData?.properties?.action_link) {
-        return new Response(JSON.stringify({
-          error: linkError?.message || 'Failed to generate invite link',
-        }), {
+      if (mode !== 'invite' && mode !== 'temp_password') {
+        return new Response(JSON.stringify({ error: `Unknown mode "${mode}"` }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-      const newUser    = linkData.user
-      const actionLink = linkData.properties.action_link
 
-      // Step 3: public.users row. The auth schema has a `handle_new_user`
-      // trigger that auto-creates this row when generateLink() spawns the
-      // auth user, so we `upsert` to stamp org + role + full_name on the
-      // existing row. onConflict='id' makes this idempotent regardless of
-      // whether the trigger ran.
+      // Normalize phone — store null instead of empty string so the UI
+      // can reliably detect "no phone on file". Leave formatting to the
+      // client; we just strip surrounding whitespace.
+      const phoneNormalized = typeof phone === 'string' && phone.trim() ? phone.trim() : null
+
+      let newUserId: string
+      let actionLink: string | null = null
+
+      if (mode === 'invite') {
+        // Generate the invite link. We do NOT call createUser first
+        // because generateLink({ type: 'invite' }) creates the user itself —
+        // double-creating would 422 on "User already registered".
+        const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+          type: 'invite',
+          email,
+          options: {
+            redirectTo: `${APP_BASE_URL}/set-password`,
+            // Mirrored into auth.users.raw_user_meta_data so downstream
+            // triggers (if any) and the /set-password screen can read it.
+            data: { full_name: fullName, role: 'rep' },
+          },
+        })
+        if (linkError || !linkData?.user || !linkData?.properties?.action_link) {
+          return new Response(JSON.stringify({
+            error: linkError?.message || 'Failed to generate invite link',
+          }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+        newUserId  = linkData.user.id
+        actionLink = linkData.properties.action_link
+      } else {
+        // mode === 'temp_password'
+        if (!password || typeof password !== 'string' || password.length < 8) {
+          return new Response(JSON.stringify({
+            error: 'password must be at least 8 characters for temp_password mode',
+          }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+        // `email_confirm: true` bypasses the email-verification step —
+        // the rep can log in immediately with the password we were just
+        // handed, which is the whole point of this mode. Without it,
+        // Supabase would hold them in an unconfirmed state and require
+        // an email round-trip we're explicitly trying to avoid.
+        const { data: createData, error: createError } = await adminClient.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: { full_name: fullName, role: 'rep' },
+        })
+        if (createError || !createData?.user) {
+          return new Response(JSON.stringify({
+            error: createError?.message || 'Failed to create rep account',
+          }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+        newUserId = createData.user.id
+      }
+
+      // public.users row. The auth schema has a `handle_new_user`
+      // trigger that auto-creates this row when the auth user is spawned,
+      // so we `upsert` to stamp org + role + full_name + phone (+ the
+      // force-password-change flag for temp-password reps) on the
+      // existing row. onConflict='id' makes this idempotent regardless
+      // of whether the trigger ran.
       const { error: insertError } = await adminClient.from('users').upsert({
-        id:              newUser.id,
+        id:                    newUserId,
         email,
-        full_name:       fullName,
-        role:            'rep',
-        organization_id: callerProfile.organization_id,
+        full_name:             fullName,
+        role:                  'rep',
+        organization_id:       callerProfile.organization_id,
+        phone:                 phoneNormalized,
+        force_password_change: mode === 'temp_password',
       }, { onConflict: 'id' })
       if (insertError) {
         console.warn('[manage-team] Could not insert public.users row:', insertError.message)
         // Roll back the auth user so a retry with the same email works.
-        await adminClient.auth.admin.deleteUser(newUser.id).catch(() => {})
+        await adminClient.auth.admin.deleteUser(newUserId).catch(() => {})
         return new Response(JSON.stringify({
           error: `Could not attach rep to organization: ${insertError.message}`,
         }), {
@@ -146,22 +201,31 @@ serve(async (req) => {
         })
       }
 
-      // Step 4: Welcome email via Resend. Failures here are reported to
-      // the caller (UI will show "created but email failed — resend?")
-      // but don't roll back the user — the rep exists and can be invited
-      // again from the team list.
-      const emailResult = await sendInviteEmail({
-        toEmail:     email,
-        toName:      fullName,
-        inviterName: callerProfile.full_name || 'Your manager',
-        orgName,
-        actionLink,
-      })
+      // Email delivery only runs for the magic-link path. Failures here
+      // are reported to the caller (UI will show "created but email
+      // failed — resend?") but don't roll back the user — the rep exists
+      // and can be invited again from the team list.
+      let emailResult: { ok: boolean; error?: string } = { ok: false }
+      if (mode === 'invite' && actionLink) {
+        emailResult = await sendInviteEmail({
+          toEmail:     email,
+          toName:      fullName,
+          inviterName: callerProfile.full_name || 'Your manager',
+          orgName,
+          actionLink,
+        })
+      }
 
       return new Response(JSON.stringify({
-        user: { id: newUser.id, email, full_name: fullName },
-        email_sent:   emailResult.ok,
-        email_error:  emailResult.ok ? null : emailResult.error,
+        user: { id: newUserId, email, full_name: fullName, phone: phoneNormalized },
+        mode,
+        email_sent:   mode === 'invite' ? emailResult.ok            : false,
+        email_error:  mode === 'invite' ? (emailResult.ok ? null : emailResult.error) : null,
+        // Surface the login URL for the temp-password flow so the UI
+        // can build a pre-filled SMS body ("Sign in at https://app…").
+        // Intentionally omitted for invite mode — the action link goes
+        // out via Resend and shouldn't be leaked back to the caller.
+        login_url: mode === 'temp_password' ? `${APP_BASE_URL}/login` : null,
       }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })

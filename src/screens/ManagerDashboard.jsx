@@ -247,8 +247,7 @@ export default function ManagerDashboard() {
                 closeRate={closeRate} revenuePerDoor={revenuePerDoor}
                 countLabel={countLabel}
                 repStats={repStats}
-                dateRange={dateRange}
-                onDateRangeChange={setDateRange} />
+                dateRange={dateRange} />
             )}
             {tab === 'live'        && <LiveTab allReps={reps} />}
             {tab === 'leaderboard' && <LeaderboardTab />}
@@ -267,7 +266,7 @@ export default function ManagerDashboard() {
 function OverviewTab({
   sessions, totalRevenue, totalDoors, totalBookings, totalEstimates,
   totalConversations = 0, closeRate, revenuePerDoor, countLabel = 'Estimates',
-  repStats = [], dateRange = '7', onDateRangeChange,
+  repStats = [], dateRange = '7',
 }) {
   const navigate = useNavigate()
   const totalHours     = sessions.reduce((sum, s) => {
@@ -393,61 +392,16 @@ function OverviewTab({
     setTimeout(() => window.open('https://sheets.new', '_blank'), 600)
   }
 
-  // Segmented-control options for the in-page date filter. Labels mirror
-  // the manager's mental model (Daily / Weekly / Monthly / All time); the
-  // underlying values match the shared dateRange state that drives the
-  // Supabase query in ManagerDashboard, so toggling here is wired end-to-end.
-  const RANGE_OPTIONS = [
-    { value: 'today', label: 'Daily' },
-    { value: 'week',  label: 'Weekly' },
-    { value: 'month', label: 'Monthly' },
-    { value: 'all',   label: 'All time' },
-  ]
-
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* ── Period banner + in-page range filter ──────────────────────────
-         Echoes the header's date-range selection right on the overview
-         so there's never any doubt about the window the numbers cover.
-         The segmented control gives managers a more visible, one-tap way
-         to switch windows than the header <select> — that lives in the
-         dark-blue nav bar where it's easy to miss. Both sets of controls
-         share the same dateRange state. */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Team overview</p>
-          <p className="text-sm text-slate-600">
-            {periodLabel(dateRange)}{repStats.length > 0 ? ` · ${repStats.length} rep${repStats.length === 1 ? '' : 's'} active` : ''}
-          </p>
-        </div>
-        {onDateRangeChange && (
-          <div
-            role="tablist"
-            aria-label="Date range"
-            className="inline-flex self-start sm:self-auto rounded-xl bg-slate-100 p-1"
-          >
-            {RANGE_OPTIONS.map((opt) => {
-              const active = dateRange === opt.value
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => onDateRangeChange(opt.value)}
-                  className={
-                    'px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ' +
-                    (active
-                      ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
-                      : 'text-slate-600 hover:text-slate-900')
-                  }
-                >
-                  {opt.label}
-                </button>
-              )
-            })}
-          </div>
-        )}
+      {/* ── Period banner ─────────────────────────────────────────────────
+         Echoes the filter bar's date-range selection right on the overview
+         so there's never any doubt about the window the numbers cover. */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Team overview</p>
+        <p className="text-sm text-slate-600">
+          {periodLabel(dateRange)}{repStats.length > 0 ? ` · ${repStats.length} rep${repStats.length === 1 ? '' : 's'} active` : ''}
+        </p>
       </div>
 
       {/* ── KPI cards — 2×2 on mobile, 4-across on desktop ─────────────── */}
