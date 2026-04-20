@@ -12,7 +12,7 @@ function KnockIQLogo() {
       <img
         src="/logo.png"
         alt="KnockIQ"
-        className="h-20 w-auto object-contain"
+        className="h-32 w-auto object-contain"
       />
       <p className="text-gray-400 text-sm mt-2">Start your 30-day free trial</p>
     </div>
