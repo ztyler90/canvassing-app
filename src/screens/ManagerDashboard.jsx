@@ -15,6 +15,10 @@ import { computeConversion } from '../lib/repStats.js'
 import { ConversionFunnel } from './RepHome.jsx'
 import MapView from '../components/MapView.jsx'
 import TerritoryMap from '../components/TerritoryMap.jsx'
+import {
+  RichStatCard, MiniSparkArea, MiniSparkBars, RadialGauge,
+  formatCompact, computeTrend, groupSessionsByDay,
+} from '../components/StatSparkCards.jsx'
 
 const BRAND_GREEN = '#1B4FCC'  // KnockIQ blue
 const BRAND_LIME  = '#7DC31E'  // KnockIQ lime (accent)
@@ -377,7 +381,7 @@ function OverviewTab({
 
       {/* ── KPI cards — 2×2 on mobile, 4-across on desktop ─────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <KPICardRich
+        <RichStatCard
           label="Revenue Booked"
           value={`$${formatCompact(totalRevenue)}`}
           trend={revenueTrend}
@@ -387,9 +391,9 @@ function OverviewTab({
           iconColor="text-lime-700"
         >
           <MiniSparkArea values={daily.map((d) => d.revenue)} color="#5ea636" fill="#7ac94373" />
-        </KPICardRich>
+        </RichStatCard>
 
-        <KPICardRich
+        <RichStatCard
           label="Doors Knocked"
           value={totalDoors.toLocaleString()}
           trend={doorsTrend}
@@ -399,9 +403,9 @@ function OverviewTab({
           iconColor="text-blue-700"
         >
           <MiniSparkBars values={daily.map((d) => d.doors)} color="#2757d7" highlight="#1e44b0" />
-        </KPICardRich>
+        </RichStatCard>
 
-        <KPICardRich
+        <RichStatCard
           label="Jobs Booked"
           value={totalBookings.toLocaleString()}
           trend={bookingsTrend}
@@ -411,9 +415,9 @@ function OverviewTab({
           iconColor="text-teal-700"
         >
           <MiniSparkArea values={daily.map((d) => d.bookings)} color="#0d9488" fill="#14b8a673" />
-        </KPICardRich>
+        </RichStatCard>
 
-        <KPICardRich
+        <RichStatCard
           label="Close Rate"
           value={`${closeRate}%`}
           trend={null}
@@ -428,7 +432,7 @@ function OverviewTab({
               <p className="text-[10px] text-gray-500">Goal {goalCloseRate.toFixed(1)}%</p>
             </div>
           </div>
-        </KPICardRich>
+        </RichStatCard>
       </div>
 
       {/* ── Daily Revenue + Rep Leaderboard (2-col on desktop) ────────── */}
@@ -1575,104 +1579,9 @@ function LeaderboardTab() {
 }
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
-// ─── Overview KPI primitives ─────────────────────────────────────────────────
-// Rich KPI card: gradient background, icon bubble, optional trend chip,
-// big number, and a children slot for a micro-chart. Paired with MiniSparkArea,
-// MiniSparkBars, or RadialGauge below.
-function KPICardRich({ label, value, trend, icon, gradient, border, iconColor, children }) {
-  return (
-    <div className={`bg-gradient-to-br ${gradient} ${border} border rounded-2xl p-3 md:p-4`}>
-      <div className="flex items-center justify-between">
-        <div className={`p-1.5 rounded-lg bg-white/70 ${iconColor}`}>{icon}</div>
-        {trend && <TrendChip trend={trend} />}
-      </div>
-      <div className="mt-2">
-        <p className="text-[11px] font-semibold text-gray-600">{label}</p>
-        <p className="text-2xl md:text-3xl font-extrabold tracking-tight text-gray-900">{value}</p>
-      </div>
-      {children}
-    </div>
-  )
-}
-
-// Trend chip — renders "▲ N%" / "▼ N%" / "—" based on a { dir, pct } object.
-function TrendChip({ trend }) {
-  if (!trend) return null
-  const { dir, pct } = trend
-  if (dir === 'up')   return <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-800">▲ {pct}%</span>
-  if (dir === 'down') return <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-800">▼ {pct}%</span>
-  return <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">—</span>
-}
-
-// Mini area sparkline. `values` is a short series (typically 7–30 points).
-// Uses preserveAspectRatio="none" so the area stretches responsively.
-function MiniSparkArea({ values = [], color = '#5ea636', fill = '#7ac94373' }) {
-  if (!values.length) return <div className="w-full h-9 md:h-12 mt-1" />
-  const w = 120, h = 36, pad = 4
-  const max = Math.max(...values, 1)
-  const step = values.length > 1 ? (w - pad * 2) / (values.length - 1) : 0
-  const pts = values.map((v, i) => {
-    const x = pad + i * step
-    const y = h - pad - (v / max) * (h - pad * 2)
-    return [x, y]
-  })
-  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
-  const areaPath = `${linePath} L${(w - pad).toFixed(1)},${(h - pad).toFixed(1)} L${pad},${(h - pad).toFixed(1)} Z`
-  const last = pts[pts.length - 1]
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-9 md:h-12 mt-1" preserveAspectRatio="none">
-      <path d={areaPath} fill={fill} />
-      <path d={linePath} stroke={color} strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={last[0]} cy={last[1]} r="2.4" fill={color} />
-    </svg>
-  )
-}
-
-// Mini bar sparkline. Renders up to ~8 bars; longer series get downsampled
-// by averaging so the chart stays legible in a 120×36 viewBox.
-function MiniSparkBars({ values = [], color = '#2757d7', highlight = '#1e44b0' }) {
-  if (!values.length) return <div className="w-full h-9 md:h-12 mt-1" />
-  const bars = downsample(values, 8)
-  const w = 120, h = 36
-  const max = Math.max(...bars, 1)
-  const barW = (w - 4) / bars.length - 2
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-9 md:h-12 mt-1" preserveAspectRatio="none">
-      <g>
-        {bars.map((v, i) => {
-          const bh = Math.max((v / max) * (h - 4), 1.5)
-          const x = 2 + i * (barW + 2)
-          const y = h - 2 - bh
-          return <rect key={i} x={x} y={y} width={barW} height={bh} rx="2"
-                       fill={i === bars.length - 1 ? highlight : color} opacity={i === bars.length - 1 ? 1 : 0.85} />
-        })}
-      </g>
-    </svg>
-  )
-}
-
-// Radial gauge — renders a ring filled to `pct` (0–100). Used for Close Rate
-// vs. goal. Uses stroke-dasharray trick against a known circumference.
-function RadialGauge({ pct = 0 }) {
-  const r = 16
-  const circumference = 2 * Math.PI * r       // ≈ 100.53
-  const filled = Math.max(0, Math.min(100, pct)) / 100 * circumference
-  return (
-    <svg className="shrink-0 w-14 h-14 md:w-16 md:h-16" viewBox="0 0 42 42">
-      <circle cx="21" cy="21" r={r} fill="none" stroke="#ede9fe" strokeWidth="6" />
-      <circle cx="21" cy="21" r={r} fill="none"
-              stroke="url(#kiq-gauge-gradient)" strokeWidth="6" strokeLinecap="round"
-              strokeDasharray={`${filled.toFixed(2)} ${circumference.toFixed(2)}`}
-              transform="rotate(-90 21 21)" />
-      <defs>
-        <linearGradient id="kiq-gauge-gradient" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%"  stopColor="#a78bfa" />
-          <stop offset="100%" stopColor="#6d28d9" />
-        </linearGradient>
-      </defs>
-    </svg>
-  )
-}
+// KPI card + sparkline primitives (RichStatCard, MiniSparkArea, MiniSparkBars,
+// RadialGauge, TrendChip) now live in ../components/StatSparkCards.jsx so the
+// rep-side home can share the exact same look. Imports at the top of this file.
 
 // Daily Revenue bar chart — stacked grey (estimates-only) behind green
 // (booked). Derived from the same sessions the KPI cards use.
@@ -1829,65 +1738,9 @@ function daysForRange(range, sessions = []) {
   return 7
 }
 
-// Bucket sessions into `days` calendar days (oldest → newest). Sums the
-// revenue/doors/bookings/estimates per day; missing days get zero rows.
-function groupSessionsByDay(sessions, days) {
-  const end = startOfDay(new Date())
-  const buckets = {}
-  const order   = []
-  for (let i = 0; i < days; i++) {
-    const d   = subDays(end, days - 1 - i)
-    const key = format(d, 'yyyy-MM-dd')
-    buckets[key] = { date: d, revenue: 0, doors: 0, bookings: 0, estimates: 0 }
-    order.push(key)
-  }
-  sessions.forEach((s) => {
-    if (!s.started_at) return
-    const key = format(startOfDay(new Date(s.started_at)), 'yyyy-MM-dd')
-    const b   = buckets[key]
-    if (!b) return
-    b.revenue   += s.revenue_booked || 0
-    b.doors     += s.doors_knocked  || 0
-    b.bookings  += s.bookings       || 0
-    b.estimates += s.estimates      || 0
-  })
-  return order.map((k) => buckets[k])
-}
-
-// Compare the last half of a day-series to the first half. Returns
-// { dir: 'up' | 'down' | 'flat', pct }. Honest within-window trend —
-// no extra query to pull the previous period.
-function computeTrend(series, field) {
-  if (!series || series.length < 2) return { dir: 'flat', pct: 0 }
-  const mid   = Math.floor(series.length / 2)
-  const first = series.slice(0, mid).reduce((s, x) => s + (x[field] || 0), 0)
-  const last  = series.slice(mid).reduce((s, x) => s + (x[field] || 0), 0)
-  if (first === 0 && last === 0) return { dir: 'flat', pct: 0 }
-  if (first === 0)                return { dir: 'up',   pct: 100 }
-  const pct = Math.round(((last - first) / first) * 100)
-  return { dir: pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat', pct: Math.abs(pct) }
-}
-
-// Downsample a long series to exactly `target` bars by averaging buckets.
-function downsample(values, target) {
-  if (values.length <= target) return values
-  const size = values.length / target
-  const out  = []
-  for (let i = 0; i < target; i++) {
-    const slice = values.slice(Math.floor(i * size), Math.floor((i + 1) * size))
-    out.push(slice.reduce((s, v) => s + v, 0) / Math.max(slice.length, 1))
-  }
-  return out
-}
-
-// Compact formatter — $18,450 → "18.5k", 1247 → "1.2k", 32 → "32".
-function formatCompact(n) {
-  if (n == null || Number.isNaN(n)) return '0'
-  const abs = Math.abs(n)
-  if (abs >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M'
-  if (abs >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k'
-  return Math.round(n).toString()
-}
+// groupSessionsByDay, computeTrend, downsample, formatCompact are imported
+// from ../components/StatSparkCards.jsx at the top of this file so RepHome
+// can share the exact same series-math as the Manager Overview.
 
 function MicroStat({ label, value }) {
   return (

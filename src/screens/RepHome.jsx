@@ -28,6 +28,11 @@ import {
   computeCloseRateDiagnostic, computeLevelUpProximity, computeTeamPulse,
 } from '../lib/callouts.js'
 import RepCallouts from '../components/RepCallouts.jsx'
+import {
+  RichStatCard, MiniSparkArea, MiniSparkBars,
+  formatCompact, computeTrend, groupSessionsByDay,
+} from '../components/StatSparkCards.jsx'
+import { differenceInCalendarDays, startOfWeek, startOfMonth } from 'date-fns'
 
 const BRAND_BLUE = '#1B4FCC'  // KnockIQ blue
 const BRAND_LIME = '#7DC31E'  // KnockIQ lime (accent)
@@ -39,6 +44,39 @@ const DEFAULT_GOAL = {
   daily_goal_type:  'revenue',
   daily_goal_value: 1000,
   count_goal_label: 'estimates',
+}
+
+// Map the rep's selected period tab → the number of calendar-day buckets
+// the sparkline should render. Mirrors the manager's daysForRange helper
+// but uses the rep-screen period vocabulary ('week' | 'month' | 'lifetime').
+//
+// Semantics:
+//   week     → Monday-to-today, inclusive (1–7 days)
+//   month    → 1st-of-month to today, inclusive (1–31 days)
+//   lifetime → most recent 30 days of session history, capped so a long-
+//              tenured rep's sparkline stays legible. If there are fewer
+//              than 30 days between their first session and today, we use
+//              that smaller number so we don't zero-fill empty prehistory.
+//   fallback → 7
+function daysForRepPeriod(period, sessions) {
+  const now = new Date()
+  if (period === 'week') {
+    return Math.max(1, differenceInCalendarDays(now, startOfWeek(now, { weekStartsOn: 1 })) + 1)
+  }
+  if (period === 'month') {
+    return Math.max(1, differenceInCalendarDays(now, startOfMonth(now)) + 1)
+  }
+  if (period === 'lifetime') {
+    if (!sessions || sessions.length === 0) return 7
+    const oldest = sessions.reduce((min, s) => {
+      const t = new Date(s.started_at).getTime()
+      return (!min || t < min) ? t : min
+    }, null)
+    if (!oldest) return 7
+    const spanDays = differenceInCalendarDays(now, new Date(oldest)) + 1
+    return Math.max(1, Math.min(30, spanDays))
+  }
+  return 7
 }
 
 export default function RepHome() {
@@ -229,6 +267,19 @@ export default function RepHome() {
   const periods = computePeriodStats(allSessions)
   const stats   = periods[period] || periods.week
 
+  // ── Daily series powering the sparkline + trend chip on each stat card ──
+  // Uses the same groupSessionsByDay helper the manager overview uses so the
+  // visual treatment stays consistent across the two screens. The window
+  // length mirrors the selected period:
+  //   week     → Mon-to-today (1–7 days)
+  //   month    → 1st-to-today (1–31 days)
+  //   lifetime → most recent 30 days of session history
+  const repDays  = daysForRepPeriod(period, allSessions)
+  const repDaily = groupSessionsByDay(allSessions, repDays)
+  const doorsTrend    = computeTrend(repDaily, 'doors')
+  const bookingsTrend = computeTrend(repDaily, 'bookings')
+  const revenueTrend  = computeTrend(repDaily, 'revenue')
+
   const todayKey   = format(new Date(), 'yyyy-MM-dd')
   const todayStats = allSessions
     .filter(s => s.started_at.startsWith(todayKey))
@@ -396,26 +447,48 @@ export default function RepHome() {
             </div>
           ) : (
             <>
-              {/* Headline numbers */}
+              {/* Headline numbers — gradient cards + micro-charts. Same
+                  visual language the manager view uses, so a rep sees the
+                  same dashboards when they get promoted. Commission keeps
+                  its own hero-gradient card since it reads as a reward,
+                  not a trendable metric. */}
               <div className="grid grid-cols-2 gap-3 mb-3">
-                <BigStatCard
-                  icon={<MapPin className="w-4 h-4" />}
+                <RichStatCard
                   label="Doors"
                   value={stats.doors.toLocaleString()}
-                  accent="blue"
-                />
-                <BigStatCard
-                  icon={<Trophy className="w-4 h-4" />}
+                  trend={doorsTrend}
+                  icon={<MapPin className="w-4 h-4" />}
+                  gradient="from-blue-100 via-blue-50 to-white"
+                  border="border-blue-200/60"
+                  iconColor="text-blue-700"
+                >
+                  <MiniSparkBars values={repDaily.map((d) => d.doors)} color="#2757d7" highlight="#1e44b0" />
+                </RichStatCard>
+
+                <RichStatCard
                   label="Bookings"
                   value={stats.bookings.toLocaleString()}
-                  accent="lime"
-                />
-                <BigStatCard
-                  icon={<DollarSign className="w-4 h-4" />}
+                  trend={bookingsTrend}
+                  icon={<Trophy className="w-4 h-4" />}
+                  gradient="from-teal-100 via-teal-50 to-white"
+                  border="border-teal-200/60"
+                  iconColor="text-teal-700"
+                >
+                  <MiniSparkArea values={repDaily.map((d) => d.bookings)} color="#0d9488" fill="#14b8a673" />
+                </RichStatCard>
+
+                <RichStatCard
                   label="Revenue"
-                  value={`$${stats.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
-                  accent="green"
-                />
+                  value={`$${formatCompact(stats.revenue)}`}
+                  trend={revenueTrend}
+                  icon={<DollarSign className="w-4 h-4" />}
+                  gradient="from-lime-100 via-lime-50 to-white"
+                  border="border-lime-200/60"
+                  iconColor="text-lime-700"
+                >
+                  <MiniSparkArea values={repDaily.map((d) => d.revenue)} color="#5ea636" fill="#7ac94373" />
+                </RichStatCard>
+
                 <CommissionCard
                   amount={commission}
                   config={commissionCfg}
