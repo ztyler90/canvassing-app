@@ -120,8 +120,7 @@ export default function RepDetail() {
       </p>
       <button
         onClick={() => navigate('/manager')}
-        className="mt-4 px-4 py-2 rounded-xl text-white text-sm font-semibold"
-        style={{ backgroundColor: BRAND_BLUE }}
+        className="btn-brand mt-4 px-4 py-2 rounded-xl text-sm font-semibold"
       >
         Back to Dashboard
       </button>
@@ -134,7 +133,7 @@ export default function RepDetail() {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div
         className="px-5 pt-12 pb-6 rounded-b-3xl"
-        style={{ background: `linear-gradient(135deg, ${BRAND_BLUE} 0%, #2E6BFF 100%)` }}
+        style={{ background: 'linear-gradient(135deg, #1B4FCC 0%, #4338CA 55%, #6D28D9 100%)' }}
       >
         <div className="flex items-center gap-3 mb-4">
           <button

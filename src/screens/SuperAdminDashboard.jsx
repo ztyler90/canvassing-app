@@ -92,8 +92,7 @@ export default function SuperAdminDashboard() {
           <p className="text-gray-400 text-xs mt-1">You don't have permission to view this page.</p>
           <button
             onClick={() => navigate('/manager')}
-            className="mt-4 px-4 py-2 rounded-xl text-white text-sm font-semibold"
-            style={{ backgroundColor: BRAND_BLUE }}>
+            className="btn-brand mt-4 px-4 py-2 rounded-xl text-sm font-semibold">
             Back to Dashboard
           </button>
         </div>
@@ -116,7 +115,7 @@ export default function SuperAdminDashboard() {
       )}
 
       {/* Header */}
-      <div className="px-5 pt-12 pb-5" style={{ backgroundColor: BRAND_BLUE }}>
+      <div className="px-5 pt-12 pb-5 bg-brand-header">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-white/20">
             <ChevronLeft className="w-5 h-5 text-white" />

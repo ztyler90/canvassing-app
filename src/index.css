@@ -49,6 +49,12 @@
   background: linear-gradient(135deg, #EEF3FF 0%, #F5ECFF 100%);
 }
 
+/* App header surface — blue → indigo → violet sweep. Use on the top hero/nav
+   strips that previously used solid BRAND_BLUE backgrounds. */
+.bg-brand-header {
+  background: linear-gradient(135deg, #1B4FCC 0%, #4338CA 55%, #6D28D9 100%);
+}
+
 /* Prevent overscroll bounce on iOS */
 html, body {
   overscroll-behavior: none;

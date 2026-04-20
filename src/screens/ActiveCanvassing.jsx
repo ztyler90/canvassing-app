@@ -913,8 +913,7 @@ function PendingKnockPill({ knock, onOpen, onDismiss }) {
         </div>
         <button
           onClick={onOpen}
-          className="px-3 py-2 rounded-xl text-xs font-bold text-white active:scale-[0.98]"
-          style={{ backgroundColor: '#1B4FCC' }}
+          className="btn-brand px-3 py-2 rounded-xl text-xs font-bold active:scale-[0.98]"
         >
           Log
         </button>

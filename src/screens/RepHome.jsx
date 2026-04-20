@@ -344,7 +344,7 @@ export default function RepHome() {
       {/* ── Slim Header (no stats, just identity) ──────────────────────────── */}
       <div
         className="px-5 pt-12 pb-5"
-        style={{ background: `linear-gradient(135deg, ${BRAND_BLUE} 0%, #2E6BFF 100%)` }}
+        style={{ background: 'linear-gradient(135deg, #1B4FCC 0%, #4338CA 55%, #6D28D9 100%)' }}
       >
         <div className="flex items-center gap-3">
           <button
@@ -388,11 +388,7 @@ export default function RepHome() {
         <button
           onClick={handleStartCanvassing}
           disabled={loadingStart}
-          className="w-full rounded-2xl text-white text-xl font-bold active:scale-[0.99] transition-transform disabled:opacity-70 flex items-center justify-start gap-3 py-5 px-5"
-          style={{
-            background: BRAND_BLUE,
-            boxShadow: '0 10px 24px rgba(27, 79, 204, 0.35)',
-          }}
+          className="btn-brand w-full rounded-2xl text-xl font-bold active:scale-[0.99] transition-transform flex items-center justify-start gap-3 py-5 px-5"
         >
           {loadingStart ? (
             <>
@@ -553,6 +549,16 @@ export default function RepHome() {
           </div>
         )}
       </div>
+
+      {/* ── Footer ────────────────────────────────────────────────────────── */}
+      <footer className="mt-6 pt-6 pb-8 flex flex-col items-center gap-1.5 border-t border-gray-100">
+        <img
+          src="/logo.png"
+          alt="KnockIQ"
+          className="h-10 w-auto object-contain opacity-80"
+        />
+        <p className="text-[11px] text-gray-400">© {new Date().getFullYear()} KnockIQ</p>
+      </footer>
     </div>
   )
 }

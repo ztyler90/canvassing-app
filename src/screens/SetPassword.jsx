@@ -145,8 +145,7 @@ export default function SetPassword() {
             <button
               type="button"
               onClick={() => navigate('/login', { replace: true })}
-              className="w-full py-4 rounded-xl text-white font-semibold text-lg"
-              style={{ backgroundColor: BRAND_BLUE }}
+              className="btn-brand w-full py-4 rounded-xl font-semibold text-lg"
             >
               Go to Sign In
             </button>
@@ -207,8 +206,7 @@ export default function SetPassword() {
             <button
               type="submit"
               disabled={stage === 'saving'}
-              className="w-full py-4 rounded-xl text-white font-semibold text-lg disabled:opacity-60 transition-opacity"
-              style={{ backgroundColor: BRAND_BLUE }}
+              className="btn-brand w-full py-4 rounded-xl font-semibold text-lg"
             >
               {stage === 'saving' ? 'Saving\u2026' : 'Save & Continue \u2192'}
             </button>
@@ -226,19 +224,11 @@ export default function SetPassword() {
 function Logo() {
   return (
     <div className="mb-8 flex flex-col items-center">
-      <div className="flex items-center gap-3 mb-1">
-        <svg viewBox="0 0 48 62" fill="none" className="w-14 h-14" xmlns="http://www.w3.org/2000/svg">
-          <path d="M24 0C13.51 0 5 8.51 5 19c0 14.25 19 43 19 43S43 33.25 43 19C43 8.51 34.49 0 24 0z" fill={BRAND_LIME} />
-          <rect x="17" y="9" width="14" height="19" rx="2" fill="white" opacity="0.25" />
-          <rect x="17" y="9" width="14" height="19" rx="2" stroke="white" strokeWidth="1.5" />
-          <line x1="24" y1="9" x2="24" y2="28" stroke="white" strokeWidth="1" opacity="0.5" />
-          <circle cx="30" cy="18.5" r="1.5" fill="white" />
-        </svg>
-        <div className="flex items-baseline">
-          <span className="text-4xl font-extrabold tracking-tight" style={{ color: BRAND_BLUE }}>Knock</span>
-          <span className="text-4xl font-extrabold tracking-tight" style={{ color: BRAND_LIME }}>IQ</span>
-        </div>
-      </div>
+      <img
+        src="/logo.png"
+        alt="KnockIQ"
+        className="h-20 w-auto object-contain"
+      />
       <p className="text-gray-400 text-sm mt-2">Welcome to the team</p>
     </div>
   )

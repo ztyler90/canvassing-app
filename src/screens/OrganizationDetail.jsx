@@ -61,8 +61,7 @@ export default function OrganizationDetail() {
           </p>
           <button
             onClick={() => navigate('/manager')}
-            className="mt-4 px-4 py-2 rounded-xl text-white text-sm font-semibold"
-            style={{ backgroundColor: BRAND_BLUE }}>
+            className="btn-brand mt-4 px-4 py-2 rounded-xl text-sm font-semibold">
             Back to Dashboard
           </button>
         </div>
@@ -84,8 +83,7 @@ export default function OrganizationDetail() {
       </p>
       <button
         onClick={() => navigate('/super-admin')}
-        className="mt-4 px-4 py-2 rounded-xl text-white text-sm font-semibold"
-        style={{ backgroundColor: BRAND_BLUE }}>
+        className="btn-brand mt-4 px-4 py-2 rounded-xl text-sm font-semibold">
         Back
       </button>
     </div>
@@ -223,7 +221,7 @@ export default function OrganizationDetail() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col pb-10">
       {/* ── Header ────────────────────────────────────────────────────────── */}
-      <div className="px-5 pt-12 pb-5" style={{ backgroundColor: BRAND_BLUE }}>
+      <div className="px-5 pt-12 pb-5 bg-brand-header">
         <div className="flex items-start gap-3">
           <button
             onClick={() => navigate('/super-admin')}
@@ -490,7 +488,7 @@ function RepAvatar({ rep }) {
   return (
     <div
       className="w-8 h-8 rounded-full grid place-items-center text-white font-bold text-[11px] shrink-0"
-      style={{ backgroundColor: BRAND_BLUE }}>
+      style={{ background: 'linear-gradient(135deg, #2E6BFF 0%, #6D28D9 100%)' }}>
       {initials}
     </div>
   )

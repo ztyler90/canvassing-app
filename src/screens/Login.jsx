@@ -88,8 +88,7 @@ function SignInForm({ onMessage }) {
       {error && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm">{error}</div>}
 
       <button type="submit" disabled={loading}
-        className="w-full py-4 rounded-xl text-white font-semibold text-lg disabled:opacity-60 transition-opacity"
-        style={{ backgroundColor: BRAND_BLUE }}>
+        className="btn-brand w-full py-4 rounded-xl font-semibold text-lg">
         {loading ? 'Signing in…' : 'Sign In →'}
       </button>
     </form>
@@ -236,8 +235,7 @@ function SignUpFormInner({ onSuccess }) {
 
       <button type="submit"
         disabled={loading || !stripe}
-        className="w-full py-4 rounded-xl text-white font-semibold text-lg disabled:opacity-60 transition-opacity"
-        style={{ backgroundColor: BRAND_BLUE }}>
+        className="btn-brand w-full py-4 rounded-xl font-semibold text-lg">
         {loading ? 'Setting up your account…' : 'Start Free Trial →'}
       </button>
 
@@ -271,7 +269,7 @@ export default function Login() {
               onClick={() => handleModeChange(m)}
               className="flex-1 py-3 text-sm font-semibold transition-colors"
               style={mode === m
-                ? { backgroundColor: BRAND_BLUE, color: '#fff' }
+                ? { background: 'linear-gradient(135deg, #2E6BFF 0%, #1B4FCC 100%)', color: '#fff' }
                 : { backgroundColor: '#f9fafb', color: '#6b7280' }}>
               {m === 'signin' ? 'Sign In' : 'Start Free Trial'}
             </button>

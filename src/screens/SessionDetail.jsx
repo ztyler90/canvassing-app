@@ -142,7 +142,7 @@ export default function SessionDetail() {
       )}
 
       {/* Header */}
-      <div className="px-4 pt-12 pb-5" style={{ backgroundColor: BRAND_BLUE }}>
+      <div className="px-4 pt-12 pb-5 bg-brand-header">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-white/20">
             <ChevronLeft className="w-5 h-5 text-white" />
@@ -352,8 +352,7 @@ function InteractionCard({ interaction, isEditing, draft, saving, onEdit, onCanc
             <X className="w-4 h-4" /> Cancel
           </button>
           <button onClick={onSave} disabled={saving}
-            className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-1"
-            style={{ backgroundColor: BRAND_BLUE }}>
+            className="btn-brand flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1">
             <Check className="w-4 h-4" />
             {saving ? 'Saving…' : 'Save'}
           </button>

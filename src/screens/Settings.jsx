@@ -241,7 +241,7 @@ export default function Settings() {
       )}
 
       {/* Header */}
-      <div className="px-4 pt-12 pb-5" style={{ backgroundColor: BRAND_BLUE }}>
+      <div className="px-4 pt-12 pb-5 bg-brand-header">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-white/20">
             <ChevronLeft className="w-5 h-5 text-white" />
@@ -325,8 +325,7 @@ export default function Settings() {
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <a
                     href="mailto:hello@knockiq.com?subject=Upgrade to Pro&body=Hi, I'd like to upgrade my account to the Pro plan."
-                    className="block w-full py-2.5 rounded-xl text-center text-sm font-bold text-white"
-                    style={{ backgroundColor: BRAND_BLUE }}>
+                    className="btn-brand block w-full py-2.5 rounded-xl text-center text-sm font-bold">
                     Contact to Upgrade → Pro
                   </a>
                 </div>
@@ -394,8 +393,7 @@ export default function Settings() {
                   <button
                     onClick={handleSaveWebhook}
                     disabled={saving || webhookUrl === savedUrl}
-                    className="flex-1 py-2 rounded-xl text-white text-sm font-bold disabled:opacity-40"
-                    style={{ backgroundColor: BRAND_BLUE }}>
+                    className="btn-brand flex-1 py-2 rounded-xl text-sm font-bold">
                     {saving ? 'Saving…' : 'Save URL'}
                   </button>
                 </div>
@@ -437,8 +435,7 @@ export default function Settings() {
             </div>
             <button
               onClick={() => setShowAddRep(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white text-xs font-semibold"
-              style={{ backgroundColor: BRAND_BLUE }}>
+              className="btn-brand flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold">
               <UserPlus className="w-3.5 h-3.5" />
               Add Rep
             </button>
@@ -499,8 +496,7 @@ export default function Settings() {
                 <button
                   onClick={handleAddRep}
                   disabled={addingRep}
-                  className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50"
-                  style={{ backgroundColor: BRAND_BLUE }}>
+                  className="btn-brand flex-1 py-2.5 rounded-xl text-sm font-bold">
                   {addingRep ? 'Sending invite…' : 'Send Invite'}
                 </button>
               </div>
@@ -524,7 +520,7 @@ export default function Settings() {
                     <div className="flex items-center gap-3 min-w-0">
                       <div
                         className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
-                        style={{ backgroundColor: BRAND_BLUE }}>
+                        style={{ background: 'linear-gradient(135deg, #2E6BFF 0%, #6D28D9 100%)' }}>
                         {(rep.full_name || rep.email || '?')[0].toUpperCase()}
                       </div>
                       <div className="min-w-0">
@@ -602,7 +598,7 @@ export default function Settings() {
                   }`}
                   style={
                     goalType === 'revenue'
-                      ? { backgroundColor: BRAND_BLUE, borderColor: BRAND_BLUE }
+                      ? { background: 'linear-gradient(135deg, #2E6BFF 0%, #1B4FCC 100%)', borderColor: BRAND_BLUE }
                       : undefined
                   }
                 >
@@ -619,7 +615,7 @@ export default function Settings() {
                   }`}
                   style={
                     goalType === 'count'
-                      ? { backgroundColor: BRAND_BLUE, borderColor: BRAND_BLUE }
+                      ? { background: 'linear-gradient(135deg, #2E6BFF 0%, #1B4FCC 100%)', borderColor: BRAND_BLUE }
                       : undefined
                   }
                 >
@@ -699,8 +695,7 @@ export default function Settings() {
             <button
               onClick={handleSaveGoal}
               disabled={savingGoal}
-              className="w-full py-2.5 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ backgroundColor: BRAND_BLUE }}
+              className="btn-brand w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
             >
               {savingGoal ? (
                 <>
@@ -777,8 +772,7 @@ export default function Settings() {
           {user?.is_super_admin && (
             <button
               onClick={() => navigate('/super-admin')}
-              className="mt-3 w-full py-2.5 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2"
-              style={{ backgroundColor: BRAND_BLUE }}>
+              className="btn-brand mt-3 w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
               <Shield className="w-4 h-4" />
               Open Super-Admin Dashboard
             </button>

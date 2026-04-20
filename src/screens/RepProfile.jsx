@@ -145,7 +145,7 @@ export default function RepProfile() {
       )}
 
       {/* Header */}
-      <div className="px-4 pt-12 pb-5" style={{ backgroundColor: BRAND_BLUE }}>
+      <div className="px-4 pt-12 pb-5 bg-brand-header">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-white/20">
             <ChevronLeft className="w-5 h-5 text-white" />
@@ -279,8 +279,7 @@ export default function RepProfile() {
           <button
             onClick={handleSave}
             disabled={saving || !hasChanges}
-            className="mt-3 w-full py-3.5 rounded-2xl text-white font-bold text-sm disabled:opacity-40 transition-opacity"
-            style={{ backgroundColor: BRAND_BLUE }}
+            className="btn-brand mt-3 w-full py-3.5 rounded-2xl font-bold text-sm"
           >
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
