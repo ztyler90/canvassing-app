@@ -989,11 +989,26 @@ export async function getTerritories() {
   // to the caller's own organization regardless of RLS.
   const orgId = await getMyOrgId()
   if (!orgId) return []
-  const { data } = await supabase
+  // PostgREST disambiguation: `territory_assignments` has TWO foreign keys
+  // into `users` (rep_id AND assigned_by, added when assignments gained
+  // an auditor column). A bare `users(...)` embed made PostgREST return
+  // HTTP 300 / PGRST201 ("more than one relationship") and this helper
+  // silently returned `[]` — the root cause of "I saved a territory but
+  // the list is empty." The `users!rep_id(...)` form pins the embed to
+  // the rep_id FK, which is the one the UI needs (who is this zone
+  // assigned to).
+  const { data, error } = await supabase
     .from('territories')
-    .select(`*, territory_assignments ( id, rep_id, users ( id, full_name, email ) )`)
+    .select(`*, territory_assignments ( id, rep_id, users!rep_id ( id, full_name, email ) )`)
     .eq('organization_id', orgId)
     .order('created_at', { ascending: true })
+  if (error) {
+    // Previously this error was thrown on the floor, so a broken embed
+    // looked identical to an empty org. Log it loudly so the next
+    // regression surfaces in the console.
+    console.warn('[getTerritories] query failed:', error)
+    return []
+  }
   return data || []
 }
 
@@ -1090,7 +1105,10 @@ export async function getOrgTerritoriesForRep(repId) {
   const [{ data: terrs }, history] = await Promise.all([
     supabase
       .from('territories')
-      .select(`*, territory_assignments ( rep_id, users ( id, full_name ) )`)
+      // Same FK-ambiguity fix as getTerritories — pin the `users` embed
+      // to the rep_id foreign key so PostgREST doesn't 300 over the two
+      // FKs (rep_id + assigned_by) landing on public.users.
+      .select(`*, territory_assignments ( rep_id, users!rep_id ( id, full_name ) )`)
       .eq('organization_id', orgId)
       .order('created_at', { ascending: true }),
     getAllDoorHistory(),
