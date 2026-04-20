@@ -82,7 +82,7 @@ export default function ManagerDashboard() {
   const [bookings, setBookings]     = useState([])
   const [org, setOrg]               = useState(null)
   const [loading, setLoading]       = useState(true)
-  const [dateRange, setDateRange]   = useState('week')
+  const [dateRange, setDateRange]   = useState('month')
   const [selectedRep, setSelectedRep] = useState('all')
 
   useEffect(() => { loadData() }, [dateRange, selectedRep])
