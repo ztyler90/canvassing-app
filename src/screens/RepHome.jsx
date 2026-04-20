@@ -352,7 +352,7 @@ export default function RepHome() {
         className="px-5 pt-12 pb-5"
         style={{ background: 'linear-gradient(135deg, #1B4FCC 0%, #4338CA 55%, #6D28D9 100%)' }}
       >
-        <div className="flex items-center gap-3">
+        <div className="max-w-xl mx-auto w-full flex items-center gap-3">
           <button
             onClick={() => navigate('/profile')}
             className="w-11 h-11 rounded-full overflow-hidden bg-white shrink-0 flex items-center justify-center"
@@ -409,7 +409,7 @@ export default function RepHome() {
       </div>
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
-      <div className="flex-1 px-4 pt-5 space-y-3">
+      <div className="flex-1 w-full max-w-xl mx-auto px-4 pt-5 space-y-3">
 
         {/* Start Canvassing — hero CTA (blue, breathing room above) */}
         <button
