@@ -260,6 +260,12 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         email_sent:  emailResult.ok,
         email_error: emailResult.ok ? null : emailResult.error,
+        // Surfaced so a manager can copy/paste the invite link manually
+        // if the email bounces (e.g. Resend still in test-domain mode or
+        // the rep's inbox is eating the mail). The link is a single-use
+        // magic link that the rep would have received anyway, so there
+        // is no information leak beyond what the email contained.
+        action_link: linkData.properties.action_link,
       }), {
         status: emailResult.ok ? 200 : 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

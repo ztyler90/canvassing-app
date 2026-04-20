@@ -22,10 +22,10 @@ const TERRITORY_COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EC4899', '#10B981',
 
 const TABS = [
   { id: 'overview',    label: 'Overview',    icon: BarChart2 },
-  { id: 'live',        label: 'Live',        icon: Radio     },
-  { id: 'leaderboard', label: 'Leaderboard', icon: Trophy    },
   { id: 'reps',        label: 'Reps',        icon: Users     },
   { id: 'bookings',    label: 'Bookings',    icon: BookOpen  },
+  { id: 'leaderboard', label: 'Leaderboard', icon: Trophy    },
+  { id: 'live',        label: 'Live',        icon: Radio     },
   { id: 'map',         label: 'Map',         icon: MapPin    },
   { id: 'territories', label: 'Territories', icon: Map       },
 ]
