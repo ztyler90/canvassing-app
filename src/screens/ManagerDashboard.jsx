@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { format, subDays, startOfDay, endOfDay } from 'date-fns'
+import { format, subDays, startOfDay, endOfDay, startOfWeek, startOfMonth, differenceInCalendarDays } from 'date-fns'
 import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
@@ -33,6 +33,30 @@ const TABS = [
 // Tabs that suppress the date/rep filter bar
 const NO_FILTER_TABS = new Set(['territories', 'live', 'leaderboard'])
 
+// Resolve a period keyword to a concrete { dateFrom, dateTo } ISO pair.
+// "today" / "week" (Mon-start) / "month" are calendar-bounded — so at 9am
+// Wednesday "this week" covers Mon 0:00 → now, and "this month" covers
+// the 1st → now. "all" floors to the epoch so downstream queries don't
+// need a special-case null check.
+function resolvePeriod(range) {
+  const now    = new Date()
+  const dateTo = endOfDay(now).toISOString()
+  if (range === 'today') return { dateFrom: startOfDay(now).toISOString(), dateTo }
+  if (range === 'week')  return { dateFrom: startOfWeek(now, { weekStartsOn: 1 }).toISOString(), dateTo }
+  if (range === 'month') return { dateFrom: startOfMonth(now).toISOString(), dateTo }
+  if (range === 'all')   return { dateFrom: new Date(0).toISOString(), dateTo }
+  return { dateFrom: startOfWeek(now, { weekStartsOn: 1 }).toISOString(), dateTo }
+}
+
+// Pretty label for the banner on the Overview page.
+function periodLabel(range) {
+  if (range === 'today') return 'Today'
+  if (range === 'week')  return 'This week'
+  if (range === 'month') return 'This month'
+  if (range === 'all')   return 'All time'
+  return ''
+}
+
 export default function ManagerDashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -43,16 +67,17 @@ export default function ManagerDashboard() {
   const [bookings, setBookings]     = useState([])
   const [org, setOrg]               = useState(null)
   const [loading, setLoading]       = useState(true)
-  const [dateRange, setDateRange]   = useState('7')
+  const [dateRange, setDateRange]   = useState('week')
   const [selectedRep, setSelectedRep] = useState('all')
 
   useEffect(() => { loadData() }, [dateRange, selectedRep])
 
   async function loadData() {
     setLoading(true)
-    const days     = parseInt(dateRange)
-    const dateFrom = startOfDay(subDays(new Date(), days)).toISOString()
-    const dateTo   = endOfDay(new Date()).toISOString()
+    // Calendar-period semantics: today / this week (Mon-start) / this month
+    // / all time. "All time" uses the epoch as a lower bound so downstream
+    // queries don't need a special code path.
+    const { dateFrom, dateTo } = resolvePeriod(dateRange)
     const filters  = { dateFrom, dateTo, ...(selectedRep !== 'all' ? { repId: selectedRep } : {}) }
 
     const [sess, repList, interactions, bkgs, myOrg] = await Promise.all([
@@ -138,10 +163,10 @@ export default function ManagerDashboard() {
           <div className="flex gap-2">
             <select value={dateRange} onChange={(e) => setDateRange(e.target.value)}
               className="flex-1 bg-white/20 text-white text-sm rounded-xl px-3 py-2 border border-white/30 focus:outline-none">
-              <option value="1"  className="text-gray-900">Today</option>
-              <option value="7"  className="text-gray-900">Last 7 days</option>
-              <option value="30" className="text-gray-900">Last 30 days</option>
-              <option value="90" className="text-gray-900">Last 90 days</option>
+              <option value="today" className="text-gray-900">Today</option>
+              <option value="week"  className="text-gray-900">This week</option>
+              <option value="month" className="text-gray-900">This month</option>
+              <option value="all"   className="text-gray-900">All time</option>
             </select>
             <select value={selectedRep} onChange={(e) => setSelectedRep(e.target.value)}
               className="flex-1 bg-white/20 text-white text-sm rounded-xl px-3 py-2 border border-white/30 focus:outline-none">
@@ -222,7 +247,12 @@ function OverviewTab({
   // Group sessions into one bucket per calendar day across the selected
   // date range (zero-fill empty days so the sparkline has a stable length).
   // A "day" is bucketed by session.started_at local midnight.
-  const days = Math.min(parseInt(dateRange) || 7, 30)  // cap to 30 so bars stay legible
+  // The visible window length comes from the calendar-period filter:
+  //   today  → 1 day
+  //   week   → days-since-Monday + 1
+  //   month  → today's day-of-month
+  //   all    → derived from oldest session; capped at 30 so bars stay legible.
+  const days = daysForRange(dateRange, sessions)
   const daily = groupSessionsByDay(sessions, days)
 
   // Trend chips compare the last half of the window to the first half.
@@ -332,6 +362,19 @@ function OverviewTab({
 
   return (
     <div className="space-y-4 md:space-y-6">
+      {/* ── Period banner ───────────────────────────────────────────────
+         Echoes the header's date-range selection right on the overview
+         so there's never any doubt about the window the numbers cover.
+         (The actual selector lives in the header bar above.) */}
+      <div className="flex items-baseline justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Team overview</p>
+          <p className="text-sm text-slate-600">
+            {periodLabel(dateRange)}{repStats.length > 0 ? ` · ${repStats.length} rep${repStats.length === 1 ? '' : 's'} active` : ''}
+          </p>
+        </div>
+      </div>
+
       {/* ── KPI cards — 2×2 on mobile, 4-across on desktop ─────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <KPICardRich
@@ -1765,6 +1808,27 @@ function RepLeaderboard({ repStats = [] }) {
 }
 
 // ─── Overview helpers ────────────────────────────────────────────────────────
+// How many days of history the overview's bar chart + sparklines should
+// render for a given calendar-period filter. Today=1, week=Mon-to-today,
+// month=1st-to-today, all=derived from oldest session (capped so bars stay
+// legible). Falls back to 7 if nothing matches.
+function daysForRange(range, sessions = []) {
+  const now = new Date()
+  if (range === 'today') return 1
+  if (range === 'week')  return Math.max(1, differenceInCalendarDays(now, startOfWeek(now, { weekStartsOn: 1 })) + 1)
+  if (range === 'month') return Math.max(1, now.getDate())
+  if (range === 'all') {
+    const oldest = sessions.reduce((min, s) => {
+      const t = s.started_at ? new Date(s.started_at).getTime() : Infinity
+      return t < min ? t : min
+    }, Infinity)
+    if (!Number.isFinite(oldest)) return 7
+    const span = differenceInCalendarDays(now, new Date(oldest)) + 1
+    return Math.min(Math.max(span, 1), 30)
+  }
+  return 7
+}
+
 // Bucket sessions into `days` calendar days (oldest → newest). Sums the
 // revenue/doors/bookings/estimates per day; missing days get zero rows.
 function groupSessionsByDay(sessions, days) {

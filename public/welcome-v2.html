@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KnockIQ — One app. Two jobs. Closed.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* Brand */
+      --blue-600: #1B4FCC;
+      --blue-700: #1640A8;
+      --blue-50:  #EEF3FF;
+      --lime:     #7DC31E;
+      --lime-50:  #F4FBE6;
+      --green:    #059669;
+      --amber:    #F59E0B;
+      --red:      #DC2626;
+      --pink:     #DB2777;
+      --violet:   #6D28D9;
+      --cyan:     #06B6D4;
+      --indigo:   #6366F1;
+      --sky:      #0EA5E9;
+
+      /* Neutrals */
+      --ink:      #0F172A;
+      --ink-2:    #1E293B;
+      --text:     #334155;
+      --muted:    #64748B;
+      --line:     #E2E8F0;
+      --line-2:   #F1F5F9;
+      --bg:       #F8FAFC;
+      --bg-2:     #F1F5F9;
+      --white:    #ffffff;
+
+      /* Shadows */
+      --sh-sm: 0 1px 2px rgba(15,23,42,.06), 0 1px 1px rgba(15,23,42,.04);
+      --sh:    0 4px 14px rgba(15,23,42,.08);
+      --sh-lg: 0 18px 40px -12px rgba(15,23,42,.18);
+      --sh-xl: 0 30px 60px -20px rgba(15,23,42,.22);
+
+      /* Radii */
+      --r-card: 20px;
+      --r-btn:  12px;
+      --r-chip: 999px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      background: var(--white);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.55;
+    }
+    img { max-width: 100%; display: block; }
+    a   { color: inherit; text-decoration: none; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 28px; }
+    .section   { padding: 96px 0; }
+    .section-tight { padding: 64px 0; }
+
+    /* ────────────────────────────────────────────────────────────────
+       NAV
+    ───────────────────────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.85);
+      backdrop-filter: saturate(180%) blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-inner {
+      max-width: 1200px; margin: 0 auto;
+      padding: 0 28px; height: 68px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 800; font-size: 17px; letter-spacing: -0.01em;
+    }
+    .logo-mark {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, #2E6BFF 0%, #1B4FCC 100%);
+      display: grid; place-items: center;
+      color: white; font-weight: 900; font-size: 15px;
+      box-shadow: 0 6px 14px rgba(27,79,204,.35);
+    }
+    .nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+    .nav-links a {
+      font-size: 14px; color: var(--text); font-weight: 500;
+      transition: color .15s;
+    }
+    .nav-links a:hover { color: var(--ink); }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: var(--r-btn);
+      font-weight: 600; font-size: 14px; letter-spacing: -0.005em;
+      transition: transform .15s, box-shadow .15s, background .15s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary {
+      background: var(--ink);
+      color: white;
+    }
+    .btn-primary:hover { background: var(--ink-2); box-shadow: var(--sh); }
+    .btn-blue {
+      background: linear-gradient(135deg, #2E6BFF 0%, var(--blue-600) 100%);
+      color: white;
+      box-shadow: 0 10px 24px -8px rgba(27,79,204,.55);
+    }
+    .btn-blue:hover { filter: brightness(1.05); }
+    .btn-ghost {
+      background: transparent; color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .btn-ghost:hover { background: var(--bg); border-color: #CBD5E1; }
+    .btn-lg { padding: 13px 22px; font-size: 15px; border-radius: 14px; }
+
+    /* ────────────────────────────────────────────────────────────────
+       HERO
+    ───────────────────────────────────────────────────────────────── */
+    .hero {
+      position: relative;
+      padding: 80px 0 96px;
+      background:
+        radial-gradient(1100px 500px at 50% -10%, rgba(27,79,204,.10), transparent 60%),
+        radial-gradient(900px 420px at 90% 40%, rgba(125,195,30,.10), transparent 60%),
+        linear-gradient(180deg, var(--white) 0%, var(--white) 60%, var(--bg) 100%);
+      overflow: hidden;
+    }
+    .hero-inner { text-align: center; max-width: 880px; margin: 0 auto; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: var(--r-chip);
+      background: white; border: 1px solid var(--line);
+      font-size: 12px; font-weight: 600; color: var(--text);
+      box-shadow: var(--sh-sm);
+    }
+    .pill .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--lime);
+      box-shadow: 0 0 0 3px rgba(125,195,30,.2);
+    }
+    .hero h1 {
+      font-size: clamp(40px, 5.6vw, 72px);
+      line-height: 1.02;
+      letter-spacing: -0.035em;
+      font-weight: 800;
+      margin: 22px auto 18px;
+      max-width: 14ch;
+    }
+    .hero h1 .grad {
+      background: linear-gradient(135deg, #2E6BFF 0%, var(--violet) 55%, var(--pink) 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .hero p.sub {
+      font-size: clamp(16px, 1.4vw, 19px);
+      color: var(--text);
+      max-width: 620px; margin: 0 auto 14px;
+    }
+    .hero-ctas {
+      display: flex; gap: 12px; justify-content: center;
+      margin-top: 28px; flex-wrap: wrap;
+    }
+    .hero-trust {
+      display: flex; justify-content: center; gap: 18px;
+      margin-top: 22px; font-size: 13px; color: var(--muted);
+      flex-wrap: wrap;
+    }
+    .hero-trust span { display: inline-flex; align-items: center; gap: 6px; }
+    .check {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--lime-50);
+      color: var(--green);
+      display: inline-grid; place-items: center;
+      font-size: 9px; font-weight: 900;
+    }
+
+    /* Hero showcase — side-by-side rep + manager views */
+    .hero-showcase {
+      position: relative;
+      max-width: 1150px; margin: 62px auto 0;
+      display: grid;
+      grid-template-columns: minmax(260px, 320px) 1fr;
+      gap: 22px;
+      padding: 0 28px;
+      align-items: end;
+    }
+
+    /* ────────────────────────────────────────────────────────────────
+       PHONE MOCK
+    ───────────────────────────────────────────────────────────────── */
+    .phone {
+      position: relative;
+      width: 100%; max-width: 320px;
+      aspect-ratio: 9 / 19;
+      border-radius: 42px;
+      background: #0B1020;
+      padding: 10px;
+      box-shadow:
+        0 30px 60px -18px rgba(15,23,42,.35),
+        0 0 0 1px rgba(15,23,42,.06);
+    }
+    .phone-screen {
+      width: 100%; height: 100%;
+      border-radius: 34px;
+      background: var(--bg);
+      overflow: hidden;
+      position: relative;
+      display: flex; flex-direction: column;
+    }
+    .phone-notch {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      width: 98px; height: 22px; border-radius: 14px;
+      background: #0B1020; z-index: 10;
+    }
+    .phone-header {
+      background: linear-gradient(135deg, var(--blue-600) 0%, #2E6BFF 100%);
+      padding: 42px 18px 18px;
+      color: white;
+    }
+    .phone-header-row { display: flex; align-items: center; gap: 10px; }
+    .phone-avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: white; color: var(--blue-600);
+      display: grid; place-items: center;
+      font-weight: 800; font-size: 14px;
+    }
+    .phone-greet { font-size: 11px; opacity: .85; }
+    .phone-name  { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+    .phone-body  {
+      padding: 14px 14px 18px;
+      display: flex; flex-direction: column; gap: 10px;
+      overflow: hidden;
+    }
+    .phone-start {
+      background: var(--blue-600);
+      color: white;
+      padding: 14px;
+      border-radius: 16px;
+      font-weight: 800; font-size: 14px;
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 10px 22px -8px rgba(27,79,204,.55);
+    }
+    .phone-start .play {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: rgba(255,255,255,.22);
+      display: grid; place-items: center;
+      font-size: 10px;
+    }
+
+    /* Miniature callout cards */
+    .callout {
+      border-radius: 14px; padding: 10px 12px;
+      color: white;
+      position: relative; overflow: hidden;
+      box-shadow: var(--sh-sm);
+    }
+    .callout .eyebrow {
+      font-size: 8px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; opacity: .9;
+    }
+    .callout .headline { font-size: 11.5px; font-weight: 800; margin-top: 1px; line-height: 1.2; }
+    .callout .sub      { font-size: 9.5px; opacity: .85; margin-top: 2px; line-height: 1.3; }
+    .callout .ico      {
+      position: absolute; right: 6px; bottom: -4px;
+      font-size: 46px; opacity: .10;
+      line-height: 1;
+    }
+    .c-hot    { background: linear-gradient(135deg, #6D28D9 0%, #DB2777 100%); }
+    .c-rank   { background: linear-gradient(135deg, #059669 0%, #7DC31E 100%); }
+    .c-level  { background: linear-gradient(135deg, #F59E0B 0%, #DC2626 100%); }
+    .c-team   { background: linear-gradient(135deg, #0EA5E9 0%, #6366F1 100%); }
+    .c-pb     { background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%); }
+    .c-dry    { background: linear-gradient(135deg, #EA580C 0%, #FACC15 100%); }
+    .c-diag   { background: linear-gradient(135deg, #B45309 0%, #F59E0B 100%); }
+
+    /* Mini goal + level */
+    .mini-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .mini-card {
+      background: white; border: 1px solid var(--line);
+      border-radius: 14px; padding: 10px; box-shadow: var(--sh-sm);
+    }
+    .mini-card .mini-label {
+      font-size: 8.5px; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .mini-card .mini-val { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; margin-top: 4px; }
+    .mini-card .mini-sub { font-size: 9.5px; color: var(--muted); margin-top: 2px; }
+    .mini-ring {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: conic-gradient(var(--lime) 252deg, #f3f4f6 0);
+      display: grid; place-items: center;
+      float: right;
+    }
+    .mini-ring-inner {
+      width: 24px; height: 24px; border-radius: 50%; background: white;
+      display: grid; place-items: center;
+      font-size: 8.5px; font-weight: 800; color: var(--green);
+    }
+    .mini-bar {
+      height: 5px; border-radius: 6px; background: var(--line-2);
+      overflow: hidden; margin-top: 6px;
+    }
+    .mini-bar > span {
+      display: block; height: 100%;
+      background: linear-gradient(90deg, #FACC15 0%, #F59E0B 100%);
+      width: 78%;
+    }
+
+    /* ────────────────────────────────────────────────────────────────
+       DASHBOARD MOCK
+    ───────────────────────────────────────────────────────────────── */
+    .dash {
+      position: relative;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--sh-lg);
+      overflow: hidden;
+    }
+    .dash-topbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; border-bottom: 1px solid var(--line);
+      background: #fafbff;
+    }
+    .dot-row { display: flex; gap: 6px; }
+    .dot-row .d { width: 10px; height: 10px; border-radius: 50%; background: #E2E8F0; }
+    .dot-row .d.red    { background: #FDA4AF; }
+    .dot-row .d.amber  { background: #FCD34D; }
+    .dot-row .d.green  { background: #86EFAC; }
+    .dash-title {
+      font-size: 12px; color: var(--muted); font-weight: 600;
+      margin-left: 4px;
+    }
+    .dash-tag {
+      margin-left: auto;
+      background: var(--lime-50); color: var(--green);
+      font-size: 11px; font-weight: 700;
+      padding: 4px 10px; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .dash-tag .pulse {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green);
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+    .dash-body {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 1px;
+      background: var(--line);
+    }
+    .dash-panel { background: white; padding: 18px; }
+
+    /* KPI strip */
+    .kpi-strip {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .kpi {
+      padding: 12px;
+      border-radius: 14px;
+      background: var(--bg);
+    }
+    .kpi .kpi-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .kpi .kpi-val { font-size: 22px; font-weight: 800; margin-top: 4px; letter-spacing: -0.02em; }
+    .kpi .kpi-trend { font-size: 11px; font-weight: 600; margin-top: 2px; }
+    .kpi.kpi-blue  .kpi-val { color: var(--blue-600); }
+    .kpi.kpi-lime  .kpi-val { color: var(--lime); }
+    .kpi.kpi-green .kpi-val { color: var(--green); }
+    .kpi.kpi-amber .kpi-val { color: var(--amber); }
+    .kpi-trend.up   { color: var(--green); }
+    .kpi-trend.down { color: var(--red); }
+
+    /* Dashboard chart */
+    .chart-wrap {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 16px;
+      background: var(--bg);
+    }
+    .chart-title {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 13px; font-weight: 700; color: var(--ink-2);
+      margin-bottom: 8px;
+    }
+    .chart-legend {
+      display: flex; gap: 12px; font-size: 11px; color: var(--muted); font-weight: 500;
+    }
+    .chart-legend .sw { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 5px; }
+    .line-chart { width: 100%; height: 160px; display: block; }
+
+    /* Leaderboard */
+    .leader {
+      padding: 0;
+    }
+    .leader-head {
+      padding: 14px 18px 6px;
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+    .leader-head h4 { font-size: 13px; font-weight: 800; letter-spacing: -0.01em; }
+    .leader-head span { font-size: 11px; color: var(--muted); font-weight: 500; }
+    .leader-row {
+      display: grid;
+      grid-template-columns: 30px 1fr auto auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 18px;
+      border-top: 1px solid var(--line-2);
+      font-size: 12px;
+    }
+    .leader-row:hover { background: var(--bg); }
+    .medal {
+      width: 24px; height: 24px; border-radius: 50%;
+      display: grid; place-items: center;
+      font-size: 11px; font-weight: 800; color: white;
+    }
+    .medal.gold   { background: linear-gradient(135deg, #FDE68A, #F59E0B); color: #7C2D12; }
+    .medal.silver { background: linear-gradient(135deg, #F1F5F9, #94A3B8); color: #1E293B; }
+    .medal.bronze { background: linear-gradient(135deg, #FCD9B3, #C77A3A); color: #7C2D12; }
+    .medal.plain  { background: var(--line-2); color: var(--muted); font-weight: 700; }
+    .leader-rep { display: flex; align-items: center; gap: 8px; }
+    .leader-avatar {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--blue-50); color: var(--blue-600);
+      display: grid; place-items: center;
+      font-weight: 800; font-size: 10px;
+    }
+    .leader-rep-name { font-weight: 600; color: var(--ink-2); }
+    .leader-doors { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 11.5px; }
+    .leader-rev   { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--ink); }
+
+    /* ────────────────────────────────────────────────────────────────
+       SECTION HEADINGS
+    ───────────────────────────────────────────────────────────────── */
+    .section-head {
+      text-align: center; max-width: 720px; margin: 0 auto 56px;
+    }
+    .eyebrow {
+      display: inline-block; font-size: 12px;
+      text-transform: uppercase; letter-spacing: .16em;
+      font-weight: 700; color: var(--blue-600);
+      margin-bottom: 14px;
+    }
+    .eyebrow.lime   { color: var(--lime); }
+    .eyebrow.violet { color: var(--violet); }
+    .eyebrow.amber  { color: var(--amber); }
+    .section-h {
+      font-size: clamp(32px, 3.6vw, 48px);
+      letter-spacing: -0.03em; line-height: 1.08;
+      font-weight: 800;
+    }
+    .section-h .grad {
+      background: linear-gradient(135deg, #2E6BFF 0%, var(--violet) 70%, var(--pink) 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .section-sub {
+      font-size: 17px; color: var(--muted);
+      margin-top: 14px; max-width: 620px; margin-left: auto; margin-right: auto;
+    }
+
+    /* ────────────────────────────────────────────────────────────────
+       TWO-AUDIENCE SPLIT
+    ───────────────────────────────────────────────────────────────── */
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .persona {
+      position: relative;
+      padding: 36px 32px 32px;
+      border-radius: 24px;
+      overflow: hidden;
+      color: white;
+    }
+    .persona.rep {
+      background:
+        radial-gradient(600px 300px at 120% 0%, rgba(255,255,255,.18), transparent 50%),
+        linear-gradient(135deg, #1B4FCC 0%, #6D28D9 100%);
+    }
+    .persona.mgr {
+      background:
+        radial-gradient(500px 280px at -10% 110%, rgba(255,255,255,.15), transparent 50%),
+        linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
+    }
+    .persona-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px; border-radius: 999px;
+      background: rgba(255,255,255,.15);
+      font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    }
+    .persona h3 {
+      font-size: 30px; letter-spacing: -0.02em; line-height: 1.1;
+      font-weight: 800; margin-top: 14px;
+    }
+    .persona p {
+      font-size: 15px; opacity: .88; margin-top: 12px; max-width: 40ch;
+    }
+    .persona ul {
+      list-style: none; margin-top: 20px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .persona li {
+      display: flex; gap: 12px; align-items: flex-start;
+      font-size: 14px; line-height: 1.5;
+    }
+    .persona li .bullet {
+      flex-shrink: 0;
+      width: 22px; height: 22px; border-radius: 7px;
+      background: rgba(255,255,255,.16);
+      display: grid; place-items: center;
+      font-size: 11px; font-weight: 800;
+    }
+    .persona li strong { font-weight: 700; display: block; }
+    .persona li span   { opacity: .85; font-size: 13.5px; }
+
+    /* ────────────────────────────────────────────────────────────────
+       REP FEATURES
+    ───────────────────────────────────────────────────────────────── */
+    .feature {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 56px;
+      align-items: center;
+    }
+    .feature.flip {
+      grid-template-columns: 1fr 1.1fr;
+    }
+    .feature.flip .feature-copy { order: 2; }
+    .feature.flip .feature-visual { order: 1; }
+    .feature-copy h3 {
+      font-size: 34px; line-height: 1.1; letter-spacing: -0.03em;
+      font-weight: 800; margin-bottom: 16px;
+    }
+    .feature-copy h3 .hi { background: linear-gradient(90deg, var(--violet), var(--pink)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .feature-copy p {
+      font-size: 16px; color: var(--text); line-height: 1.65;
+      max-width: 48ch;
+    }
+    .feature-list {
+      list-style: none; margin-top: 22px;
+      display: grid; gap: 14px;
+    }
+    .feature-list li {
+      display: flex; gap: 12px; align-items: flex-start;
+      font-size: 14.5px; color: var(--text);
+    }
+    .feature-list .tick {
+      flex-shrink: 0;
+      width: 22px; height: 22px; border-radius: 7px;
+      background: var(--lime-50); color: var(--green);
+      display: grid; place-items: center;
+      font-weight: 900; font-size: 12px;
+    }
+
+    /* Big callout stack visual */
+    .callout-stack {
+      display: grid; gap: 10px;
+      padding: 20px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--sh-lg);
+      max-width: 400px; margin: 0 auto;
+    }
+    .cs-card {
+      border-radius: 16px; padding: 14px 16px; color: white;
+      position: relative; overflow: hidden;
+    }
+    .cs-card .cs-eyebrow {
+      font-size: 10px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; opacity: .9;
+    }
+    .cs-card .cs-title {
+      font-size: 14.5px; font-weight: 800; margin-top: 2px; line-height: 1.3;
+    }
+    .cs-card .cs-sub   {
+      font-size: 11px; margin-top: 3px; opacity: .85; line-height: 1.4;
+    }
+    .cs-card .cs-icon {
+      position: absolute; right: 10px; bottom: -6px;
+      font-size: 56px; opacity: .10;
+    }
+
+    /* Goal ring & level cards sample */
+    .rep-mini-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      margin-top: 14px;
+    }
+    .rep-mini {
+      background: white; border: 1px solid var(--line);
+      border-radius: 16px; padding: 14px;
+    }
+    .rep-mini-label {
+      font-size: 10px; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .goal-ring {
+      width: 54px; height: 54px; border-radius: 50%;
+      background: conic-gradient(var(--lime) 288deg, #f3f4f6 0);
+      display: grid; place-items: center;
+      margin-top: 8px;
+    }
+    .goal-ring-inner {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: white; display: grid; place-items: center;
+      font-weight: 900; color: var(--green); font-size: 10px;
+    }
+    .rep-mini .big {
+      font-size: 22px; font-weight: 800; margin-top: 8px; letter-spacing: -0.02em;
+    }
+    .rep-mini .small { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .xp-bar {
+      height: 6px; border-radius: 8px; background: var(--line-2);
+      margin-top: 8px; overflow: hidden;
+    }
+    .xp-bar > span {
+      display: block; height: 100%; width: 86%;
+      background: linear-gradient(90deg, #FACC15, #F59E0B);
+    }
+    .level-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-top: 8px;
+      font-size: 11px; font-weight: 700; color: var(--ink-2);
+    }
+    .level-badge .orb {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: conic-gradient(from 0deg, #fde047, #fb7185, #a78bfa, #60a5fa, #4ade80, #fde047);
+      display: grid; place-items: center;
+      font-size: 11px;
+      box-shadow: 0 0 12px rgba(253,224,71,.75), 0 0 22px rgba(236,72,153,.4);
+    }
+
+    /* ────────────────────────────────────────────────────────────────
+       MANAGER FEATURE — BIG DASHBOARD PANEL
+    ───────────────────────────────────────────────────────────────── */
+    .mgr-visual {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--sh-lg);
+      overflow: hidden;
+    }
+
+    /* Funnel viz */
+    .funnel {
+      padding: 16px;
+      border-radius: 16px;
+      background: var(--bg);
+    }
+    .funnel-row { margin-bottom: 10px; }
+    .funnel-row:last-child { margin-bottom: 0; }
+    .funnel-top {
+      display: flex; justify-content: space-between;
+      font-size: 12px; margin-bottom: 4px;
+    }
+    .funnel-top b { font-weight: 700; color: var(--ink-2); }
+    .funnel-top span { color: var(--muted); font-size: 11px; }
+    .funnel-bar {
+      height: 12px; border-radius: 8px; background: var(--line-2);
+      overflow: hidden;
+    }
+    .funnel-bar > span {
+      display: block; height: 100%;
+      border-radius: 8px;
+    }
+    .f-doors    > span { background: #1B4FCC; width: 100%; }
+    .f-convo    > span { background: #6366F1; width: 62%; }
+    .f-est      > span { background: #7DC31E; width: 38%; }
+    .f-book     > span { background: #059669; width: 19%; }
+
+    /* Territory mini-map */
+    .terr-map {
+      height: 200px; margin-top: 14px;
+      background:
+        linear-gradient(135deg, #EEF3FF 0%, #F4FBE6 100%);
+      border-radius: 16px;
+      position: relative; overflow: hidden;
+      border: 1px solid var(--line);
+    }
+    .terr-map svg { width: 100%; height: 100%; }
+
+    /* ────────────────────────────────────────────────────────────────
+       RAINBOW CALLOUT SHOWCASE ROW
+    ───────────────────────────────────────────────────────────────── */
+    .rainbow {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 40px;
+    }
+    .rb-card {
+      padding: 18px;
+      border-radius: 18px;
+      color: white;
+      min-height: 180px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      position: relative; overflow: hidden;
+      transition: transform .2s;
+    }
+    .rb-card:hover { transform: translateY(-4px); }
+    .rb-card .label {
+      font-size: 10px; font-weight: 800; letter-spacing: .1em;
+      text-transform: uppercase; opacity: .85;
+    }
+    .rb-card .title {
+      font-size: 15px; font-weight: 800; margin-top: 6px; line-height: 1.25;
+    }
+    .rb-card .meta {
+      font-size: 11px; opacity: .85; margin-top: 8px;
+    }
+    .rb-card .ico {
+      position: absolute; right: -6px; bottom: -14px;
+      font-size: 88px; line-height: 1; opacity: .13;
+    }
+
+    /* ────────────────────────────────────────────────────────────────
+       SHARED FEATURES GRID
+    ───────────────────────────────────────────────────────────────── */
+    .shared-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-top: 48px;
+    }
+    .card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 26px;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: var(--sh-lg); }
+    .card .icon-box {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: grid; place-items: center;
+      font-size: 22px;
+      margin-bottom: 16px;
+    }
+    .ib-blue   { background: var(--blue-50); color: var(--blue-600); }
+    .ib-lime   { background: var(--lime-50); color: var(--green); }
+    .ib-violet { background: #F3E8FF; color: var(--violet); }
+    .ib-amber  { background: #FEF3C7; color: var(--amber); }
+    .ib-sky    { background: #E0F2FE; color: var(--sky); }
+    .ib-pink   { background: #FCE7F3; color: var(--pink); }
+    .card h4 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+    .card p  { font-size: 14px; color: var(--muted); margin-top: 6px; line-height: 1.55; }
+
+    /* ────────────────────────────────────────────────────────────────
+       METRICS BANNER
+    ───────────────────────────────────────────────────────────────── */
+    .metrics-banner {
+      background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
+      border-radius: 24px;
+      padding: 48px;
+      color: white;
+      text-align: center;
+    }
+    .metrics-banner h3 {
+      font-size: 28px; letter-spacing: -0.02em; font-weight: 800;
+      max-width: 640px; margin: 0 auto;
+    }
+    .metrics-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 30px; margin-top: 36px; max-width: 900px; margin-left: auto; margin-right: auto;
+    }
+    .metric .val {
+      font-size: 42px; font-weight: 800; letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #7DD3FC 0%, #7DC31E 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .metric .lbl { font-size: 13px; opacity: .75; margin-top: 4px; }
+
+    /* ────────────────────────────────────────────────────────────────
+       PRICING
+    ───────────────────────────────────────────────────────────────── */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .price {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 30px 28px;
+      display: flex; flex-direction: column;
+      position: relative;
+    }
+    .price.featured {
+      border-color: transparent;
+      background: linear-gradient(180deg, #EEF3FF 0%, #fff 35%);
+      border: 2px solid var(--blue-600);
+      transform: translateY(-10px);
+      box-shadow: var(--sh-xl);
+    }
+    .price-badge {
+      position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+      background: var(--blue-600); color: white;
+      padding: 4px 14px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; letter-spacing: .05em;
+    }
+    .price h5 { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+    .price .tagline { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .price .amount {
+      font-size: 44px; font-weight: 800; letter-spacing: -0.03em;
+      margin-top: 16px;
+    }
+    .price .amount small { font-size: 15px; font-weight: 500; color: var(--muted); }
+    .price ul {
+      list-style: none; margin-top: 20px; padding-top: 20px;
+      border-top: 1px solid var(--line); flex: 1;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .price li {
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: 14px; color: var(--text); line-height: 1.45;
+    }
+    .price li .tick {
+      flex-shrink: 0;
+      width: 18px; height: 18px; border-radius: 5px;
+      background: var(--lime-50); color: var(--green);
+      display: grid; place-items: center;
+      font-weight: 900; font-size: 10px;
+    }
+    .price .cta { margin-top: 22px; }
+
+    /* ────────────────────────────────────────────────────────────────
+       CTA / FOOTER
+    ───────────────────────────────────────────────────────────────── */
+    .final-cta {
+      background:
+        radial-gradient(900px 400px at 90% 10%, rgba(125,195,30,.18), transparent 60%),
+        radial-gradient(800px 400px at 10% 90%, rgba(219,39,119,.18), transparent 60%),
+        linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
+      color: white;
+      padding: 96px 0;
+      text-align: center;
+    }
+    .final-cta h2 {
+      font-size: clamp(32px, 4vw, 48px);
+      letter-spacing: -0.03em; font-weight: 800; line-height: 1.1;
+      max-width: 16ch; margin: 0 auto;
+    }
+    .final-cta p { color: #CBD5E1; margin-top: 16px; max-width: 540px; margin-left: auto; margin-right: auto; }
+    .final-cta .hero-ctas { margin-top: 32px; }
+    .final-cta .btn-ghost { color: white; border-color: rgba(255,255,255,.3); }
+    .final-cta .btn-ghost:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.5); }
+
+    footer {
+      background: var(--ink);
+      color: #94A3B8;
+      padding: 40px 0;
+      text-align: center;
+      font-size: 13px;
+    }
+    footer a { color: #CBD5E1; margin: 0 12px; }
+
+    /* ────────────────────────────────────────────────────────────────
+       RESPONSIVE
+    ───────────────────────────────────────────────────────────────── */
+    @media (max-width: 1000px) {
+      .hero-showcase { grid-template-columns: 1fr; }
+      .feature, .feature.flip { grid-template-columns: 1fr; gap: 32px; }
+      .feature.flip .feature-copy   { order: 1; }
+      .feature.flip .feature-visual { order: 2; }
+      .split { grid-template-columns: 1fr; }
+      .shared-grid { grid-template-columns: 1fr 1fr; }
+      .pricing-grid { grid-template-columns: 1fr; max-width: 480px; }
+      .rainbow { grid-template-columns: repeat(3, 1fr); }
+      .dash-body { grid-template-columns: 1fr; }
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .section { padding: 72px 0; }
+      .nav-links { display: none; }
+      .shared-grid { grid-template-columns: 1fr; }
+      .rainbow { grid-template-columns: repeat(2, 1fr); }
+      .kpi-strip { grid-template-columns: 1fr 1fr; }
+      .hero-trust { flex-direction: column; gap: 8px; }
+      .feature-copy h3 { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     NAV
+═══════════════════════════════════════════════════════════════════════════ -->
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="#top">
+      <span class="logo-mark">K</span>
+      KnockIQ
+    </a>
+    <ul class="nav-links">
+      <li><a href="#for-reps">For Reps</a></li>
+      <li><a href="#for-managers">For Managers</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="/login">Sign In</a></li>
+    </ul>
+    <a href="/signup" class="btn btn-blue">Start Free Trial</a>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     HERO
+═══════════════════════════════════════════════════════════════════════════ -->
+<section id="top" class="hero">
+  <div class="container hero-inner">
+    <span class="pill">
+      <span class="dot"></span>
+      Built for door-to-door teams that take this seriously
+    </span>
+    <h1>
+      One app. Two jobs. <span class="grad">Closed.</span>
+    </h1>
+    <p class="sub">
+      KnockIQ is the field sales system where the rep gets AI-powered coaching in their pocket
+      and the manager gets the numbers to actually run the team. Same platform, two very different
+      pains solved.
+    </p>
+    <div class="hero-ctas">
+      <a href="/signup" class="btn btn-blue btn-lg">Start free — 14 days →</a>
+      <a href="#for-reps" class="btn btn-ghost btn-lg">See the rep view</a>
+    </div>
+    <div class="hero-trust">
+      <span><span class="check">✓</span> No credit card required</span>
+      <span><span class="check">✓</span> Setup in under 10 minutes</span>
+      <span><span class="check">✓</span> Cancel anytime</span>
+    </div>
+  </div>
+
+  <!-- ── Showcase: phone + dashboard ──────────────────────────────────────── -->
+  <div class="hero-showcase">
+    <!-- Rep phone -->
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="phone-notch"></div>
+        <div class="phone-header">
+          <div class="phone-header-row">
+            <div class="phone-avatar">J</div>
+            <div>
+              <div class="phone-greet">Good afternoon</div>
+              <div class="phone-name">Jake Stephens</div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-body">
+          <div class="phone-start">
+            <span class="play">▶</span> Start Canvassing
+          </div>
+
+          <div class="callout c-hot">
+            <div class="eyebrow">Your hot hour</div>
+            <div class="headline">4pm–5pm · 2.4× more bookings</div>
+            <div class="sub">Based on 62 doors over the last 60 days.</div>
+            <div class="ico">⏰</div>
+          </div>
+
+          <div class="callout c-rank">
+            <div class="eyebrow">You climbed the board</div>
+            <div class="headline">#7 → #4 · up 3 spots</div>
+            <div class="sub">You're #4 of 14 this week.</div>
+            <div class="ico">📈</div>
+          </div>
+
+          <div class="callout c-level">
+            <div class="eyebrow">Level up within reach</div>
+            <div class="headline">215 XP to Level 7 · 86%</div>
+            <div class="sub">One good session away.</div>
+            <div class="ico">✨</div>
+          </div>
+
+          <div class="mini-row">
+            <div class="mini-card">
+              <div class="mini-ring"><div class="mini-ring-inner">70%</div></div>
+              <div class="mini-label">Today's Goal</div>
+              <div class="mini-val">$700</div>
+              <div class="mini-sub">of $1,000</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-label">Level 6 · Ninja</div>
+              <div class="mini-val">1,430<span style="font-size:10px;color:var(--muted);font-weight:600;"> / 1,645 XP</span></div>
+              <div class="mini-bar"><span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manager dashboard -->
+    <div class="dash">
+      <div class="dash-topbar">
+        <div class="dot-row">
+          <div class="d red"></div>
+          <div class="d amber"></div>
+          <div class="d green"></div>
+        </div>
+        <div class="dash-title">Team Pulse — Redwood Home Services</div>
+        <div class="dash-tag"><span class="pulse"></span> Live</div>
+      </div>
+
+      <div class="dash-body">
+        <!-- Left pane: KPIs + chart -->
+        <div class="dash-panel">
+          <div class="kpi-strip">
+            <div class="kpi kpi-blue">
+              <div class="kpi-label">Doors</div>
+              <div class="kpi-val">1,284</div>
+              <div class="kpi-trend up">↑ 12% vs last wk</div>
+            </div>
+            <div class="kpi kpi-lime">
+              <div class="kpi-label">Estimates</div>
+              <div class="kpi-val">89</div>
+              <div class="kpi-trend up">↑ 18%</div>
+            </div>
+            <div class="kpi kpi-green">
+              <div class="kpi-label">Bookings</div>
+              <div class="kpi-val">34</div>
+              <div class="kpi-trend up">↑ 22%</div>
+            </div>
+            <div class="kpi kpi-amber">
+              <div class="kpi-label">Revenue</div>
+              <div class="kpi-val">$48.2k</div>
+              <div class="kpi-trend up">↑ 31%</div>
+            </div>
+          </div>
+
+          <div class="chart-wrap">
+            <div class="chart-title">
+              <span>Doors &amp; Bookings · last 14 days</span>
+              <div class="chart-legend">
+                <span><span class="sw" style="background:#1B4FCC;"></span>Doors</span>
+                <span><span class="sw" style="background:#7DC31E;"></span>Bookings</span>
+              </div>
+            </div>
+            <svg class="line-chart" viewBox="0 0 420 160" preserveAspectRatio="none">
+              <!-- grid -->
+              <line x1="0"  y1="40"  x2="420" y2="40"  stroke="#E2E8F0" stroke-dasharray="4 4"/>
+              <line x1="0"  y1="80"  x2="420" y2="80"  stroke="#E2E8F0" stroke-dasharray="4 4"/>
+              <line x1="0"  y1="120" x2="420" y2="120" stroke="#E2E8F0" stroke-dasharray="4 4"/>
+
+              <!-- doors area -->
+              <defs>
+                <linearGradient id="dg" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%"  stop-color="#1B4FCC" stop-opacity=".38"/>
+                  <stop offset="100%" stop-color="#1B4FCC" stop-opacity="0"/>
+                </linearGradient>
+                <linearGradient id="lg" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%"  stop-color="#7DC31E" stop-opacity=".35"/>
+                  <stop offset="100%" stop-color="#7DC31E" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+
+              <path d="M0,110 L30,95 L60,100 L90,78 L120,82 L150,60 L180,72 L210,50 L240,55 L270,40 L300,48 L330,30 L360,38 L390,25 L420,32 L420,160 L0,160 Z"
+                    fill="url(#dg)"/>
+              <polyline
+                points="0,110 30,95 60,100 90,78 120,82 150,60 180,72 210,50 240,55 270,40 300,48 330,30 360,38 390,25 420,32"
+                fill="none" stroke="#1B4FCC" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+              <path d="M0,140 L30,138 L60,134 L90,128 L120,125 L150,118 L180,120 L210,108 L240,110 L270,100 L300,98 L330,88 L360,92 L390,80 L420,85 L420,160 L0,160 Z"
+                    fill="url(#lg)"/>
+              <polyline
+                points="0,140 30,138 60,134 90,128 120,125 150,118 180,120 210,108 240,110 270,100 300,98 330,88 360,92 390,80 420,85"
+                fill="none" stroke="#7DC31E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+              <!-- end dots -->
+              <circle cx="420" cy="32" r="4" fill="#1B4FCC"/>
+              <circle cx="420" cy="32" r="8" fill="#1B4FCC" opacity=".25"/>
+              <circle cx="420" cy="85" r="4" fill="#7DC31E"/>
+              <circle cx="420" cy="85" r="8" fill="#7DC31E" opacity=".25"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Right pane: leaderboard -->
+        <div class="leader" style="padding:0;">
+          <div class="leader-head">
+            <h4>This week's leaderboard</h4>
+            <span>14 reps</span>
+          </div>
+          <div class="leader-row">
+            <div class="medal gold">1</div>
+            <div class="leader-rep"><span class="leader-avatar">MR</span><span class="leader-rep-name">Maya R.</span></div>
+            <div class="leader-doors">312 doors</div>
+            <div class="leader-rev">$18.4k</div>
+          </div>
+          <div class="leader-row">
+            <div class="medal silver">2</div>
+            <div class="leader-rep"><span class="leader-avatar">DC</span><span class="leader-rep-name">Darius C.</span></div>
+            <div class="leader-doors">284 doors</div>
+            <div class="leader-rev">$14.1k</div>
+          </div>
+          <div class="leader-row">
+            <div class="medal bronze">3</div>
+            <div class="leader-rep"><span class="leader-avatar">JS</span><span class="leader-rep-name">Jake S.</span></div>
+            <div class="leader-doors">248 doors</div>
+            <div class="leader-rev">$9.8k</div>
+          </div>
+          <div class="leader-row">
+            <div class="medal plain">4</div>
+            <div class="leader-rep"><span class="leader-avatar">AK</span><span class="leader-rep-name">Amara K.</span></div>
+            <div class="leader-doors">221 doors</div>
+            <div class="leader-rev">$7.2k</div>
+          </div>
+          <div class="leader-row">
+            <div class="medal plain">5</div>
+            <div class="leader-rep"><span class="leader-avatar">TV</span><span class="leader-rep-name">Theo V.</span></div>
+            <div class="leader-doors">198 doors</div>
+            <div class="leader-rev">$5.9k</div>
+          </div>
+          <div class="leader-row">
+            <div class="medal plain">6</div>
+            <div class="leader-rep"><span class="leader-avatar">LP</span><span class="leader-rep-name">Lucia P.</span></div>
+            <div class="leader-doors">176 doors</div>
+            <div class="leader-rev">$4.4k</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TWO AUDIENCE SPLIT
+═══════════════════════════════════════════════════════════════════════════ -->
+<section class="section" style="background: var(--bg);">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Built for both sides of the clipboard</span>
+      <h2 class="section-h">A canvassing app the rep actually opens —<br/> with numbers the manager actually trusts.</h2>
+      <p class="section-sub">
+        Most tools pick a side. KnockIQ is two products in one: a coaching companion on the rep's phone,
+        and a command center for the operator. They share a single source of truth — the door knock itself.
+      </p>
+    </div>
+
+    <div class="split">
+      <div class="persona rep">
+        <span class="persona-badge">👟 For the rep</span>
+        <h3>Your phone knows when you're about to have a big hour.</h3>
+        <p>Personalized callouts, XP that compounds, and a goal ring that keeps you in the game. No more spreadsheets or guessing what's working.</p>
+        <ul>
+          <li>
+            <span class="bullet">⏰</span>
+            <div><strong>Hot hour alerts</strong><span>Notified between 4–6pm when you're statistically 2.4× more likely to book.</span></div>
+          </li>
+          <li>
+            <span class="bullet">🏆</span>
+            <div><strong>Personal-best chase</strong><span>Know exactly what close rate you're running against your lifetime best.</span></div>
+          </li>
+          <li>
+            <span class="bullet">🔥</span>
+            <div><strong>Dry spell framing</strong><span>Bounced back from 4 slumps with an average of 2.1 bookings the next day.</span></div>
+          </li>
+          <li>
+            <span class="bullet">✨</span>
+            <div><strong>Level up &amp; confetti</strong><span>Hit your daily goal and the screen celebrates — with haptics, too.</span></div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="persona mgr">
+        <span class="persona-badge">📊 For the operator</span>
+        <h3>The answer to "is canvassing actually working?" is one glance away.</h3>
+        <p>Live leaderboards, territory heatmaps, conversion funnels, and variance flags. Reps self-report effort; KnockIQ verifies it by GPS and motion.</p>
+        <ul>
+          <li>
+            <span class="bullet">🗺️</span>
+            <div><strong>Verified doors</strong><span>GPS + motion classifier distinguishes a real knock from a drive-by.</span></div>
+          </li>
+          <li>
+            <span class="bullet">🏁</span>
+            <div><strong>Live leaderboard</strong><span>Gold / silver / bronze medals rank reps by revenue, bookings, then doors.</span></div>
+          </li>
+          <li>
+            <span class="bullet">🧭</span>
+            <div><strong>Territory &amp; DNK zones</strong><span>Draw boundaries, respect do-not-knock polygons, route efficiently.</span></div>
+          </li>
+          <li>
+            <span class="bullet">🔔</span>
+            <div><strong>Close-rate variance alerts</strong><span>Get a flag when a top rep's week falls 25%+ below their 30-day average.</span></div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     FOR REPS — FEATURE A (Hot hour / callouts stack)
+═══════════════════════════════════════════════════════════════════════════ -->
+<section id="for-reps" class="section">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow violet">For the rep</span>
+      <h2 class="section-h">Seven coaching moments,<br/><span class="grad">exactly when they matter.</span></h2>
+      <p class="section-sub">
+        The home screen stacks up to seven personalized callouts — each one pulled from your own data and
+        hidden the moment it no longer applies. No "nice job today!" filler. Toggle any card off anytime.
+      </p>
+    </div>
+
+    <div class="feature">
+      <div class="feature-copy">
+        <h3>The first hour of your shift shouldn't <span class="hi">feel like guessing.</span></h3>
+        <p>
+          KnockIQ reads your last 60 days of outcomes and surfaces the nudges that will actually
+          move your number today — and quietly stays silent when none of them apply. The result:
+          the card stack earns its space every single time you open it.
+        </p>
+        <ul class="feature-list">
+          <li><span class="tick">✓</span> Hot hour only surfaces between 4–6pm — when you can act on it.</li>
+          <li><span class="tick">✓</span> Rank movement distinguishes "you climbed" from "you slipped."</li>
+          <li><span class="tick">✓</span> Personal-best tile flips to "you're beating it" live in-week.</li>
+          <li><span class="tick">✓</span> Dry spell framing cites your actual comeback history.</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="callout-stack">
+          <div class="cs-card c-hot">
+            <div class="cs-eyebrow">Your hot hour</div>
+            <div class="cs-title">4pm–5pm · 2.4× more bookings than your average</div>
+            <div class="cs-sub">Based on 62 doors in that window over the last 60 days.</div>
+            <div class="cs-icon">⏰</div>
+          </div>
+          <div class="cs-card c-rank">
+            <div class="cs-eyebrow">You climbed the board</div>
+            <div class="cs-title">#7 → #4 · up 3 spots</div>
+            <div class="cs-sub">You're #4 of 14 on this week's team leaderboard.</div>
+            <div class="cs-icon">📈</div>
+          </div>
+          <div class="cs-card c-pb">
+            <div class="cs-eyebrow">You're beating your personal best</div>
+            <div class="cs-title">This week: 38% close rate — past your 32% record</div>
+            <div class="cs-sub">Keep the streak going.</div>
+            <div class="cs-icon">🏆</div>
+          </div>
+          <div class="cs-card c-level">
+            <div class="cs-eyebrow">Level up within reach</div>
+            <div class="cs-title">215 XP to Level 7 · 86% there</div>
+            <div class="cs-sub">One booking is 25 XP plus revenue. One good session away.</div>
+            <div class="cs-icon">✨</div>
+          </div>
+          <div class="rep-mini-row">
+            <div class="rep-mini">
+              <div class="rep-mini-label">Today's Goal</div>
+              <div class="goal-ring"><div class="goal-ring-inner">80%</div></div>
+              <div class="big">$800</div>
+              <div class="small">of $1,000</div>
+            </div>
+            <div class="rep-mini">
+              <div class="rep-mini-label">Level 6 · Ninja</div>
+              <div class="big">1,430<span style="font-size:11px; color:var(--muted); font-weight:600;"> / 1,645 XP</span></div>
+              <div class="xp-bar"><span></span></div>
+              <div class="level-badge"><span class="orb">🥷</span> 215 XP to Level 7</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rainbow callout showcase row -->
+    <div class="rainbow">
+      <div class="rb-card c-hot">
+        <div>
+          <div class="label">Hot hour</div>
+          <div class="title">Time-gated</div>
+        </div>
+        <div class="meta">Only fires 4–6pm local</div>
+        <div class="ico">⏰</div>
+      </div>
+      <div class="rb-card c-rank">
+        <div>
+          <div class="label">Rank movement</div>
+          <div class="title">Up or down</div>
+        </div>
+        <div class="meta">Vs. last week's board</div>
+        <div class="ico">📈</div>
+      </div>
+      <div class="rb-card c-pb">
+        <div>
+          <div class="label">Personal best</div>
+          <div class="title">Self vs. self</div>
+        </div>
+        <div class="meta">Your record to chase</div>
+        <div class="ico">🏆</div>
+      </div>
+      <div class="rb-card c-level">
+        <div>
+          <div class="label">Level up</div>
+          <div class="title">85%+ progress</div>
+        </div>
+        <div class="meta">Within striking distance</div>
+        <div class="ico">✨</div>
+      </div>
+      <div class="rb-card c-dry">
+        <div>
+          <div class="label">Dry spell</div>
+          <div class="title">Comeback cite</div>
+        </div>
+        <div class="meta">You've bounced back before</div>
+        <div class="ico">🔥</div>
+      </div>
+      <div class="rb-card c-team">
+        <div>
+          <div class="label">Team pulse</div>
+          <div class="title">Today's shared push</div>
+        </div>
+        <div class="meta">Across all active reps</div>
+        <div class="ico">👥</div>
+      </div>
+      <div class="rb-card c-diag">
+        <div>
+          <div class="label">Close rate</div>
+          <div class="title">Diagnostic</div>
+        </div>
+        <div class="meta">Only when drop &gt; 25%</div>
+        <div class="ico">⚠️</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     FOR MANAGERS — FEATURE (dashboard, funnel, leaderboard)
+═══════════════════════════════════════════════════════════════════════════ -->
+<section id="for-managers" class="section" style="background: var(--bg);">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow lime">For the operator</span>
+      <h2 class="section-h">The dashboard that answers<br/>"<span class="grad">is this working?</span>"</h2>
+      <p class="section-sub">
+        Verified activity, real funnels, and the same leaderboard your reps are climbing. No more
+        self-reported activity, no more inflated door counts.
+      </p>
+    </div>
+
+    <div class="feature flip">
+      <div class="feature-copy">
+        <h3>Effort → revenue, in one chart.</h3>
+        <p>
+          See how many doors became conversations, how many of those became estimates, and which of
+          those actually closed. Every number traces back to a verified knock — not a rep's end-of-day guess.
+        </p>
+        <ul class="feature-list">
+          <li><span class="tick">✓</span> GPS + motion verifies each door-knock event in real time.</li>
+          <li><span class="tick">✓</span> Revenue ties back to rep, street, neighborhood, and hour.</li>
+          <li><span class="tick">✓</span> Export any filter as CSV for payroll or commissioning.</li>
+          <li><span class="tick">✓</span> Filter by team, territory, or date range in one click.</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="mgr-visual">
+          <div class="dash-topbar">
+            <div class="dot-row"><div class="d red"></div><div class="d amber"></div><div class="d green"></div></div>
+            <div class="dash-title">Conversion · This Month</div>
+            <div class="dash-tag">Verified</div>
+          </div>
+          <div style="padding: 22px;">
+            <div class="funnel">
+              <div class="funnel-row">
+                <div class="funnel-top"><b>Doors knocked</b><span>4,812 · 100%</span></div>
+                <div class="funnel-bar f-doors"><span></span></div>
+              </div>
+              <div class="funnel-row">
+                <div class="funnel-top"><b>Conversations</b><span>2,984 · 62% of doors</span></div>
+                <div class="funnel-bar f-convo"><span></span></div>
+              </div>
+              <div class="funnel-row">
+                <div class="funnel-top"><b>Estimates</b><span>1,829 · 38% of doors</span></div>
+                <div class="funnel-bar f-est"><span></span></div>
+              </div>
+              <div class="funnel-row">
+                <div class="funnel-top"><b>Bookings</b><span>914 · 19% overall close</span></div>
+                <div class="funnel-bar f-book"><span></span></div>
+              </div>
+            </div>
+
+            <!-- Territory mini-map -->
+            <div class="terr-map">
+              <svg viewBox="0 0 420 200" preserveAspectRatio="none">
+                <defs>
+                  <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+                    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#CBD5E1" stroke-width=".6"/>
+                  </pattern>
+                </defs>
+                <rect width="420" height="200" fill="url(#grid)"/>
+                <!-- roads -->
+                <line x1="0" y1="60"  x2="420" y2="60"  stroke="#CDE8CD" stroke-width="10"/>
+                <line x1="0" y1="120" x2="420" y2="120" stroke="#CDE8CD" stroke-width="10"/>
+                <line x1="110" y1="0" x2="110" y2="200" stroke="#CDE8CD" stroke-width="10"/>
+                <line x1="260" y1="0" x2="260" y2="200" stroke="#CDE8CD" stroke-width="10"/>
+
+                <!-- Territory polygon -->
+                <polygon points="30,30 300,30 350,90 320,170 60,180 20,120"
+                  fill="rgba(27,79,204,.10)" stroke="#1B4FCC" stroke-width="2" stroke-dasharray="5 4"/>
+
+                <!-- DNK zone -->
+                <polygon points="150,130 230,130 230,170 150,170"
+                  fill="rgba(239,68,68,.18)" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="4 3"/>
+                <text x="165" y="154" font-size="10" fill="#B91C1C" font-family="Inter" font-weight="700">DNK</text>
+
+                <!-- Knock pins -->
+                <circle cx="70"  cy="50"  r="5" fill="#7DC31E"/>
+                <circle cx="120" cy="50"  r="5" fill="#7DC31E"/>
+                <circle cx="160" cy="50"  r="5" fill="#EF4444"/>
+                <circle cx="200" cy="50"  r="5" fill="#7DC31E"/>
+                <circle cx="240" cy="55"  r="5" fill="#F59E0B"/>
+                <circle cx="290" cy="55"  r="5" fill="#7DC31E"/>
+                <circle cx="80"  cy="90"  r="5" fill="#7DC31E"/>
+                <circle cx="130" cy="95"  r="5" fill="#7DC31E"/>
+                <circle cx="200" cy="95"  r="5" fill="#F59E0B"/>
+                <circle cx="250" cy="100" r="5" fill="#7DC31E"/>
+                <circle cx="70"  cy="150" r="5" fill="#7DC31E"/>
+                <circle cx="110" cy="155" r="5" fill="#EF4444"/>
+                <circle cx="280" cy="155" r="5" fill="#7DC31E"/>
+                <circle cx="320" cy="150" r="5" fill="#7DC31E"/>
+
+                <!-- Route -->
+                <polyline points="30,60 70,60 70,90 130,90 200,90 200,60 290,60"
+                  stroke="#1B4FCC" stroke-width="2.5" fill="none" stroke-dasharray="5 3" opacity=".75"/>
+                <!-- Current rep -->
+                <circle cx="290" cy="60" r="9" fill="#1B4FCC" opacity=".25"/>
+                <circle cx="290" cy="60" r="5" fill="#1B4FCC"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SHARED FEATURES GRID
+═══════════════════════════════════════════════════════════════════════════ -->
+<section id="features" class="section">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow amber">One platform</span>
+      <h2 class="section-h">Everything else you'd expect —<br/>and a few things you wouldn't.</h2>
+      <p class="section-sub">
+        Under the hood: smart door detection, offline-first sync, and the small details that make the difference between "app they tolerate" and "app they open first thing."
+      </p>
+    </div>
+
+    <div class="shared-grid">
+      <div class="card">
+        <div class="icon-box ib-blue">🛰️</div>
+        <h4>Smart door detection</h4>
+        <p>GPS + phone motion classifier distinguishes a real knock from a drive-by. Adaptive polling dials accuracy up or down based on whether you're walking or stopped.</p>
+      </div>
+      <div class="card">
+        <div class="icon-box ib-violet">🧭</div>
+        <h4>Territory &amp; boundaries</h4>
+        <p>Draw polygon territories, assign reps, and overlay do-not-knock zones. The detector suppresses knocks inside DNKs automatically.</p>
+      </div>
+      <div class="card">
+        <div class="icon-box ib-lime">🎯</div>
+        <h4>Goal ring + confetti</h4>
+        <p>Daily goals by revenue or estimate count, set per-org. Hit it and the session-complete screen celebrates with animation and haptics.</p>
+      </div>
+      <div class="card">
+        <div class="icon-box ib-pink">🏅</div>
+        <h4>Gold / silver / bronze</h4>
+        <p>The leaderboard is real-time and uses gold/silver/bronze medals. Reps see their movement week-over-week — with the callout to match.</p>
+      </div>
+      <div class="card">
+        <div class="icon-box ib-amber">⚡</div>
+        <h4>Offline-first PWA</h4>
+        <p>Log interactions with no signal — everything syncs when the phone comes back online. Nothing's ever lost in a dead zone.</p>
+      </div>
+      <div class="card">
+        <div class="icon-box ib-sky">🔒</div>
+        <h4>RLS-scoped by org</h4>
+        <p>Built on Supabase with row-level security. Your reps only see their own data; your managers only see their org. No data crossover.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     METRICS BANNER
+═══════════════════════════════════════════════════════════════════════════ -->
+<section class="section-tight">
+  <div class="container">
+    <div class="metrics-banner">
+      <h3>What changes when reps and managers share one source of truth.</h3>
+      <div class="metrics-grid">
+        <div class="metric"><div class="val">+34%</div><div class="lbl">more bookings per rep</div></div>
+        <div class="metric"><div class="val">–62%</div><div class="lbl">time spent reconciling activity</div></div>
+        <div class="metric"><div class="val">2.4×</div><div class="lbl">lift in your hot hour</div></div>
+        <div class="metric"><div class="val">&lt;10 min</div><div class="lbl">to onboard a new rep</div></div>
+      </div>
+      <p style="color:#94A3B8; font-size:12px; margin-top:24px;">
+        Aggregated from design partners across home-services verticals. Your mileage will vary with territory and team size.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PRICING
+═══════════════════════════════════════════════════════════════════════════ -->
+<section id="pricing" class="section" style="background: var(--bg);">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Pricing</span>
+      <h2 class="section-h">Simple, per-rep, no seat traps.</h2>
+      <p class="section-sub">Start free for 14 days. Cancel anytime. All plans include the full feature set — the only thing that scales is your team.</p>
+    </div>
+
+    <div class="pricing-grid">
+      <div class="price">
+        <h5>Starter</h5>
+        <p class="tagline">Small teams, single territory.</p>
+        <div class="amount">$29<small>/rep/mo</small></div>
+        <ul>
+          <li><span class="tick">✓</span> Up to 5 reps</li>
+          <li><span class="tick">✓</span> Full rep app with all 7 callouts</li>
+          <li><span class="tick">✓</span> Manager dashboard &amp; leaderboard</li>
+          <li><span class="tick">✓</span> 1 territory · DNK zones included</li>
+          <li><span class="tick">✓</span> Email support</li>
+        </ul>
+        <a href="/signup" class="btn btn-ghost cta">Start free trial</a>
+      </div>
+
+      <div class="price featured">
+        <span class="price-badge">MOST POPULAR</span>
+        <h5>Team</h5>
+        <p class="tagline">Growing home-services operators.</p>
+        <div class="amount">$49<small>/rep/mo</small></div>
+        <ul>
+          <li><span class="tick">✓</span> Up to 25 reps</li>
+          <li><span class="tick">✓</span> Everything in Starter</li>
+          <li><span class="tick">✓</span> Unlimited territories &amp; DNK zones</li>
+          <li><span class="tick">✓</span> Commission configurations per rep</li>
+          <li><span class="tick">✓</span> CSV export &amp; payroll integration</li>
+          <li><span class="tick">✓</span> Priority support</li>
+        </ul>
+        <a href="/signup" class="btn btn-blue cta">Start free trial →</a>
+      </div>
+
+      <div class="price">
+        <h5>Enterprise</h5>
+        <p class="tagline">Multi-branch &amp; franchised.</p>
+        <div class="amount">Custom</div>
+        <ul>
+          <li><span class="tick">✓</span> Unlimited reps &amp; branches</li>
+          <li><span class="tick">✓</span> SSO &amp; SCIM provisioning</li>
+          <li><span class="tick">✓</span> Custom data retention &amp; audit logs</li>
+          <li><span class="tick">✓</span> Dedicated onboarding manager</li>
+          <li><span class="tick">✓</span> SLA-backed support</li>
+        </ul>
+        <a href="mailto:sales@knockiq.com" class="btn btn-ghost cta">Talk to sales</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     FINAL CTA
+═══════════════════════════════════════════════════════════════════════════ -->
+<section class="final-cta">
+  <div class="container">
+    <h2>Stop guessing. Start knowing.</h2>
+    <p>Give your reps a coach in their pocket and yourself the dashboard you've been trying to build in spreadsheets. 14 days free — no card required.</p>
+    <div class="hero-ctas">
+      <a href="/signup" class="btn btn-blue btn-lg">Start free trial →</a>
+      <a href="mailto:hello@knockiq.com" class="btn btn-ghost btn-lg">Book a 15-min demo</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div style="font-weight:700; color:white; margin-bottom:8px;">KnockIQ</div>
+    <div>
+      <a href="/login">Sign in</a> ·
+      <a href="/signup">Start trial</a> ·
+      <a href="mailto:hello@knockiq.com">Contact</a> ·
+      <a href="#pricing">Pricing</a>
+    </div>
+    <div style="margin-top:16px; opacity:.6;">© 2026 KnockIQ · Built for the field.</div>
+  </div>
+</footer>
+
+</body>
+</html>
