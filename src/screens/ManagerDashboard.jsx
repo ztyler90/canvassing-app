@@ -132,19 +132,22 @@ export default function ManagerDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <div className="px-5 pt-12 pb-4" style={{ backgroundColor: BRAND_GREEN }}>
+      <div className="px-5 pt-12 pb-4 bg-brand-header">
         <div className="max-w-7xl mx-auto w-full">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <p className="text-blue-200 text-sm">Owner View</p>
-                {user?.organization?.name && (
-                  <span className="text-blue-200/80 text-xs">· {user.organization.name}</span>
-                )}
-              </div>
-              <div className="flex items-baseline gap-0.5 mt-0.5">
-                <span className="text-white text-xl font-extrabold">Knock</span>
-                <span className="text-xl font-extrabold" style={{ color: BRAND_LIME }}>IQ</span>
+            <div className="flex items-center gap-3">
+              <img
+                src="/logo.png"
+                alt="KnockIQ"
+                className="h-9 w-auto object-contain shrink-0"
+              />
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-blue-200 text-sm">Owner View</p>
+                  {user?.organization?.name && (
+                    <span className="text-blue-200/80 text-xs">· {user.organization.name}</span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -223,7 +226,8 @@ export default function ManagerDashboard() {
                 closeRate={closeRate} revenuePerDoor={revenuePerDoor}
                 countLabel={countLabel}
                 repStats={repStats}
-                dateRange={dateRange} />
+                dateRange={dateRange}
+                onDateRangeChange={setDateRange} />
             )}
             {tab === 'live'        && <LiveTab allReps={reps} />}
             {tab === 'leaderboard' && <LeaderboardTab />}
@@ -242,7 +246,7 @@ export default function ManagerDashboard() {
 function OverviewTab({
   sessions, totalRevenue, totalDoors, totalBookings, totalEstimates,
   totalConversations = 0, closeRate, revenuePerDoor, countLabel = 'Estimates',
-  repStats = [], dateRange = '7',
+  repStats = [], dateRange = '7', onDateRangeChange,
 }) {
   const navigate = useNavigate()
   const totalHours     = sessions.reduce((sum, s) => {
@@ -368,19 +372,61 @@ function OverviewTab({
     setTimeout(() => window.open('https://sheets.new', '_blank'), 600)
   }
 
+  // Segmented-control options for the in-page date filter. Labels mirror
+  // the manager's mental model (Daily / Weekly / Monthly / All time); the
+  // underlying values match the shared dateRange state that drives the
+  // Supabase query in ManagerDashboard, so toggling here is wired end-to-end.
+  const RANGE_OPTIONS = [
+    { value: 'today', label: 'Daily' },
+    { value: 'week',  label: 'Weekly' },
+    { value: 'month', label: 'Monthly' },
+    { value: 'all',   label: 'All time' },
+  ]
+
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* ── Period banner ───────────────────────────────────────────────
+      {/* ── Period banner + in-page range filter ──────────────────────────
          Echoes the header's date-range selection right on the overview
          so there's never any doubt about the window the numbers cover.
-         (The actual selector lives in the header bar above.) */}
-      <div className="flex items-baseline justify-between">
+         The segmented control gives managers a more visible, one-tap way
+         to switch windows than the header <select> — that lives in the
+         dark-blue nav bar where it's easy to miss. Both sets of controls
+         share the same dateRange state. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Team overview</p>
           <p className="text-sm text-slate-600">
             {periodLabel(dateRange)}{repStats.length > 0 ? ` · ${repStats.length} rep${repStats.length === 1 ? '' : 's'} active` : ''}
           </p>
         </div>
+        {onDateRangeChange && (
+          <div
+            role="tablist"
+            aria-label="Date range"
+            className="inline-flex self-start sm:self-auto rounded-xl bg-slate-100 p-1"
+          >
+            {RANGE_OPTIONS.map((opt) => {
+              const active = dateRange === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onDateRangeChange(opt.value)}
+                  className={
+                    'px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ' +
+                    (active
+                      ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                      : 'text-slate-600 hover:text-slate-900')
+                  }
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── KPI cards — 2×2 on mobile, 4-across on desktop ─────────────── */}
