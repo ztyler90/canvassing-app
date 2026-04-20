@@ -893,8 +893,28 @@ function TerritoryTab({ allReps, managerId }) {
   const [dnkSaving, setDnkSaving]     = useState(false)
 
   const mapRef = useRef(null)
+  // Wrapper around the <TerritoryMap> so "tap a zone" can scroll the
+  // map into view on mobile, where the list sits below the fold.
+  const mapContainerRef = useRef(null)
+  // Highlights the row whose polygon is currently framed — a subtle
+  // nudge so the manager can match "I tapped this" to "the map just
+  // flew here."
+  const [focusedTerritoryId, setFocusedTerritoryId] = useState(null)
 
   useEffect(() => { loadAll() }, [])
+
+  // Tap a zone row → fly/zoom the map to that polygon's bounds and
+  // scroll the map into view if it's scrolled off-screen. Ignored if
+  // the territory has no polygon (shouldn't happen since create
+  // requires one, but defensive).
+  function focusTerritory(territory) {
+    if (!territory?.polygon || !Array.isArray(territory.polygon) || territory.polygon.length === 0) return
+    setFocusedTerritoryId(territory.id)
+    mapRef.current?.fitToPolygon(territory.polygon, 17)
+    // Smooth-scroll so the manager actually sees the result — on
+    // mobile the zones list can be a full screen below the map.
+    mapContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   async function loadAll() {
     setLoading(true)
@@ -1097,7 +1117,7 @@ function TerritoryTab({ allReps, managerId }) {
       </div>
 
       {/* Territory Map */}
-      <div style={{ height: '380px' }}>
+      <div ref={mapContainerRef} style={{ height: '380px', scrollMarginTop: '64px' }}>
         <TerritoryMap
           ref={mapRef}
           territories={territories}
@@ -1135,8 +1155,21 @@ function TerritoryTab({ allReps, managerId }) {
 
         {territories.map((t) => {
           const assignedReps = (t.territory_assignments || []).map((a) => a.users?.full_name).filter(Boolean)
+          const isFocused = focusedTerritoryId === t.id
           return (
-            <div key={t.id} className="bg-white rounded-xl border border-gray-200 p-3">
+            // The whole card is now a tap target that zooms the map
+            // to this zone's polygon. Edit/Delete buttons stop
+            // propagation so they keep their original behavior.
+            <div
+              key={t.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => focusTerritory(t)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focusTerritory(t) } }}
+              className={`bg-white rounded-xl border p-3 cursor-pointer transition-colors active:bg-gray-50 ${isFocused ? 'ring-2 ring-blue-400 border-blue-300' : 'border-gray-200 hover:border-gray-300'}`}
+              style={isFocused ? { backgroundColor: `${t.color}0A` } : undefined}
+              aria-label={`Zoom map to ${t.name}`}
+            >
               <div className="flex items-center gap-2">
                 <div className="w-3.5 h-3.5 rounded-sm flex-shrink-0" style={{ backgroundColor: t.color }} />
                 <p className="font-semibold text-gray-900 text-sm flex-1 truncate">{t.name}</p>
@@ -1148,10 +1181,18 @@ function TerritoryTab({ allReps, managerId }) {
                     {t.category}
                   </span>
                 )}
-                <button onClick={() => openEditForm(t)} className="p-1.5 text-gray-400 hover:text-blue-500">
+                <button
+                  onClick={(e) => { e.stopPropagation(); openEditForm(t) }}
+                  className="p-1.5 text-gray-400 hover:text-blue-500"
+                  aria-label="Edit zone"
+                >
                   <Edit2 className="w-3.5 h-3.5" />
                 </button>
-                <button onClick={() => handleDelete(t.id)} className="p-1.5 text-gray-400 hover:text-red-500">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDelete(t.id) }}
+                  className="p-1.5 text-gray-400 hover:text-red-500"
+                  aria-label="Delete zone"
+                >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
