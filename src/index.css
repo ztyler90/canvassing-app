@@ -2,6 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══ Brand tokens (match welcome.html marketing site) ═══════════════════ */
+:root {
+  --brand-blue-500: #2E6BFF;
+  --brand-blue-600: #1B4FCC;
+  --brand-blue-700: #1640A8;
+  --brand-violet:   #6D28D9;
+  --brand-pink:     #DB2777;
+  --brand-lime:     #7DC31E;
+}
+
+/* Primary CTA — gradient blue with glow. Drop-in replacement for solid
+   backgroundColor: #1B4FCC buttons. Use as: className="... btn-brand" */
+.btn-brand {
+  background: linear-gradient(135deg, var(--brand-blue-500) 0%, var(--brand-blue-600) 100%);
+  color: #fff;
+  box-shadow: 0 10px 24px -8px rgba(27, 79, 204, 0.55);
+  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-brand:hover:not(:disabled) { filter: brightness(1.05); }
+.btn-brand:active:not(:disabled) { transform: translateY(1px); }
+.btn-brand:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Secondary pill gradient — used for the violet-tinged accent button */
+.btn-brand-violet {
+  background: linear-gradient(135deg, var(--brand-blue-600) 0%, var(--brand-violet) 100%);
+  color: #fff;
+  box-shadow: 0 10px 24px -8px rgba(109, 40, 217, 0.5);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.btn-brand-violet:hover:not(:disabled) { filter: brightness(1.05); }
+.btn-brand-violet:active:not(:disabled) { transform: translateY(1px); }
+.btn-brand-violet:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Gradient text — matches the hero headline accent on welcome.html */
+.text-brand-gradient {
+  background: linear-gradient(135deg, var(--brand-blue-500) 0%, var(--brand-violet) 55%, var(--brand-pink) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Soft accent surface — for info callouts / pricing-hook-style pills */
+.bg-brand-soft {
+  background: linear-gradient(135deg, #EEF3FF 0%, #F5ECFF 100%);
+}
+
 /* Prevent overscroll bounce on iOS */
 html, body {
   overscroll-behavior: none;
