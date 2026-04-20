@@ -16,6 +16,19 @@ const DEFAULTS = {
   // InteractionModal. When false, a non-modal "Log this door" pill
   // appears instead — the rep taps it to open the modal.
   autoOpenInteractionModal: true,
+
+  // Home-screen callouts. Each one can be individually toggled by the
+  // rep in Profile → Home Callouts. Defaults ON — a rep has to explicitly
+  // opt out of a particular nudge. Every card also self-hides when its
+  // underlying data can't credibly fill it, so these toggles only matter
+  // for reps who have enough data to see them and explicitly don't want to.
+  calloutHotHour:              true,
+  calloutRankMovement:         true,
+  calloutDrySpellRecovery:     true,
+  calloutPersonalBestClose:    true,
+  calloutCloseRateDiagnostic:  true,
+  calloutLevelUpProximity:     true,
+  calloutTeamPulse:            true,
 }
 
 // ── Internals ────────────────────────────────────────────────────

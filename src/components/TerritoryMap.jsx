@@ -75,7 +75,7 @@ function timeAgo(dateStr) {
 }
 
 const TerritoryMap = forwardRef(function TerritoryMap(
-  { territories = [], doorHistory = [], doNotKnock = [], onPolygonComplete, className = '', autoFit = false },
+  { territories = [], doorHistory = [], doNotKnock = [], onPolygonComplete, onDrawPointsChange, className = '', autoFit = false },
   ref
 ) {
   const containerRef       = useRef(null)
@@ -84,6 +84,13 @@ const TerritoryMap = forwardRef(function TerritoryMap(
   const historyLayerRef    = useRef(null)   // L.layerGroup for history pins
   const dnkLayerRef        = useRef(null)   // L.layerGroup for DNK pins
   const autoFitDoneRef     = useRef(false)
+  // Flipped to true the first time anything else moves the map (address
+  // search flyTo, user drag/zoom, manual recenter, etc.). The pending
+  // geolocation callback in the auto-fit effect checks this so it won't
+  // yank the viewport back to the rep's GPS after they've already gone
+  // somewhere — which was causing the Territory-tab address search to
+  // look broken when it actually did fire correctly.
+  const userMovedRef       = useRef(false)
 
   // Drawing state — all in refs to avoid stale closure issues in Leaflet handlers
   const drawingRef     = useRef(false)
@@ -92,6 +99,11 @@ const TerritoryMap = forwardRef(function TerritoryMap(
   const drawLineRef    = useRef(null)
   const drawPolyRef    = useRef(null)
 
+  // Keep the draw-point callback in a ref so the Leaflet click handler
+  // (registered once, in the init effect) always sees the latest prop.
+  const onDrawPointsChangeRef = useRef(onDrawPointsChange)
+  useEffect(() => { onDrawPointsChangeRef.current = onDrawPointsChange }, [onDrawPointsChange])
+
   // Expose imperative API
   useImperativeHandle(ref, () => ({
     startDrawing() {
@@ -99,11 +111,20 @@ const TerritoryMap = forwardRef(function TerritoryMap(
       drawingRef.current = true
       drawPtsRef.current = []
       mapRef.current.getContainer().style.cursor = 'crosshair'
+      onDrawPointsChangeRef.current?.(0)
     },
     cancelDrawing() { clearDraw() },
+    // Programmatic "Complete" — same behavior the old double-click shortcut
+    // triggered, now invokable from a button in the parent UI.
+    completeDrawing() { finishDraw() },
     isDrawing()     { return drawingRef.current },
+    getDrawPointCount() { return drawPtsRef.current.length },
     flyTo(lat, lng, zoom = 16) {
       if (!mapRef.current || lat == null || lng == null) return
+      // Mark the viewport as user-owned so a late-resolving geolocation
+      // callback from the auto-fit effect doesn't snap the map back to the
+      // rep's GPS after an address search has already flown somewhere else.
+      userMovedRef.current = true
       mapRef.current.flyTo([lat, lng], zoom, { duration: 0.75 })
     },
     /**
@@ -137,6 +158,7 @@ const TerritoryMap = forwardRef(function TerritoryMap(
     drawLineRef.current?.remove(); drawLineRef.current = null
     drawPolyRef.current?.remove(); drawPolyRef.current = null
     if (mapRef.current) mapRef.current.getContainer().style.cursor = ''
+    onDrawPointsChangeRef.current?.(0)
   }
 
   function finishDraw() {
@@ -181,6 +203,9 @@ const TerritoryMap = forwardRef(function TerritoryMap(
           fillColor: '#2563EB', fillOpacity: 0.10, interactive: false,
         }).addTo(map)
       }
+
+      // Let the parent enable/disable the "Complete" button.
+      onDrawPointsChangeRef.current?.(drawPtsRef.current.length)
     })
 
     // Double-click → finish
@@ -190,11 +215,20 @@ const TerritoryMap = forwardRef(function TerritoryMap(
       finishDraw()
     })
 
+    // Any direct user gesture on the map counts as "the user is in charge now"
+    // — block the pending geolocation auto-center from hijacking the view.
+    const markUserMoved = () => { userMovedRef.current = true }
+    map.on('dragstart', markUserMoved)
+    map.on('zoomstart', markUserMoved)
+
     // ESC → cancel
     const onKey = (e) => { if (e.key === 'Escape') clearDraw() }
     document.addEventListener('keydown', onKey)
 
-    map.setView([27.9506, -82.4572], 14)
+    // Neutral "somewhere in the US" default — this only flashes for a few
+    // frames before either the territory-auto-fit or the geolocation
+    // fallback pulls the map to where the manager actually cares about.
+    map.setView([39.8283, -98.5795], 4)
     mapRef.current = map
 
     return () => {
@@ -289,30 +323,60 @@ const TerritoryMap = forwardRef(function TerritoryMap(
     })
   }, [doorHistory])
 
-  // ── Auto-fit to activity on first paint ────────────────────────────────────
-  // When the parent passes autoFit, we zoom to the tightest bounds that
-  // contain every territory polygon, door-history pin, and DNK entry —
-  // once the data actually arrives. Later updates (draw a new zone, add
-  // a pin) leave the viewport alone so the manager isn't yanked around.
+  // ── Auto-fit to drawn territories on first paint ───────────────────────────
+  // Two-stage decision, runs once per mount:
+  //   1. If any territory polygons exist, fit the viewport tightly to the
+  //      union of all their vertices. Ignores door-history and DNK points
+  //      on purpose — the manager explicitly wants "as zoomed in as
+  //      possible while seeing every drawn zone", not a bounds that gets
+  //      pulled wide by a stray interaction far from any territory.
+  //   2. If no territories exist yet, ask the browser for the manager's
+  //      current GPS position and center on that at street-level zoom.
+  //      Falls back to the continental default only if geolocation is
+  //      blocked or errors out — we never want to strand the manager on
+  //      a "whole continent" view when they've got an empty territory list.
   useEffect(() => {
     if (!autoFit || !mapRef.current) return
     if (autoFitDoneRef.current) return
-    const pts = []
+
+    // Stage 1: fit to drawn polygons if we have any.
+    const polyPts = []
     territories.forEach((t) => {
       if (Array.isArray(t.polygon)) {
-        t.polygon.forEach((p) => { if (p && p.length === 2) pts.push(p) })
+        t.polygon.forEach((p) => { if (p && p.length === 2) polyPts.push(p) })
       }
     })
-    doorHistory.forEach((i) => { if (i.lat && i.lng) pts.push([i.lat, i.lng]) })
-    doNotKnock.forEach((d) => { if (d.lat && d.lng) pts.push([d.lat, d.lng]) })
-    if (pts.length === 0) return
-    if (pts.length === 1) {
-      mapRef.current.setView(pts[0], 16)
-    } else {
-      mapRef.current.fitBounds(pts, { padding: [40, 40], maxZoom: 17 })
+    if (polyPts.length > 0) {
+      if (polyPts.length === 1) {
+        mapRef.current.setView(polyPts[0], 17)
+      } else {
+        mapRef.current.fitBounds(polyPts, { padding: [40, 40], maxZoom: 17 })
+      }
+      autoFitDoneRef.current = true
+      return
     }
-    autoFitDoneRef.current = true
-  }, [autoFit, territories, doorHistory, doNotKnock])
+
+    // Stage 2: no territories → center on the manager's current location.
+    // We guard with autoFitDoneRef before the async resolve so a fast
+    // territory-load race doesn't yank the map after the user already
+    // interacted with it.
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      autoFitDoneRef.current = true
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (!mapRef.current) return
+          // If the user has already moved the map (e.g. typed an address
+          // into the search bar, panned, or zoomed) before geolocation
+          // resolved, leave their viewport alone.
+          if (userMovedRef.current) return
+          const { latitude, longitude } = pos.coords
+          mapRef.current.setView([latitude, longitude], 17)
+        },
+        () => { /* permission denied or timeout — keep default view */ },
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 5 * 60 * 1000 }
+      )
+    }
+  }, [autoFit, territories])
 
   // ── DNK pins ───────────────────────────────────────────────────────────────
   useEffect(() => {

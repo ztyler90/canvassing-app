@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle, Home, Clock, DollarSign, Target, BarChart2 } from 'lucide-react'
 import { useSession } from '../contexts/SessionContext.jsx'
@@ -74,8 +74,31 @@ export default function SessionSummary() {
     navigate('/', { replace: true })
   }
 
+  // Celebration: fires once when the rep hits (or exceeds) their daily goal.
+  // We wait for the async org-goal load before deciding — otherwise a rep with
+  // a custom non-default goal could miss the confetti on the first paint, or
+  // a rep who didn't quite hit a *lower* custom goal could falsely celebrate.
+  const [celebrate, setCelebrate] = useState(false)
+  const celebratedRef              = useRef(false)
+  useEffect(() => {
+    if (!goalReached || celebratedRef.current) return
+    celebratedRef.current = true
+    setCelebrate(true)
+    // Haptic "zitter" — triple quick buzz + final flourish. navigator.vibrate
+    // is a no-op on iOS Safari and desktop, which is fine; it's purely additive
+    // on Android Chrome / PWAs where it's supported.
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate([80, 40, 80, 40, 80, 60, 220])
+      }
+    } catch { /* some browsers throw when feature is disabled */ }
+  }, [goalReached])
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Goal-hit confetti (fires once, self-cleans when animation ends). */}
+      <Confetti active={celebrate} />
+
       {/* Header */}
       <div className="px-5 pt-12 pb-6 text-center" style={{ backgroundColor: BRAND_GREEN }}>
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/20 mb-3">
@@ -210,6 +233,122 @@ const OUTCOME_INFO = {
   not_interested:     { label: 'Not Interested', color: '#EF4444' },
   estimate_requested: { label: 'Estimate',       color: '#F59E0B' },
   booked:             { label: 'Booked!',        color: '#10B981' },
+}
+
+// ─── Confetti ────────────────────────────────────────────────────────────────
+// Lightweight canvas-based confetti with no extra dependency. Mounts a full-
+// screen non-interactive <canvas>, runs a single rAF loop for ~3.5s, then
+// clears. Particles launch from the center (primary burst) with a second
+// burst shot from each bottom corner ~400ms later for a "cannon" feel.
+function Confetti({ active, durationMs = 3500 }) {
+  const canvasRef = useRef(null)
+  useEffect(() => {
+    if (!active) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const W = () => window.innerWidth
+    const H = () => window.innerHeight
+    canvas.width  = W()
+    canvas.height = H()
+    const ctx = canvas.getContext('2d')
+
+    const COLORS = ['#F5C542','#1B4FCC','#7DC31E','#EF4444','#F59E0B','#10B981','#8B5CF6','#EC4899']
+
+    const makeBurst = (cx, cy, n, vxBias = 0) => {
+      const out = []
+      for (let i = 0; i < n; i++) {
+        out.push({
+          x: cx + (Math.random() - 0.5) * 60,
+          y: cy + (Math.random() - 0.5) * 40,
+          vx: (Math.random() - 0.5) * 8 + vxBias,
+          vy: -Math.random() * 9 - 5,
+          g:  0.18 + Math.random() * 0.14,
+          w:  5 + Math.random() * 6,
+          h:  9 + Math.random() * 8,
+          rot: Math.random() * Math.PI * 2,
+          vr:  (Math.random() - 0.5) * 0.35,
+          color: COLORS[Math.floor(Math.random() * COLORS.length)],
+          shape: Math.random() < 0.55 ? 'rect' : 'circle',
+        })
+      }
+      return out
+    }
+
+    // Primary burst from the "Goal Hit!" banner region.
+    const particles = makeBurst(W() / 2, H() * 0.22, Math.min(200, Math.floor(W() / 3.5)))
+
+    let secondBurstFired = false
+    const start = performance.now()
+    let rafId = 0
+
+    const tick = (now) => {
+      const t = now - start
+      ctx.clearRect(0, 0, W(), H())
+
+      // Cannon bursts from the bottom corners after a short delay.
+      if (!secondBurstFired && t > 400) {
+        secondBurstFired = true
+        const n = Math.min(90, Math.floor(W() / 7))
+        particles.push(...makeBurst(W() * 0.06, H() * 0.78, n,  6))
+        particles.push(...makeBurst(W() * 0.94, H() * 0.78, n, -6))
+      }
+
+      const fadeStart = durationMs - 700
+      const alpha = t < fadeStart ? 1 : Math.max(0, 1 - (t - fadeStart) / 700)
+
+      for (const p of particles) {
+        p.vy += p.g
+        p.vx *= 0.996
+        p.x  += p.vx
+        p.y  += p.vy
+        p.rot += p.vr
+
+        if (p.y - p.h > H()) continue  // off-screen, skip draw
+
+        ctx.save()
+        ctx.globalAlpha = alpha
+        ctx.translate(p.x, p.y)
+        ctx.rotate(p.rot)
+        ctx.fillStyle = p.color
+        if (p.shape === 'rect') {
+          ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h)
+        } else {
+          ctx.beginPath()
+          ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.restore()
+      }
+
+      if (t < durationMs) {
+        rafId = requestAnimationFrame(tick)
+      } else {
+        ctx.clearRect(0, 0, W(), H())
+      }
+    }
+    rafId = requestAnimationFrame(tick)
+
+    const onResize = () => {
+      canvas.width  = W()
+      canvas.height = H()
+    }
+    window.addEventListener('resize', onResize)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [active, durationMs])
+
+  if (!active) return null
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      className="fixed inset-0 pointer-events-none z-50"
+    />
+  )
 }
 
 function InteractionRow({ interaction }) {

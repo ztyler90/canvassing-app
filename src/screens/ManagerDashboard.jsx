@@ -188,7 +188,9 @@ export default function ManagerDashboard() {
                 totalBookings={totalBookings} totalEstimates={totalEstimates}
                 totalConversations={totalConversations}
                 closeRate={closeRate} revenuePerDoor={revenuePerDoor}
-                countLabel={countLabel} />
+                countLabel={countLabel}
+                repStats={repStats}
+                dateRange={dateRange} />
             )}
             {tab === 'live'        && <LiveTab allReps={reps} />}
             {tab === 'leaderboard' && <LeaderboardTab />}
@@ -207,6 +209,7 @@ export default function ManagerDashboard() {
 function OverviewTab({
   sessions, totalRevenue, totalDoors, totalBookings, totalEstimates,
   totalConversations = 0, closeRate, revenuePerDoor, countLabel = 'Estimates',
+  repStats = [], dateRange = '7',
 }) {
   const navigate = useNavigate()
   const totalHours     = sessions.reduce((sum, s) => {
@@ -214,6 +217,24 @@ function OverviewTab({
     return sum + (new Date(s.ended_at) - new Date(s.started_at)) / 3600000
   }, 0)
   const revenuePerHour = totalHours > 0 ? (totalRevenue / totalHours).toFixed(0) : '—'
+
+  // ── Daily series for sparklines + the Daily Revenue bar chart ─────────
+  // Group sessions into one bucket per calendar day across the selected
+  // date range (zero-fill empty days so the sparkline has a stable length).
+  // A "day" is bucketed by session.started_at local midnight.
+  const days = Math.min(parseInt(dateRange) || 7, 30)  // cap to 30 so bars stay legible
+  const daily = groupSessionsByDay(sessions, days)
+
+  // Trend chips compare the last half of the window to the first half.
+  // Honest, no extra DB call — if the back half outpaces the front, ▲.
+  const revenueTrend  = computeTrend(daily, 'revenue')
+  const doorsTrend    = computeTrend(daily, 'doors')
+  const bookingsTrend = computeTrend(daily, 'bookings')
+
+  // Close Rate goal: hard-coded at 5% for now. Future: pull from org settings.
+  const goalCloseRate = 5.0
+  const closeNum      = parseFloat(closeRate) || 0
+  const gaugePct      = Math.min(closeNum / goalCloseRate, 1) * 100
 
   // Feed the rep-side ConversionFunnel component with team-aggregated totals.
   // The shape matches { doors, conversations, estimates, bookings, ... } so
@@ -310,38 +331,97 @@ function OverviewTab({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <KPICard label="Revenue Booked"  value={`$${totalRevenue.toFixed(0)}`}  icon={<DollarSign className="w-5 h-5"/>} color="green"   />
-        <KPICard label="Doors Knocked"   value={totalDoors}                      icon={<Home className="w-5 h-5"/>}       color="blue"    />
-        <KPICard label="Jobs Booked"     value={totalBookings}                   icon={<TrendingUp className="w-5 h-5"/>} color="emerald" />
-        <KPICard label="Close Rate"      value={`${closeRate}%`}                 icon={<BarChart2 className="w-5 h-5"/>}  color="purple"  />
-      </div>
-      {/* Team Conversion Funnel — same visualization reps see on their home
-         page, but aggregated across all filtered sessions. Lets a manager
-         spot where the team is leaking at a glance (Doors → Convos →
-         Estimates/Appointments → Bookings). */}
-      <ConversionFunnel
-        stats={teamStats}
-        conv={teamConv}
-        estimateLabel={countLabel}
-      />
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-        <div className="px-5 py-3 bg-gray-50 border-b">
-          <p className="font-semibold text-gray-700 text-sm">Performance Metrics</p>
-        </div>
-        {[
-          ['Revenue / Hour',         `$${revenuePerHour}`],
-          ['Revenue / Door',         `$${revenuePerDoor}`],
-          ['Estimates Requested',    totalEstimates],
-          ['Sessions',               sessions.length],
-          ['Total Hours Canvassing', `${totalHours.toFixed(1)} hrs`],
-        ].map(([label, value]) => (
-          <div key={label} className="flex justify-between px-5 py-2.5 border-b last:border-0">
-            <span className="text-sm text-gray-600">{label}</span>
-            <span className="text-sm font-bold text-gray-900">{value}</span>
+    <div className="space-y-4 md:space-y-6">
+      {/* ── KPI cards — 2×2 on mobile, 4-across on desktop ─────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        <KPICardRich
+          label="Revenue Booked"
+          value={`$${formatCompact(totalRevenue)}`}
+          trend={revenueTrend}
+          icon={<DollarSign className="w-4 h-4" />}
+          gradient="from-lime-100 via-lime-50 to-white"
+          border="border-lime-200/60"
+          iconColor="text-lime-700"
+        >
+          <MiniSparkArea values={daily.map((d) => d.revenue)} color="#5ea636" fill="#7ac94373" />
+        </KPICardRich>
+
+        <KPICardRich
+          label="Doors Knocked"
+          value={totalDoors.toLocaleString()}
+          trend={doorsTrend}
+          icon={<Home className="w-4 h-4" />}
+          gradient="from-blue-100 via-blue-50 to-white"
+          border="border-blue-200/60"
+          iconColor="text-blue-700"
+        >
+          <MiniSparkBars values={daily.map((d) => d.doors)} color="#2757d7" highlight="#1e44b0" />
+        </KPICardRich>
+
+        <KPICardRich
+          label="Jobs Booked"
+          value={totalBookings.toLocaleString()}
+          trend={bookingsTrend}
+          icon={<TrendingUp className="w-4 h-4" />}
+          gradient="from-teal-100 via-teal-50 to-white"
+          border="border-teal-200/60"
+          iconColor="text-teal-700"
+        >
+          <MiniSparkArea values={daily.map((d) => d.bookings)} color="#0d9488" fill="#14b8a673" />
+        </KPICardRich>
+
+        <KPICardRich
+          label="Close Rate"
+          value={`${closeRate}%`}
+          trend={null}
+          icon={<BarChart2 className="w-4 h-4" />}
+          gradient="from-violet-100 via-violet-50 to-white"
+          border="border-violet-200/60"
+          iconColor="text-violet-700"
+        >
+          <div className="flex items-center gap-3 mt-1">
+            <RadialGauge pct={gaugePct} />
+            <div>
+              <p className="text-[10px] text-gray-500">Goal {goalCloseRate.toFixed(1)}%</p>
+            </div>
           </div>
-        ))}
+        </KPICardRich>
+      </div>
+
+      {/* ── Daily Revenue + Rep Leaderboard (2-col on desktop) ────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        <DailyRevenueChart daily={daily} />
+        <RepLeaderboard repStats={repStats} />
+      </div>
+
+      {/* ── Conversion Funnel + Performance Metrics (2-col on desktop) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        {/* Team Conversion Funnel — same visualization reps see on their home
+           page, but aggregated across all filtered sessions. Lets a manager
+           spot where the team is leaking at a glance (Doors → Convos →
+           Estimates/Appointments → Bookings). */}
+        <ConversionFunnel
+          stats={teamStats}
+          conv={teamConv}
+          estimateLabel={countLabel}
+        />
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-3 bg-gray-50 border-b">
+            <p className="font-semibold text-gray-700 text-sm">Performance Metrics</p>
+          </div>
+          {[
+            ['Revenue / Hour',         `$${revenuePerHour}`],
+            ['Revenue / Door',         `$${revenuePerDoor}`],
+            ['Estimates Requested',    totalEstimates],
+            ['Sessions',               sessions.length],
+            ['Total Hours Canvassing', `${totalHours.toFixed(1)} hrs`],
+          ].map(([label, value]) => (
+            <div key={label} className="flex justify-between px-5 py-2.5 border-b last:border-0">
+              <span className="text-sm text-gray-600">{label}</span>
+              <span className="text-sm font-bold text-gray-900">{value}</span>
+            </div>
+          ))}
+        </div>
       </div>
       {sessions.length > 0 && (
         <div>
@@ -625,9 +705,35 @@ function RepsTab({ repStats, allReps = [] }) {
 }
 
 // ─── Map Tab ──────────────────────────────────────────────────────────────────
+// Door-status filters live in this tab (not in MapView) because the filter
+// is a manager-dashboard UX concern and MapView is shared with the rep's
+// live canvassing screen. We just feed MapView a pre-filtered list so it
+// stays a dumb renderer.
+const MAP_OUTCOMES = [
+  { id: 'no_answer',          color: '#9CA3AF', label: 'No Answer' },
+  { id: 'not_interested',     color: '#EF4444', label: 'Not Int.'  },
+  { id: 'estimate_requested', color: '#F59E0B', label: 'Estimate'  },
+  { id: 'booked',             color: '#10B981', label: 'Booked'    },
+]
+
 function MapTab({ interactions }) {
   const counts = interactions.reduce((acc, i) => { acc[i.outcome] = (acc[i.outcome] || 0) + 1; return acc }, {})
   const mapRef = useRef(null)
+
+  // Per-outcome visibility toggles. Default: all on. Clicking a chip
+  // removes that outcome from the rendered set without refetching.
+  const [visible, setVisible] = useState({
+    no_answer:          true,
+    not_interested:     true,
+    estimate_requested: true,
+    booked:             true,
+  })
+  const toggleOutcome = (id) => setVisible((v) => ({ ...v, [id]: !v[id] }))
+  const allOn  = MAP_OUTCOMES.every((o) => visible[o.id])
+  const allOff = MAP_OUTCOMES.every((o) => !visible[o.id])
+  const setAll = (on) => setVisible(Object.fromEntries(MAP_OUTCOMES.map((o) => [o.id, on])))
+
+  const filteredInteractions = interactions.filter((i) => visible[i.outcome])
 
   // Jump the map to a geocoded address. The tight zoom (17) mirrors the
   // street-level default so managers land looking at individual houses
@@ -637,24 +743,50 @@ function MapTab({ interactions }) {
 
   return (
     <div className="space-y-3">
-      <AddressSearch onResult={handleGoTo} onRecenter={handleRecenter} canRecenter={interactions.length > 0} />
-      <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex gap-4 flex-wrap">
-        {[
-          { color: '#9CA3AF', label: `No Answer (${counts.no_answer || 0})` },
-          { color: '#EF4444', label: `Not Int. (${counts.not_interested || 0})` },
-          { color: '#F59E0B', label: `Estimate (${counts.estimate_requested || 0})` },
-          { color: '#10B981', label: `Booked (${counts.booked || 0})` },
-        ].map(({ color, label }) => (
-          <div key={label} className="flex items-center gap-1.5 text-xs text-gray-600">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-            {label}
-          </div>
-        ))}
+      <AddressSearch onResult={handleGoTo} onRecenter={handleRecenter} canRecenter={filteredInteractions.length > 0} />
+
+      {/* Outcome toggle chips — tap to hide/show pins of that color. */}
+      <div className="bg-white rounded-xl border border-gray-200 px-3 py-2.5">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+            Door Status · tap to toggle
+          </p>
+          <button
+            onClick={() => setAll(!allOn)}
+            className="text-[11px] font-semibold text-gray-500 hover:text-gray-700"
+          >
+            {allOff ? 'Show all' : allOn ? 'Hide all' : 'Show all'}
+          </button>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {MAP_OUTCOMES.map(({ id, color, label }) => {
+            const on    = visible[id]
+            const count = counts[id] || 0
+            return (
+              <button
+                key={id}
+                onClick={() => toggleOutcome(id)}
+                aria-pressed={on}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${on ? 'bg-white border-gray-300 text-gray-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
+              >
+                <div
+                  className="w-3 h-3 rounded-full transition-opacity"
+                  style={{ backgroundColor: color, opacity: on ? 1 : 0.3 }}
+                />
+                <span className={on ? '' : 'line-through'}>{label}</span>
+                <span className={`text-[10px] font-bold px-1.5 rounded-full ${on ? 'bg-gray-100 text-gray-500' : 'bg-gray-200 text-gray-400'}`}>
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
+
       <div className="rounded-2xl overflow-hidden border border-gray-200" style={{ height: '480px' }}>
         <MapView
           ref={mapRef}
-          interactions={interactions}
+          interactions={filteredInteractions}
           className="w-full h-full"
           followUser={false}
           autoFit
@@ -671,6 +803,9 @@ function TerritoryTab({ allReps, managerId }) {
   const [doNotKnock, setDoNotKnock]   = useState([])
   const [loading, setLoading]         = useState(true)
   const [drawing, setDrawing]         = useState(false)
+  // Live count of vertices placed during the current draw session.
+  // Drives the enabled state of the "Complete" button.
+  const [drawPts, setDrawPts]         = useState(0)
 
   // Territory create/edit form
   const [showForm, setShowForm]       = useState(false)
@@ -704,15 +839,24 @@ function TerritoryTab({ allReps, managerId }) {
   function startDraw() {
     mapRef.current?.startDrawing()
     setDrawing(true)
+    setDrawPts(0)
   }
 
   function cancelDraw() {
     mapRef.current?.cancelDrawing()
     setDrawing(false)
+    setDrawPts(0)
+  }
+
+  function completeDraw() {
+    // Bridge the "Complete" button click to the map's finishDraw.
+    // If the polygon has < 3 points the map itself discards the attempt.
+    mapRef.current?.completeDrawing()
   }
 
   function handlePolygonComplete(coords) {
     setDrawing(false)
+    setDrawPts(0)
     setNewPolygon(coords)
     setEditingId(null)
     setForm({ name: '', color: '#3B82F6', repIds: [] })
@@ -792,26 +936,56 @@ function TerritoryTab({ allReps, managerId }) {
   return (
     <div className="flex flex-col">
       {/* Control bar */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-b">
-        <p className="font-semibold text-gray-800 text-sm">
-          {territories.length} {territories.length === 1 ? 'territory' : 'territories'}
-        </p>
-        {drawing ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-blue-600 font-medium animate-pulse">
-              Click to place points · Double-click to finish
-            </span>
-            <button onClick={cancelDraw}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-100 text-red-600 text-xs font-semibold">
-              <X className="w-3 h-3" /> Cancel
+      <div className="px-4 py-3 bg-white border-b">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-semibold text-gray-800 text-sm">
+            {territories.length} {territories.length === 1 ? 'territory' : 'territories'}
+          </p>
+          {!drawing && (
+            <button onClick={startDraw}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-xs font-semibold"
+              style={{ backgroundColor: BRAND_GREEN }}>
+              <Plus className="w-3.5 h-3.5" /> Draw Territory
             </button>
+          )}
+        </div>
+
+        {/* Drawing mode — full-width status row with a big obvious
+            "Complete" button. Disabled until 3 points are placed
+            (minimum for a valid polygon). Cancel is secondary. */}
+        {drawing && (
+          <div className="mt-3 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50 p-3">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
+                  {drawPts}
+                </span>
+                <p className="text-xs text-blue-900 font-semibold truncate">
+                  {drawPts === 0
+                    ? 'Tap the map to place the first corner'
+                    : drawPts < 3
+                      ? `Place ${3 - drawPts} more ${3 - drawPts === 1 ? 'corner' : 'corners'} to complete`
+                      : 'Ready — tap Complete to finish this zone'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={cancelDraw}
+                className="flex-1 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-600 text-sm font-semibold flex items-center justify-center gap-1"
+              >
+                <X className="w-4 h-4" /> Cancel
+              </button>
+              <button
+                onClick={completeDraw}
+                disabled={drawPts < 3}
+                className={`flex-1 py-2.5 rounded-lg text-white text-sm font-bold flex items-center justify-center gap-1.5 transition-opacity ${drawPts < 3 ? 'opacity-50' : ''}`}
+                style={{ backgroundColor: BRAND_GREEN }}
+              >
+                <Check className="w-4 h-4" /> Complete Territory
+              </button>
+            </div>
           </div>
-        ) : (
-          <button onClick={startDraw}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-xs font-semibold"
-            style={{ backgroundColor: BRAND_GREEN }}>
-            <Plus className="w-3.5 h-3.5" /> Draw Territory
-          </button>
         )}
       </div>
 
@@ -833,6 +1007,7 @@ function TerritoryTab({ allReps, managerId }) {
           doorHistory={doorHistory}
           doNotKnock={doNotKnock}
           onPolygonComplete={handlePolygonComplete}
+          onDrawPointsChange={setDrawPts}
           className="w-full h-full"
           autoFit
         />
@@ -1333,17 +1508,7 @@ function LeaderboardTab() {
                     {i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="font-bold text-gray-900 text-sm truncate">{rep.name}</p>
-                      {medal && (
-                        <span
-                          className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full text-white"
-                          style={{ background: medal.gradient }}
-                        >
-                          {medal.label}
-                        </span>
-                      )}
-                    </div>
+                    <p className="font-bold text-gray-900 text-sm truncate">{rep.name}</p>
                     <p className="text-xs text-gray-400">{rep.bookings} booking{rep.bookings !== 1 ? 's' : ''} · {closeRate}% close rate</p>
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -1367,21 +1532,297 @@ function LeaderboardTab() {
 }
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
-function KPICard({ label, value, icon, color }) {
-  const colors = {
-    green:   { bg: 'bg-green-50',   text: 'text-green-600'   },
-    blue:    { bg: 'bg-blue-50',    text: 'text-blue-600'    },
-    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
-    purple:  { bg: 'bg-purple-50',  text: 'text-purple-600'  },
-  }
-  const c = colors[color] || colors.blue
+// ─── Overview KPI primitives ─────────────────────────────────────────────────
+// Rich KPI card: gradient background, icon bubble, optional trend chip,
+// big number, and a children slot for a micro-chart. Paired with MiniSparkArea,
+// MiniSparkBars, or RadialGauge below.
+function KPICardRich({ label, value, trend, icon, gradient, border, iconColor, children }) {
   return (
-    <div className={`${c.bg} rounded-2xl p-4`}>
-      <div className={`${c.text} mb-2`}>{icon}</div>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
-      <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+    <div className={`bg-gradient-to-br ${gradient} ${border} border rounded-2xl p-3 md:p-4`}>
+      <div className="flex items-center justify-between">
+        <div className={`p-1.5 rounded-lg bg-white/70 ${iconColor}`}>{icon}</div>
+        {trend && <TrendChip trend={trend} />}
+      </div>
+      <div className="mt-2">
+        <p className="text-[11px] font-semibold text-gray-600">{label}</p>
+        <p className="text-2xl md:text-3xl font-extrabold tracking-tight text-gray-900">{value}</p>
+      </div>
+      {children}
     </div>
   )
+}
+
+// Trend chip — renders "▲ N%" / "▼ N%" / "—" based on a { dir, pct } object.
+function TrendChip({ trend }) {
+  if (!trend) return null
+  const { dir, pct } = trend
+  if (dir === 'up')   return <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-800">▲ {pct}%</span>
+  if (dir === 'down') return <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-800">▼ {pct}%</span>
+  return <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">—</span>
+}
+
+// Mini area sparkline. `values` is a short series (typically 7–30 points).
+// Uses preserveAspectRatio="none" so the area stretches responsively.
+function MiniSparkArea({ values = [], color = '#5ea636', fill = '#7ac94373' }) {
+  if (!values.length) return <div className="w-full h-9 md:h-12 mt-1" />
+  const w = 120, h = 36, pad = 4
+  const max = Math.max(...values, 1)
+  const step = values.length > 1 ? (w - pad * 2) / (values.length - 1) : 0
+  const pts = values.map((v, i) => {
+    const x = pad + i * step
+    const y = h - pad - (v / max) * (h - pad * 2)
+    return [x, y]
+  })
+  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
+  const areaPath = `${linePath} L${(w - pad).toFixed(1)},${(h - pad).toFixed(1)} L${pad},${(h - pad).toFixed(1)} Z`
+  const last = pts[pts.length - 1]
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-9 md:h-12 mt-1" preserveAspectRatio="none">
+      <path d={areaPath} fill={fill} />
+      <path d={linePath} stroke={color} strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={last[0]} cy={last[1]} r="2.4" fill={color} />
+    </svg>
+  )
+}
+
+// Mini bar sparkline. Renders up to ~8 bars; longer series get downsampled
+// by averaging so the chart stays legible in a 120×36 viewBox.
+function MiniSparkBars({ values = [], color = '#2757d7', highlight = '#1e44b0' }) {
+  if (!values.length) return <div className="w-full h-9 md:h-12 mt-1" />
+  const bars = downsample(values, 8)
+  const w = 120, h = 36
+  const max = Math.max(...bars, 1)
+  const barW = (w - 4) / bars.length - 2
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-9 md:h-12 mt-1" preserveAspectRatio="none">
+      <g>
+        {bars.map((v, i) => {
+          const bh = Math.max((v / max) * (h - 4), 1.5)
+          const x = 2 + i * (barW + 2)
+          const y = h - 2 - bh
+          return <rect key={i} x={x} y={y} width={barW} height={bh} rx="2"
+                       fill={i === bars.length - 1 ? highlight : color} opacity={i === bars.length - 1 ? 1 : 0.85} />
+        })}
+      </g>
+    </svg>
+  )
+}
+
+// Radial gauge — renders a ring filled to `pct` (0–100). Used for Close Rate
+// vs. goal. Uses stroke-dasharray trick against a known circumference.
+function RadialGauge({ pct = 0 }) {
+  const r = 16
+  const circumference = 2 * Math.PI * r       // ≈ 100.53
+  const filled = Math.max(0, Math.min(100, pct)) / 100 * circumference
+  return (
+    <svg className="shrink-0 w-14 h-14 md:w-16 md:h-16" viewBox="0 0 42 42">
+      <circle cx="21" cy="21" r={r} fill="none" stroke="#ede9fe" strokeWidth="6" />
+      <circle cx="21" cy="21" r={r} fill="none"
+              stroke="url(#kiq-gauge-gradient)" strokeWidth="6" strokeLinecap="round"
+              strokeDasharray={`${filled.toFixed(2)} ${circumference.toFixed(2)}`}
+              transform="rotate(-90 21 21)" />
+      <defs>
+        <linearGradient id="kiq-gauge-gradient" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%"  stopColor="#a78bfa" />
+          <stop offset="100%" stopColor="#6d28d9" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+// Daily Revenue bar chart — stacked grey (estimates-only) behind green
+// (booked). Derived from the same sessions the KPI cards use.
+function DailyRevenueChart({ daily = [] }) {
+  if (!daily.length) return null
+  const w = 320, h = 140
+  const padL = 30, padR = 8, padT = 12, padB = 28
+  const innerW = w - padL - padR
+  const innerH = h - padT - padB
+  // Scale on combined revenue to reserve headroom for the grey "estimate" cap
+  // once we track it separately. For now grey === booked (no estimate $$ yet).
+  const maxRev = Math.max(1, ...daily.map((d) => d.revenue))
+  const slot = innerW / daily.length
+  const barW = Math.min(Math.max(slot * 0.55, 4), 28)
+
+  const yAt = (val) => padT + innerH - (val / maxRev) * innerH
+  const yTicks = [0, maxRev / 2, maxRev]
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
+      <div className="flex items-baseline justify-between mb-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">Daily Revenue</p>
+          <p className="text-xs text-gray-500">{daily.length}-day view</p>
+        </div>
+        <div className="flex items-center gap-3 text-[10px] text-gray-500">
+          <span className="inline-flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: '#7ac943' }} />Booked</span>
+          <span className="inline-flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: '#cbd5e1' }} />Estimates</span>
+        </div>
+      </div>
+      {/* aspect ratio matches the viewBox exactly so text + bars scale cleanly */}
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-36 md:h-auto md:aspect-[16/7]">
+        {/* Gridlines */}
+        <g stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3">
+          {yTicks.map((t, i) => (
+            <line key={i} x1={padL} y1={yAt(t)} x2={w - padR} y2={yAt(t)} />
+          ))}
+        </g>
+        {/* Y labels */}
+        <g fontSize="9" fill="#94a3b8" textAnchor="end">
+          {yTicks.map((t, i) => (
+            <text key={i} x={padL - 4} y={yAt(t) + 3}>${formatCompact(t)}</text>
+          ))}
+        </g>
+        {/* Bars */}
+        <g>
+          {daily.map((d, i) => {
+            const cx = padL + slot * i + slot / 2
+            const x  = cx - barW / 2
+            const bookedH = Math.max((d.revenue / maxRev) * innerH, d.revenue > 0 ? 2 : 0)
+            const bookedY = padT + innerH - bookedH
+            return (
+              <g key={i}>
+                {d.revenue > 0 && (
+                  <rect x={x} y={bookedY} width={barW} height={bookedH} rx="3" fill="#7ac943" />
+                )}
+              </g>
+            )
+          })}
+        </g>
+        {/* X labels (only every-Nth so they don't collide on 30-day view) */}
+        <g fontSize="10" fill="#64748b" textAnchor="middle" fontWeight="600">
+          {daily.map((d, i) => {
+            const cx = padL + slot * i + slot / 2
+            const step = Math.ceil(daily.length / 7)
+            if (i % step !== 0 && i !== daily.length - 1) return null
+            return <text key={i} x={cx} y={h - 8}>{format(d.date, daily.length > 10 ? 'M/d' : 'EEE')}</text>
+          })}
+        </g>
+      </svg>
+    </section>
+  )
+}
+
+// Rep Leaderboard — sorted by revenue, gradient bar normalized to top rep.
+// The palette cycles through 5 pastel avatar colors so it matches the
+// mockup feel without needing per-rep color meta.
+function RepLeaderboard({ repStats = [] }) {
+  if (!repStats.length) {
+    return (
+      <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
+        <p className="text-sm font-semibold text-gray-900 mb-2">Rep Leaderboard</p>
+        <p className="text-xs text-gray-500">No rep activity in this period.</p>
+      </section>
+    )
+  }
+  const top = repStats.slice(0, 5)
+  const max = Math.max(1, ...top.map((r) => r.revenue))
+  const avatarColors = [
+    'bg-lime-200 text-lime-800',
+    'bg-blue-200 text-blue-800',
+    'bg-teal-200 text-teal-800',
+    'bg-violet-200 text-violet-800',
+    'bg-orange-200 text-orange-800',
+  ]
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="text-sm font-semibold text-gray-900">Rep Leaderboard</p>
+        <p className="text-[11px] text-gray-500">By revenue</p>
+      </div>
+      <ul className="space-y-3">
+        {top.map((r, i) => {
+          const pct = (r.revenue / max) * 100
+          const close = r.doors > 0 ? ((r.bookings / r.doors) * 100).toFixed(1) : '0'
+          return (
+            <li key={r.id}>
+              <div className="flex items-center gap-3">
+                <span className="w-6 text-center text-sm font-extrabold text-gray-400">{i + 1}</span>
+                <div className={`w-8 h-8 rounded-full font-bold text-xs grid place-items-center ${avatarColors[i % avatarColors.length]}`}>
+                  {repInitials(r.name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{r.name}</p>
+                    <p className="text-sm font-extrabold text-gray-900">${formatCompact(r.revenue)}</p>
+                  </div>
+                  <div className="relative h-2 mt-1.5 rounded-full bg-slate-100 overflow-hidden">
+                    <span className="absolute inset-y-0 left-0 rounded-full"
+                          style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#7ac943,#2757d7)' }} />
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    {r.doors} doors · {r.bookings} jobs · {close}% close · {r.sessions} sessions
+                  </p>
+                </div>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
+// ─── Overview helpers ────────────────────────────────────────────────────────
+// Bucket sessions into `days` calendar days (oldest → newest). Sums the
+// revenue/doors/bookings/estimates per day; missing days get zero rows.
+function groupSessionsByDay(sessions, days) {
+  const end = startOfDay(new Date())
+  const buckets = {}
+  const order   = []
+  for (let i = 0; i < days; i++) {
+    const d   = subDays(end, days - 1 - i)
+    const key = format(d, 'yyyy-MM-dd')
+    buckets[key] = { date: d, revenue: 0, doors: 0, bookings: 0, estimates: 0 }
+    order.push(key)
+  }
+  sessions.forEach((s) => {
+    if (!s.started_at) return
+    const key = format(startOfDay(new Date(s.started_at)), 'yyyy-MM-dd')
+    const b   = buckets[key]
+    if (!b) return
+    b.revenue   += s.revenue_booked || 0
+    b.doors     += s.doors_knocked  || 0
+    b.bookings  += s.bookings       || 0
+    b.estimates += s.estimates      || 0
+  })
+  return order.map((k) => buckets[k])
+}
+
+// Compare the last half of a day-series to the first half. Returns
+// { dir: 'up' | 'down' | 'flat', pct }. Honest within-window trend —
+// no extra query to pull the previous period.
+function computeTrend(series, field) {
+  if (!series || series.length < 2) return { dir: 'flat', pct: 0 }
+  const mid   = Math.floor(series.length / 2)
+  const first = series.slice(0, mid).reduce((s, x) => s + (x[field] || 0), 0)
+  const last  = series.slice(mid).reduce((s, x) => s + (x[field] || 0), 0)
+  if (first === 0 && last === 0) return { dir: 'flat', pct: 0 }
+  if (first === 0)                return { dir: 'up',   pct: 100 }
+  const pct = Math.round(((last - first) / first) * 100)
+  return { dir: pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat', pct: Math.abs(pct) }
+}
+
+// Downsample a long series to exactly `target` bars by averaging buckets.
+function downsample(values, target) {
+  if (values.length <= target) return values
+  const size = values.length / target
+  const out  = []
+  for (let i = 0; i < target; i++) {
+    const slice = values.slice(Math.floor(i * size), Math.floor((i + 1) * size))
+    out.push(slice.reduce((s, v) => s + v, 0) / Math.max(slice.length, 1))
+  }
+  return out
+}
+
+// Compact formatter — $18,450 → "18.5k", 1247 → "1.2k", 32 → "32".
+function formatCompact(n) {
+  if (n == null || Number.isNaN(n)) return '0'
+  const abs = Math.abs(n)
+  if (abs >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M'
+  if (abs >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k'
+  return Math.round(n).toString()
 }
 
 function MicroStat({ label, value }) {

@@ -1193,6 +1193,42 @@ export async function getLeaderboardData(period = 'today') {
   return Object.values(repMap)
 }
 
+/**
+ * Same shape as getLeaderboardData but over an arbitrary ISO date range.
+ * Used by the RepHome callouts to compare this-week vs last-week ranks
+ * for the "you moved up / down" nudge. RLS keeps rows scoped to the
+ * caller's org.
+ */
+export async function getLeaderboardRange(dateFromISO, dateToISO) {
+  const { data } = await supabase
+    .from('canvassing_sessions')
+    .select('rep_id, doors_knocked, conversations, estimates, bookings, revenue_booked, users(full_name)')
+    .gte('started_at', dateFromISO)
+    .lt('started_at',  dateToISO)
+
+  const repMap = {}
+  for (const s of data || []) {
+    if (!repMap[s.rep_id]) {
+      repMap[s.rep_id] = {
+        id:            s.rep_id,
+        name:          s.users?.full_name || 'Unknown',
+        doors:         0,
+        conversations: 0,
+        estimates:     0,
+        bookings:      0,
+        revenue:       0,
+      }
+    }
+    const r = repMap[s.rep_id]
+    r.doors         += s.doors_knocked  || 0
+    r.conversations += s.conversations  || 0
+    r.estimates     += s.estimates      || 0
+    r.bookings      += s.bookings       || 0
+    r.revenue       += Number(s.revenue_booked) || 0
+  }
+  return Object.values(repMap)
+}
+
 // ── Session Detail + Editing ──────────────────────────────────────────────────
 
 /** Get a single session with all its interactions */

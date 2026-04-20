@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import {
   MapPin, DollarSign, Settings, Trophy, Play,
-  TrendingUp, Users, Target, ChevronRight, Sparkles, Clock, LogOut,
+  TrendingUp, Users, Target, ChevronRight, Sparkles, LogOut,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
@@ -11,6 +11,7 @@ import {
   startSession, getRepSessions, getActiveSession,
   updateSessionStats, getMyCommissionConfig, getSessionInteractions,
   getMyOrganization, getRepOutcomesForHour, signOut,
+  getLeaderboardData, getLeaderboardRange,
 } from '../lib/supabase.js'
 import { requestGPSPermission } from '../lib/gps.js'
 import { gpsTracker } from '../lib/gps.js'
@@ -20,8 +21,13 @@ import { dnkZones, pointInAnyZone, loadDnkZones } from '../lib/dnk.js'
 import {
   computePeriodStats, computeConversion,
   computeXP, computeLevel, calcCommission, describeCommission,
-  computeBestHour, formatHourRange,
+  computeBestHour,
 } from '../lib/repStats.js'
+import {
+  computeRankMovement, computeDrySpell, computePersonalBestCloseRate,
+  computeCloseRateDiagnostic, computeLevelUpProximity, computeTeamPulse,
+} from '../lib/callouts.js'
+import RepCallouts from '../components/RepCallouts.jsx'
 
 const BRAND_BLUE = '#1B4FCC'  // KnockIQ blue
 const BRAND_LIME = '#7DC31E'  // KnockIQ lime (accent)
@@ -51,6 +57,13 @@ export default function RepHome() {
   // Null until we've confirmed there's enough data for a credible nudge;
   // the card stays hidden in that case rather than showing noise.
   const [bestHour,      setBestHour]      = useState(null)
+  // Three leaderboard slices powering the callouts. We load them lazily
+  // alongside the main dashboard so a slow network doesn't delay the
+  // Start-Canvassing CTA. Default to [] so compute helpers short-circuit
+  // to null rather than throwing on undefined.
+  const [boardToday,    setBoardToday]    = useState([])
+  const [boardThisWeek, setBoardThisWeek] = useState([])
+  const [boardLastWeek, setBoardLastWeek] = useState([])
 
   useEffect(() => {
     loadData()
@@ -82,6 +95,22 @@ export default function RepHome() {
     getRepOutcomesForHour(user.id, 60)
       .then((rows) => setBestHour(computeBestHour(rows)))
       .catch(() => setBestHour(null))
+
+    // Load the three leaderboard slices that power the rank-movement and
+    // team-pulse callouts. Last-week range runs from -14d to -7d so we can
+    // compare an apples-to-apples window against the trailing-7d "this week"
+    // board. Failures silently leave the arrays empty → callouts stay hidden.
+    const priorWeekEnd   = new Date(Date.now() -  7 * 86_400_000).toISOString()
+    const priorWeekStart = new Date(Date.now() - 14 * 86_400_000).toISOString()
+    Promise.all([
+      getLeaderboardData('today').catch(() => []),
+      getLeaderboardData('week').catch(() => []),
+      getLeaderboardRange(priorWeekStart, priorWeekEnd).catch(() => []),
+    ]).then(([today, week, last]) => {
+      setBoardToday(today || [])
+      setBoardThisWeek(week || [])
+      setBoardLastWeek(last || [])
+    })
   }
 
   // If an active session already exists in Supabase (e.g. rep closed the
@@ -231,6 +260,17 @@ export default function RepHome() {
   const commission  = calcCommission(stats, commissionCfg)
   const conversion  = computeConversion(stats)
 
+  // Callout payloads — each helper returns null when the underlying data
+  // can't credibly fill the card, and <RepCallouts> then omits it entirely.
+  // Cheap to compute every render (all pure array passes over data we
+  // already have in state), so no useMemo ceremony needed.
+  const rankMovement   = computeRankMovement(boardThisWeek, boardLastWeek, user.id)
+  const drySpell       = computeDrySpell(allSessions)
+  const personalBest   = computePersonalBestCloseRate(allSessions)
+  const closeDiag      = computeCloseRateDiagnostic(periods)
+  const levelProximity = computeLevelUpProximity(levelInfo)
+  const teamPulse      = computeTeamPulse(boardToday, user.id)
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col pb-10">
 
@@ -313,10 +353,20 @@ export default function RepHome() {
           </div>
         )}
 
-        {/* Best-time-of-day nudge. Renders only if the rep has enough
-            history AND one hour materially beats their average close rate.
-            When hidden it takes zero space — no "not enough data" stub. */}
-        {bestHour && <BestHourNudge info={bestHour} />}
+        {/* Personalized nudge stack — hot-hour, rank movement, dry spell,
+            personal-best close rate, level-up proximity, team pulse, and a
+            close-rate diagnostic. Each card hides itself when its payload
+            is null OR the rep has toggled it off in Profile → Home Callouts,
+            so the stack stays relevant without ever showing empty stubs. */}
+        <RepCallouts
+          bestHour={bestHour}
+          rankMovement={rankMovement}
+          drySpell={drySpell}
+          personalBest={personalBest}
+          closeDiag={closeDiag}
+          levelProximity={levelProximity}
+          teamPulse={teamPulse}
+        />
 
         {/* Scoreboard row: Today's Goal + Level (2 cards, same styling) */}
         <div className="grid grid-cols-2 gap-2.5">
@@ -405,47 +455,6 @@ export default function RepHome() {
           </div>
         )}
       </div>
-    </div>
-  )
-}
-
-/**
- * BestHourNudge
- * ─────────────
- * Tiny purple gradient card that surfaces the rep's personal best-close
- * hour. It's motivating ("you're 2.4× more likely to book at 5-6pm") and
- * also actionable — reps can decide whether the hour they're about to
- * canvass is their strongest window, or time it better tomorrow.
- *
- * Honesty note: the "X × more likely" framing is lift vs. the rep's own
- * average, not industry norms. That's both the strongest signal we can
- * give with one rep's data and the only framing that scales as they
- * improve (the bar moves as their baseline shifts).
- */
-function BestHourNudge({ info }) {
-  const range = formatHourRange(info.hour)
-  return (
-    <div
-      className="rounded-2xl px-4 py-3 text-white shadow-sm relative overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #6D28D9 0%, #DB2777 100%)' }}
-    >
-      <div className="flex items-start gap-2.5 relative z-10">
-        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0 mt-0.5">
-          <Clock className="w-4 h-4 text-white" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] uppercase tracking-wide font-semibold text-purple-100/90">
-            Your hot hour
-          </p>
-          <p className="text-[15px] font-bold leading-tight mt-0.5">
-            {range} · {info.lift.toFixed(1)}× more bookings than your average
-          </p>
-          <p className="text-[11px] text-purple-100/90 mt-0.5">
-            Based on {info.knocks} doors in that window over the last 60 days.
-          </p>
-        </div>
-      </div>
-      <Clock className="absolute -bottom-3 -right-2 w-16 h-16 text-white/10" />
     </div>
   )
 }
