@@ -36,11 +36,12 @@ export default function Settings() {
   const [newRepName, setNewRepName]   = useState('')
   const [newRepEmail, setNewRepEmail] = useState('')
   const [newRepPhone, setNewRepPhone] = useState('')
-  // Invite mode — 'invite' uses the magic-link email flow (default, preferred
-  // when Resend is configured), 'temp_password' lets the manager set a
-  // temporary password themselves and SMS it to the rep. See
-  // ONBOARDING_EMAIL_SETUP.md for the trade-offs.
-  const [newRepMode, setNewRepMode]   = useState('invite')     // 'invite' | 'temp_password'
+  // Onboarding flow is temp-password-only for now. The email-invite path
+  // (magic link via Resend) has been disabled in the UI until we wire up
+  // a verified sending domain — see ONBOARDING_EMAIL_SETUP.md. The edge
+  // function still supports `mode: 'invite'`, so re-enabling is a UI-only
+  // change when the time comes. `resend_invite` on existing reps is
+  // unaffected; it stays in the rep list as an optional escape hatch.
   const [newRepPassword, setNewRepPassword] = useState('')
   const [showTempPass, setShowTempPass] = useState(false)
   const [addingRep, setAddingRep]     = useState(false)
@@ -130,18 +131,16 @@ export default function Settings() {
     if (!name || !mail) {
       showToast('Name and email are required.', 'error'); return
     }
-    if (newRepMode === 'temp_password') {
-      if (!pass || pass.length < 8) {
-        showToast('Temporary password must be at least 8 characters.', 'error'); return
-      }
+    if (!pass || pass.length < 8) {
+      showToast('Temporary password must be at least 8 characters.', 'error'); return
     }
     setAddingRep(true)
-    const { user: created, mode, emailSent, emailError, loginUrl, error } = await createRep({
+    const { user: created, loginUrl, error } = await createRep({
       fullName: name,
       email:    mail,
       phone:    phone || null,
-      mode:     newRepMode,
-      password: newRepMode === 'temp_password' ? pass : undefined,
+      mode:     'temp_password',
+      password: pass,
     })
     setAddingRep(false)
     if (error) {
@@ -154,53 +153,45 @@ export default function Settings() {
     }])
 
     // Reset the form — but keep the section expanded until the manager
-    // dismisses the creds panel (if we're showing one).
+    // dismisses the creds panel.
     setNewRepName(''); setNewRepEmail(''); setNewRepPhone(''); setNewRepPassword('')
     setShowTempPass(false)
 
-    if (mode === 'temp_password') {
-      // Surface credentials so the manager can copy/SMS them. The
-      // password is plaintext here by design — it's the only moment we
-      // can show it, and the manager explicitly asked for it. Once the
-      // rep logs in, force_password_change rotates them to their own.
-      setPendingCreds({
-        fullName: created.full_name,
-        email:    created.email,
-        phone:    created.phone || phone || '',
-        password: pass,
-        loginUrl: loginUrl || `${window.location.origin}/login`,
-      })
-      setShowAddRep(false)
-      showToast(`${created.full_name} added — deliver the credentials below.`)
-      return
-    }
-
-    // Invite-link mode — same partial-failure handling as before.
+    // Surface credentials so the manager can copy/SMS them. The password
+    // is plaintext here by design — it's the only moment we can show it,
+    // and the manager explicitly asked for it. Once the rep logs in,
+    // force_password_change rotates them to their own.
+    setPendingCreds({
+      fullName: created.full_name,
+      email:    created.email,
+      phone:    created.phone || phone || '',
+      password: pass,
+      loginUrl: loginUrl || `${window.location.origin}/login`,
+    })
     setShowAddRep(false)
-    if (emailSent) {
-      showToast(`${created.full_name} added — invite emailed.`)
-    } else {
-      showToast(
-        `${created.full_name} added, but we couldn't send the invite email` +
-        (emailError ? `: ${emailError}` : '.') +
-        ' Switch to "Temporary password" mode, or fix email and use "Resend invite".',
-        'error',
-      )
-    }
+    showToast(`${created.full_name} added — deliver the credentials below.`)
   }
 
-  // Generate a readable 14-character temp password: two English words
-  // + 4 digits, e.g. "brisk-otter-4921". Readable enough to dictate
-  // over the phone, strong enough to clear Supabase's 6-char minimum
-  // (we enforce 8+ in the edge function). The rep rotates it on first
-  // login, so entropy here is a second-line concern.
+  // Generate a readable ~13-character temp password in camelCase:
+  // two English words (capitalized) + 4 digits, e.g. "QuickPanda9174".
+  //
+  // Why camelCase instead of hyphen-separated ("quick-panda-9174"):
+  // iOS/Android treat '-' as a word boundary, so a rep who receives
+  // the credentials over SMS can't double-tap the password to copy
+  // it — they'd only grab one chunk and have to long-press-drag the
+  // rest. camelCase keeps the whole thing as a single "word" for
+  // mobile text selection while staying easy to dictate verbally
+  // ("quick panda nine-one-seven-four"). Readable enough for manual
+  // typing, strong enough to clear Supabase's 6-char minimum (the
+  // edge function enforces 8+). The rep rotates it on first login,
+  // so entropy is a secondary concern here.
   function generateTempPassword() {
-    const adjectives = ['brisk', 'sunny', 'quick', 'brave', 'lucky', 'merry', 'quiet', 'mighty', 'clever', 'snappy']
-    const animals    = ['otter', 'finch', 'lynx', 'raven', 'panda', 'tiger', 'koala', 'zebra', 'moose', 'fox']
+    const adjectives = ['Brisk', 'Sunny', 'Quick', 'Brave', 'Lucky', 'Merry', 'Quiet', 'Mighty', 'Clever', 'Snappy']
+    const animals    = ['Otter', 'Finch', 'Lynx',  'Raven', 'Panda', 'Tiger', 'Koala', 'Zebra',  'Moose',  'Fox']
     const a = adjectives[Math.floor(Math.random() * adjectives.length)]
     const n = animals[Math.floor(Math.random() * animals.length)]
     const d = String(Math.floor(1000 + Math.random() * 9000))
-    return `${a}-${n}-${d}`
+    return `${a}${n}${d}`
   }
 
   async function handleResendInvite(rep) {
@@ -527,37 +518,9 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Onboarding-mode segmented control. Email-invite remains
-                  the default (and preferred) path; temp-password is the
-                  escape hatch for orgs that haven't configured Resend
-                  yet. Both persist the phone field. */}
-              <div>
-                <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 mb-1.5">
-                  Onboarding Method
-                </p>
-                <div className="grid grid-cols-2 gap-1 bg-gray-50 rounded-xl p-1 border border-gray-200">
-                  {[
-                    { id: 'invite',        label: 'Email Invite',    icon: Mail },
-                    { id: 'temp_password', label: 'Temp Password',   icon: Key  },
-                  ].map(opt => {
-                    const active = newRepMode === opt.id
-                    const Icon   = opt.icon
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setNewRepMode(opt.id)}
-                        className="py-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
-                        style={active
-                          ? { backgroundColor: BRAND_BLUE, color: 'white' }
-                          : { color: '#4B5563' }}>
-                        <Icon className="w-3.5 h-3.5" />
-                        {opt.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
+              {/* Email-invite flow is disabled for now — the Add Rep form
+                  goes straight into the temp-password setup. See the
+                  state comment above handleAddRep. */}
 
               <div>
                 <label className="text-xs text-gray-400 font-medium block mb-1">Full Name</label>
@@ -592,66 +555,52 @@ export default function Settings() {
                   placeholder="+1 555 123 4567"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
-                {newRepMode === 'temp_password' && (
-                  <p className="text-[11px] text-gray-400 mt-1">
-                    Add a phone so you can text the credentials straight from the confirmation panel.
-                  </p>
-                )}
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Add a phone so you can text the credentials straight from the confirmation panel.
+                </p>
               </div>
 
-              {/* Temp-password input — only shown in temp_password mode.
-                  Includes a "Generate" button that fills a readable
-                  two-word password, plus a show/hide eye toggle. */}
-              {newRepMode === 'temp_password' && (
-                <div>
-                  <label className="text-xs text-gray-400 font-medium block mb-1">Temporary Password</label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type={showTempPass ? 'text' : 'password'}
-                        value={newRepPassword}
-                        onChange={e => setNewRepPassword(e.target.value)}
-                        placeholder="At least 8 characters"
-                        autoComplete="off"
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowTempPass(s => !s)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-gray-500 px-2 py-1 rounded-md hover:bg-gray-100">
-                        {showTempPass ? 'Hide' : 'Show'}
-                      </button>
-                    </div>
+              {/* Temp password — always shown, with a "Generate" button
+                  that fills a readable two-word password and a show/hide
+                  toggle. */}
+              <div>
+                <label className="text-xs text-gray-400 font-medium block mb-1">Temporary Password</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showTempPass ? 'text' : 'password'}
+                      value={newRepPassword}
+                      onChange={e => setNewRepPassword(e.target.value)}
+                      placeholder="At least 8 characters"
+                      autoComplete="off"
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
                     <button
                       type="button"
-                      onClick={() => { setNewRepPassword(generateTempPassword()); setShowTempPass(true) }}
-                      className="flex items-center gap-1.5 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      Generate
+                      onClick={() => setShowTempPass(s => !s)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-gray-500 px-2 py-1 rounded-md hover:bg-gray-100">
+                      {showTempPass ? 'Hide' : 'Show'}
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => { setNewRepPassword(generateTempPassword()); setShowTempPass(true) }}
+                    className="flex items-center gap-1.5 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Generate
+                  </button>
                 </div>
-              )}
+              </div>
 
-              {/* Mode-specific explainer. Keeps the manager oriented on
-                  what actually happens after they click the button. */}
-              {newRepMode === 'invite' ? (
-                <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
-                  <Mail className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-blue-700 leading-relaxed">
-                    We'll email {newRepName.trim() || 'them'} a secure invite link. They'll set their own password
-                    on first sign-in — you never see or handle their credentials.
-                  </p>
-                </div>
-              ) : (
-                <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
-                  <Key className="w-4 h-4 text-amber-700 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-amber-800 leading-relaxed">
-                    We'll show the password once so you can text it to {newRepName.trim() || 'the rep'}.
-                    They'll be prompted to pick their own on first login — nothing is stored in plaintext afterwards.
-                  </p>
-                </div>
-              )}
+              {/* Explainer — keeps the manager oriented on what happens
+                  after they click Create. */}
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
+                <Key className="w-4 h-4 text-amber-700 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  We'll show the password once so you can text it to {newRepName.trim() || 'the rep'}.
+                  They'll be prompted to pick their own on first login — nothing is stored in plaintext afterwards.
+                </p>
+              </div>
 
               <div className="flex gap-2">
                 <button
@@ -667,9 +616,7 @@ export default function Settings() {
                   onClick={handleAddRep}
                   disabled={addingRep}
                   className="btn-brand flex-1 py-2.5 rounded-xl text-sm font-bold">
-                  {addingRep
-                    ? (newRepMode === 'invite' ? 'Sending invite…' : 'Creating rep…')
-                    : (newRepMode === 'invite' ? 'Send Invite' : 'Create & Show Credentials')}
+                  {addingRep ? 'Creating rep…' : 'Create & Show Credentials'}
                 </button>
               </div>
             </div>
@@ -1190,11 +1137,17 @@ function CredentialsPanel({ creds, onCopyToast, onDismiss }) {
   // Build the SMS body once so the "Text to rep" link and the
   // "Copy message" button stay in sync. Plain text, kept short
   // because some carriers truncate links inside long SMS bodies.
+  //
+  // Layout note: the temp password is the one token the rep actually
+  // needs to copy out of the message. We put it on its own line with
+  // no adjacent punctuation (the label sits on the previous line)
+  // so a double-tap lands squarely on the password — no stray colon
+  // or trailing parenthesis sneaking into the selection.
   const smsBody =
-    `Hey ${(creds.fullName || '').split(' ')[0] || 'there'} — your KnockIQ login is ready.\n` +
-    `Email: ${creds.email}\n` +
-    `Temp password: ${creds.password}\n` +
-    `Sign in: ${creds.loginUrl}\n` +
+    `Hey ${(creds.fullName || '').split(' ')[0] || 'there'} — your KnockIQ login is ready.\n\n` +
+    `Email: ${creds.email}\n\n` +
+    `Temp password:\n${creds.password}\n\n` +
+    `Sign in: ${creds.loginUrl}\n\n` +
     `(You'll be asked to set your own password on first sign-in.)`
 
   // sms: URI — the body must be percent-encoded. Phone is optional;

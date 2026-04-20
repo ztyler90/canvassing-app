@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
+import { useAuth } from '../contexts/AuthContext.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
@@ -32,8 +33,9 @@ const BRAND_LIME = '#7DC31E'
  */
 export default function SetPassword() {
   const navigate = useNavigate()
+  const { refreshUser } = useAuth()
 
-  const [stage, setStage]         = useState('verifying')   // 'verifying' | 'ready' | 'saving' | 'error'
+  const [stage, setStage]         = useState('verifying')   // 'verifying' | 'ready' | 'saving' | 'done' | 'error'
   const [password, setPassword]   = useState('')
   const [confirm, setConfirm]     = useState('')
   const [showPass, setShowPass]   = useState(false)
@@ -131,10 +133,19 @@ export default function SetPassword() {
       }
     }
 
-    // AuthContext's onAuthStateChange will fire USER_UPDATED and the rep
-    // profile row will already exist (manage-team inserted it), so going
-    // to `/` drops them straight onto RepHome.
-    navigate('/', { replace: true })
+    // Re-sync AuthContext's profile *before* we navigate. Otherwise we
+    // race the USER_UPDATED handler: it re-reads public.users and can
+    // catch the stale `force_password_change: true` value (our clearing
+    // update above runs milliseconds later), which makes App.jsx's
+    // force-change gate bounce us right back to /set-password — the
+    // visible "flicker" the rep sees on success.
+    try { await refreshUser?.() } catch { /* non-fatal */ }
+
+    // Give the rep a clear "saved" beat before the redirect so it
+    // doesn't feel like the form silently vanished. AppRoutes will now
+    // see force_password_change=false and land them on RepHome.
+    setStage('done')
+    setTimeout(() => navigate('/', { replace: true }), 900)
   }
 
   // ── Render branches ────────────────────────────────────────────────────
@@ -163,6 +174,20 @@ export default function SetPassword() {
             >
               Go to Sign In
             </button>
+          </div>
+        )}
+
+        {stage === 'done' && (
+          <div className="w-full max-w-sm flex flex-col items-center gap-4 py-4">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: '#DCFCE7' }}>
+              <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="#16A34A" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <h1 className="text-xl font-bold text-gray-900">Password saved</h1>
+              <p className="text-sm text-gray-500 mt-1">Redirecting you to your dashboard&hellip;</p>
+            </div>
           </div>
         )}
 
