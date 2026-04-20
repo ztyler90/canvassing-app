@@ -331,6 +331,12 @@ export default function RepHome() {
   // can't credibly fill the card, and <RepCallouts> then omits it entirely.
   // Cheap to compute every render (all pure array passes over data we
   // already have in state), so no useMemo ceremony needed.
+  // Count of zones the manager has flagged for this rep. Feeds the pip
+  // on the header Inbox button — kept here as a derived number so a late
+  // territoryInbox load simply re-renders the header without touching
+  // any other state.
+  const assignedInboxCount = (territoryInbox || []).filter((t) => t.assigned_to_me).length
+
   const rankMovement   = computeRankMovement(boardThisWeek, boardLastWeek, user.id)
   const drySpell       = computeDrySpell(allSessions)
   const personalBest   = computePersonalBestCloseRate(allSessions)
@@ -364,6 +370,27 @@ export default function RepHome() {
             <p className="text-blue-100 text-xs">{greeting}</p>
             <h1 className="text-white text-xl font-bold truncate leading-tight">{user?.full_name || 'Rep'}</h1>
           </div>
+          {/* Next Stops — territories inbox. Moved here from the body
+              card so the entry point lives with the other header actions
+              (profile, logout) and is reachable from every scroll
+              position. The assigned-count pip acts as an unread-style
+              indicator — if a manager has flagged a zone for this rep,
+              the dot shows how many are waiting. */}
+          <button
+            onClick={() => navigate('/territories')}
+            className="relative p-2 rounded-full bg-white/20 active:bg-white/30 shrink-0"
+            aria-label="Next Stops"
+          >
+            <Inbox className="w-5 h-5 text-white" />
+            {assignedInboxCount > 0 && (
+              <span
+                className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+                style={{ backgroundColor: BRAND_LIME, color: '#1E3A10' }}
+              >
+                {assignedInboxCount > 9 ? '9+' : assignedInboxCount}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => navigate('/profile')}
             className="p-2 rounded-full bg-white/20 active:bg-white/30 shrink-0"
@@ -431,14 +458,10 @@ export default function RepHome() {
           teamPulse={teamPulse}
         />
 
-        {/* Next Stops — territory inbox. Assigned zones float to the top
-            with a pulsing Flag badge, the rest follow sorted by least-
-            recently-canvassed first so the rep always has a "go here
-            next" anchor even if nothing is explicitly assigned. */}
-        <NextStopsCard
-          territories={territoryInbox}
-          loading={loadingInbox}
-        />
+        {/* Next Stops moved to its own page (/territories) — entry point
+            is the Inbox icon in the header with a pip showing assigned
+            count. The home view now leads with the rep's numbers instead
+            of a static inbox card. */}
 
         {/* Scoreboard row: Today's Goal + Level (2 cards, same styling) */}
         <div className="grid grid-cols-2 gap-2.5">

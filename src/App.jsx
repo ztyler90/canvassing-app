@@ -13,6 +13,7 @@ import ManagerDashboard  from './screens/ManagerDashboard.jsx'
 import RepDetail         from './screens/RepDetail.jsx'
 import Settings          from './screens/Settings.jsx'
 import RepProfile        from './screens/RepProfile.jsx'
+import RepTerritories    from './screens/RepTerritories.jsx'
 import SuperAdminDashboard from './screens/SuperAdminDashboard.jsx'
 import OrganizationDetail  from './screens/OrganizationDetail.jsx'
 
@@ -86,6 +87,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/"              element={<RepHome />} />
         <Route path="/profile"       element={<RepProfile />} />
+        <Route path="/territories"   element={<RepTerritories />} />
         <Route path="/canvassing"    element={<ActiveCanvassing />} />
         <Route path="/summary"       element={<SessionSummary />} />
         <Route path="/session/:id"   element={<SessionDetail />} />

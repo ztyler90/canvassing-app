@@ -160,6 +160,28 @@ const TerritoryMap = forwardRef(function TerritoryMap(
         mapRef.current.fitBounds(pts, { padding: [20, 20], maxZoom })
       }
     },
+    /**
+     * Fit the viewport to a single polygon's bounds. Used by the rep's
+     * Territories screen to make "tap a zone in the list → map flies
+     * over and frames it" one line at the call site.
+     *
+     * We mark the viewport as user-owned (same flag flyTo uses) so a
+     * still-pending auto-fit geolocation callback can't snap the map
+     * back to GPS after the rep has just asked to look at a specific
+     * zone. maxZoom defaults to 17 — tight enough that individual
+     * streets are legible but wide enough that a whole neighborhood-
+     * sized polygon still fits without Leaflet clipping it.
+     */
+    fitToPolygon(polygon, maxZoom = 17) {
+      if (!mapRef.current) return
+      if (!Array.isArray(polygon) || polygon.length === 0) return
+      userMovedRef.current = true
+      if (polygon.length === 1) {
+        mapRef.current.setView(polygon[0], maxZoom)
+      } else {
+        mapRef.current.fitBounds(polygon, { padding: [40, 40], maxZoom })
+      }
+    },
   }))
 
   function clearDraw() {
