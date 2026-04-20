@@ -1115,7 +1115,7 @@ export async function getRepTerritories(repId) {
 export async function getOrgTerritoriesForRep(repId) {
   const orgId = await getMyOrgId()
   if (!orgId) return []
-  const [{ data: terrs }, history] = await Promise.all([
+  const [{ data: terrs }, history, completions] = await Promise.all([
     supabase
       .from('territories')
       // Same FK-ambiguity fix as getTerritories — pin the `users` embed
@@ -1125,8 +1125,20 @@ export async function getOrgTerritoriesForRep(repId) {
       .eq('organization_id', orgId)
       .order('created_at', { ascending: true }),
     getAllDoorHistory(),
+    // Per-rep completion state. RLS already limits the rows to this
+    // rep's completions, but we still scope by rep_id explicitly so a
+    // future policy change (e.g. exposing manager completions to reps)
+    // doesn't accidentally annotate the inbox with someone else's
+    // "done" flags.
+    supabase
+      .from('territory_completions')
+      .select('territory_id, completed_at')
+      .eq('rep_id', repId),
   ])
   const rows = terrs || []
+  const completionByTerritory = new Map(
+    (completions?.data || []).map((c) => [c.territory_id, c.completed_at])
+  )
 
   // Inline ray-cast — matches TerritoryMap.pip. Keeps this file free of a
   // circular dep on components/.
@@ -1164,8 +1176,47 @@ export async function getOrgTerritoriesForRep(repId) {
         .filter(Boolean),
       interaction_count: interactionCount,
       last_knock_at:     lastKnockAt,
+      // null if the rep hasn't marked this zone done yet. The rep
+      // territories screen uses the presence of this value to float the
+      // row to the bottom and style it as resolved.
+      completed_at:      completionByTerritory.get(t.id) || null,
     }
   })
+}
+
+// ── Territory completion (rep-scoped) ─────────────────────────────────────
+// Each row is a rep's assertion that they've finished canvassing a zone.
+// Completion is per-rep — rep A marking "done" doesn't hide the zone for
+// rep B — and reversible via unmarkTerritoryCompleted. The unique
+// (territory_id, rep_id) constraint means a second mark on the same zone
+// is a no-op instead of creating a duplicate row.
+
+export async function markTerritoryCompleted(territoryId, repId) {
+  const orgId = await getMyOrgId()
+  if (!orgId) return { error: new Error('No organization on account.') }
+  const { data, error } = await supabase
+    .from('territory_completions')
+    .upsert(
+      {
+        territory_id:    territoryId,
+        rep_id:          repId,
+        organization_id: orgId,
+        completed_at:    new Date().toISOString(),
+      },
+      { onConflict: 'territory_id,rep_id' }
+    )
+    .select()
+    .single()
+  return { data, error }
+}
+
+export async function unmarkTerritoryCompleted(territoryId, repId) {
+  const { error } = await supabase
+    .from('territory_completions')
+    .delete()
+    .eq('territory_id', territoryId)
+    .eq('rep_id', repId)
+  return { error }
 }
 
 /** All interactions ever (no date filter) for territory door-history overlay */
