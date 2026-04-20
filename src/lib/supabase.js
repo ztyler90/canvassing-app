@@ -980,17 +980,32 @@ export async function deleteRep(repId) {
 // ── Territory helpers ─────────────────────────────────────────────────────────
 
 export async function getTerritories() {
+  // Explicit org filter mirrors the pattern used by other manager
+  // queries (see getAllReps / getAllSessions). Without this, super-
+  // admins see every org's territories and — more importantly — if the
+  // territories table's RLS policy grew to require org scoping, a stale
+  // client-side query could silently return 0 rows even though the
+  // manager had created zones. Scoping to getMyOrgId() locks the read
+  // to the caller's own organization regardless of RLS.
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
   const { data } = await supabase
     .from('territories')
     .select(`*, territory_assignments ( id, rep_id, users ( id, full_name, email ) )`)
+    .eq('organization_id', orgId)
     .order('created_at', { ascending: true })
   return data || []
 }
 
 export async function createTerritory({ name, color, polygon, createdBy }) {
+  // Stamp the row with the caller's organization_id so it shows up for
+  // every manager/rep in the same org. Without this, the insert either
+  // fails RLS or creates an orphan row that nobody can read back — this
+  // was the root cause of "I created territories but see 0 listed".
+  const orgId = await getMyOrgId()
   const { data, error } = await supabase
     .from('territories')
-    .insert({ name, color, polygon, created_by: createdBy })
+    .insert({ name, color, polygon, created_by: createdBy, organization_id: orgId })
     .select()
     .single()
   return { data, error }
@@ -1278,26 +1293,38 @@ export async function flagInteractionFollowUp(interactionId, notes = null) {
 // ── Booking query helpers ─────────────────────────────────────────────────────
 
 /**
- * Get all bookings for the manager view.
+ * Get bookings (or unbooked estimates) for the manager view.
  *
- * Source of truth is `interactions` (outcome='booked') — every booking comes in
+ * Source of truth is `interactions` — every booking/estimate comes in
  * through the rep's interaction modal and already carries address, contact
  * info, photos, follow-up flag, estimated value, and organization_id. The
  * separate `bookings` pipeline table (for future CRM status tracking) is not
  * queried here because it's optional and historically under-populated — reading
- * straight from interactions guarantees the tab always shows every booked job.
+ * straight from interactions guarantees the tab always shows every job.
+ *
+ * filters.outcome can be:
+ *   'booked'             → only booked jobs (default, matches the old behavior)
+ *   'estimate_requested' → only unbooked estimate requests
+ *   'all'                → both booked + estimate_requested (merged list)
  *
  * Returns rows shaped to match the existing BookingsTab contract: photo_urls
  * and follow_up live under a nested `interactions` object so the view layer
  * doesn't need to change.
  */
 export async function getAllBookings(filters = {}) {
+  const outcome = filters.outcome || 'booked'
+
   let query = supabase
     .from('interactions')
     .select('*, users(full_name)')
-    .eq('outcome', 'booked')
     .order('created_at', { ascending: false })
     .limit(100)
+
+  if (outcome === 'all') {
+    query = query.in('outcome', ['booked', 'estimate_requested'])
+  } else {
+    query = query.eq('outcome', outcome)
+  }
 
   if (filters.repId)    query = query.eq('rep_id', filters.repId)
   if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom)

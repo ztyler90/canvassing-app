@@ -75,7 +75,7 @@ function timeAgo(dateStr) {
 }
 
 const TerritoryMap = forwardRef(function TerritoryMap(
-  { territories = [], doorHistory = [], doNotKnock = [], onPolygonComplete, className = '' },
+  { territories = [], doorHistory = [], doNotKnock = [], onPolygonComplete, className = '', autoFit = false },
   ref
 ) {
   const containerRef       = useRef(null)
@@ -83,6 +83,7 @@ const TerritoryMap = forwardRef(function TerritoryMap(
   const territoryLayersRef = useRef([])
   const historyLayerRef    = useRef(null)   // L.layerGroup for history pins
   const dnkLayerRef        = useRef(null)   // L.layerGroup for DNK pins
+  const autoFitDoneRef     = useRef(false)
 
   // Drawing state — all in refs to avoid stale closure issues in Leaflet handlers
   const drawingRef     = useRef(false)
@@ -101,6 +102,31 @@ const TerritoryMap = forwardRef(function TerritoryMap(
     },
     cancelDrawing() { clearDraw() },
     isDrawing()     { return drawingRef.current },
+    flyTo(lat, lng, zoom = 16) {
+      if (!mapRef.current || lat == null || lng == null) return
+      mapRef.current.flyTo([lat, lng], zoom, { duration: 0.75 })
+    },
+    /**
+     * Fit bounds to all activity: territory polygons + door history + DNK.
+     * Zooms as tight as the data allows (capped at maxZoom).
+     */
+    fitToAll(maxZoom = 17) {
+      if (!mapRef.current) return
+      const pts = []
+      territories.forEach((t) => {
+        if (Array.isArray(t.polygon)) {
+          t.polygon.forEach((p) => { if (p && p.length === 2) pts.push(p) })
+        }
+      })
+      doorHistory.forEach((i) => { if (i.lat && i.lng) pts.push([i.lat, i.lng]) })
+      doNotKnock.forEach((d) => { if (d.lat && d.lng) pts.push([d.lat, d.lng]) })
+      if (pts.length === 0) return
+      if (pts.length === 1) {
+        mapRef.current.setView(pts[0], Math.min(maxZoom, 16))
+      } else {
+        mapRef.current.fitBounds(pts, { padding: [40, 40], maxZoom })
+      }
+    },
   }))
 
   function clearDraw() {
@@ -262,6 +288,31 @@ const TerritoryMap = forwardRef(function TerritoryMap(
       historyLayerRef.current.addLayer(marker)
     })
   }, [doorHistory])
+
+  // ── Auto-fit to activity on first paint ────────────────────────────────────
+  // When the parent passes autoFit, we zoom to the tightest bounds that
+  // contain every territory polygon, door-history pin, and DNK entry —
+  // once the data actually arrives. Later updates (draw a new zone, add
+  // a pin) leave the viewport alone so the manager isn't yanked around.
+  useEffect(() => {
+    if (!autoFit || !mapRef.current) return
+    if (autoFitDoneRef.current) return
+    const pts = []
+    territories.forEach((t) => {
+      if (Array.isArray(t.polygon)) {
+        t.polygon.forEach((p) => { if (p && p.length === 2) pts.push(p) })
+      }
+    })
+    doorHistory.forEach((i) => { if (i.lat && i.lng) pts.push([i.lat, i.lng]) })
+    doNotKnock.forEach((d) => { if (d.lat && d.lng) pts.push([d.lat, d.lng]) })
+    if (pts.length === 0) return
+    if (pts.length === 1) {
+      mapRef.current.setView(pts[0], 16)
+    } else {
+      mapRef.current.fitBounds(pts, { padding: [40, 40], maxZoom: 17 })
+    }
+    autoFitDoneRef.current = true
+  }, [autoFit, territories, doorHistory, doNotKnock])
 
   // ── DNK pins ───────────────────────────────────────────────────────────────
   useEffect(() => {

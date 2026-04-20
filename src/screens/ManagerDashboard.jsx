@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns'
-import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle } from 'lucide-react'
+import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllSessions, getAllReps, getManagerMapData, signOut,
@@ -59,7 +59,9 @@ export default function ManagerDashboard() {
       getAllSessions(filters),
       getAllReps(),
       getManagerMapData(filters),
-      getAllBookings(filters),
+      // Fetch both booked and unbooked (estimate_requested) rows so the
+      // Bookings tab's sub-nav can switch between them without re-fetching.
+      getAllBookings({ ...filters, outcome: 'all' }),
       getMyOrganization(),
     ])
     setSessions(sess)
@@ -166,21 +168,11 @@ export default function ManagerDashboard() {
         )
       })()}
 
-      {/* Tab Bar — horizontally scrollable for 6 tabs */}
-      <div className="bg-white border-b flex overflow-x-auto scrollbar-hide">
-        {TABS.map((t) => {
-          const Icon   = t.icon
-          const active = tab === t.id
-          return (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex-shrink-0 px-4 py-3 flex flex-col items-center gap-0.5 text-xs font-medium transition-colors min-w-[72px] ${active ? 'border-b-2' : 'text-gray-500'}`}
-              style={active ? { color: BRAND_GREEN, borderBottomColor: BRAND_GREEN } : {}}>
-              <Icon className="w-4 h-4" />
-              {t.label}
-            </button>
-          )
-        })}
-      </div>
+      {/* Tab Bar — horizontally scrollable for 7 tabs. A right-edge fade
+          + pulsing chevron signals to the manager that more tabs (Map,
+          Territories) live past the fold. The hint fades away once they
+          scroll within ~12px of the end. */}
+      <TabBar tabs={TABS} current={tab} onChange={setTab} />
 
       {/* Content */}
       <div className={`flex-1 overflow-y-auto ${!NO_FILTER_TABS.has(tab) ? 'px-4 py-5 space-y-4 pb-8' : ''}`}>
@@ -409,87 +401,127 @@ function OverviewTab({
 }
 
 // ─── Bookings Tab ─────────────────────────────────────────────────────────────
+// Receives a merged list of interactions where outcome ∈ {booked, estimate_requested}
+// and lets the manager toggle between the two sub-views. Each card renders a
+// matching status pill + accent so the two lists read differently at a glance.
 function BookingsTab({ bookings }) {
-  if (!bookings.length) return (
-    <div className="text-center py-16 text-gray-400">
-      <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-40" />
-      <p className="font-medium text-sm">No bookings in this period</p>
-      <p className="text-xs mt-1">Try expanding the date range.</p>
-    </div>
-  )
+  const [view, setView] = useState('booked') // 'booked' | 'estimate_requested'
+
+  const bookedList    = bookings.filter((b) => b.outcome === 'booked')
+  const estimateList  = bookings.filter((b) => b.outcome === 'estimate_requested')
+  const list          = view === 'booked' ? bookedList : estimateList
+
+  const SubNavButton = ({ id, label, count }) => {
+    const active = view === id
+    return (
+      <button
+        onClick={() => setView(id)}
+        className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 ${active ? 'text-white' : 'bg-gray-100 text-gray-500'}`}
+        style={active ? { backgroundColor: BRAND_GREEN } : {}}
+      >
+        <span>{label}</span>
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${active ? 'bg-white/25 text-white' : 'bg-white text-gray-500'}`}>
+          {count}
+        </span>
+      </button>
+    )
+  }
 
   return (
     <div className="space-y-3">
-      {bookings.map((b) => {
-        const photos    = b.interactions?.photo_urls || []
-        const followUp  = b.interactions?.follow_up  || false
-        const services  = Array.isArray(b.service_types) ? b.service_types : []
-        const createdAt = b.created_at ? new Date(b.created_at) : null
+      {/* Sub-nav */}
+      <div className="flex gap-2 bg-white rounded-xl p-1.5 border border-gray-200">
+        <SubNavButton id="booked"             label="Booked"   count={bookedList.length}   />
+        <SubNavButton id="estimate_requested" label="Unbooked Estimates" count={estimateList.length} />
+      </div>
 
-        return (
-          <div key={b.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            {/* Header */}
-            <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-sm font-bold text-green-700">✅ Booked</span>
-                  {followUp && (
-                    <span className="text-xs bg-amber-100 text-amber-700 font-semibold px-1.5 py-0.5 rounded-full">
-                      🏴 Follow Up
-                    </span>
+      {list.length === 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="font-medium text-sm">
+            {view === 'booked' ? 'No bookings in this period' : 'No unbooked estimates in this period'}
+          </p>
+          <p className="text-xs mt-1">Try expanding the date range.</p>
+        </div>
+      ) : (
+        list.map((b) => {
+          const photos    = b.interactions?.photo_urls || []
+          const followUp  = b.interactions?.follow_up  || false
+          const services  = Array.isArray(b.service_types) ? b.service_types : []
+          const createdAt = b.created_at ? new Date(b.created_at) : null
+          const isBooked  = b.outcome === 'booked'
+
+          return (
+            <div key={b.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              {/* Header */}
+              <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {isBooked ? (
+                      <span className="text-sm font-bold text-green-700">✅ Booked</span>
+                    ) : (
+                      <span className="text-sm font-bold text-amber-700">📋 Estimate Requested</span>
+                    )}
+                    {followUp && (
+                      <span className="text-xs bg-amber-100 text-amber-700 font-semibold px-1.5 py-0.5 rounded-full">
+                        🏴 Follow Up
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-700 text-sm mt-0.5 font-medium truncate">
+                    {b.contact_name || '—'}
+                  </p>
+                  {b.address && (
+                    <p className="text-gray-400 text-xs mt-0.5 truncate">{b.address}</p>
                   )}
                 </div>
-                <p className="text-gray-700 text-sm mt-0.5 font-medium truncate">
-                  {b.contact_name || '—'}
-                </p>
-                {b.address && (
-                  <p className="text-gray-400 text-xs mt-0.5 truncate">{b.address}</p>
-                )}
+                <div className="text-right flex-shrink-0">
+                  {b.estimated_value > 0 && (
+                    <p className={`font-bold text-base ${isBooked ? 'text-green-600' : 'text-amber-600'}`}>
+                      ${b.estimated_value.toFixed(0)}
+                    </p>
+                  )}
+                  {createdAt && (
+                    <p className="text-gray-400 text-xs">{format(createdAt, 'MMM d, h:mm a')}</p>
+                  )}
+                </div>
               </div>
-              <div className="text-right flex-shrink-0">
-                {b.estimated_value > 0 && (
-                  <p className="text-green-600 font-bold text-base">${b.estimated_value.toFixed(0)}</p>
-                )}
-                {createdAt && (
-                  <p className="text-gray-400 text-xs">{format(createdAt, 'MMM d, h:mm a')}</p>
-                )}
-              </div>
-            </div>
 
-            {/* Rep + services row */}
-            <div className="px-4 pb-2 flex items-center gap-2 flex-wrap">
-              {b.users?.full_name && (
-                <span className="text-xs bg-blue-50 text-blue-700 font-medium px-2 py-0.5 rounded-full">
-                  {b.users.full_name}
-                </span>
-              )}
-              {b.contact_phone && (
-                <span className="text-xs text-gray-500">📞 {b.contact_phone}</span>
-              )}
-              {services.map((svc) => (
-                <span key={svc} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                  {svc}
-                </span>
-              ))}
-            </div>
-
-            {/* Photo thumbnails */}
-            {photos.length > 0 && (
-              <div className="px-4 pb-3 flex gap-1.5 flex-wrap">
-                {photos.map((url, i) => (
-                  <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                    <img
-                      src={url}
-                      alt={`Photo ${i + 1}`}
-                      className="w-16 h-16 rounded-xl object-cover border border-gray-200 active:opacity-75"
-                    />
-                  </a>
+              {/* Rep + services row */}
+              <div className="px-4 pb-2 flex items-center gap-2 flex-wrap">
+                {b.users?.full_name && (
+                  <span className="text-xs bg-blue-50 text-blue-700 font-medium px-2 py-0.5 rounded-full">
+                    {b.users.full_name}
+                  </span>
+                )}
+                {b.contact_phone && (
+                  <span className="text-xs text-gray-500">📞 {b.contact_phone}</span>
+                )}
+                {services.map((svc) => (
+                  <span key={svc} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                    {svc}
+                  </span>
                 ))}
               </div>
-            )}
-          </div>
-        )
-      })}
+
+              {/* Photo thumbnails */}
+              {photos.length > 0 && (
+                <div className="px-4 pb-3 flex gap-1.5 flex-wrap">
+                  {photos.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={url}
+                        alt={`Photo ${i + 1}`}
+                        className="w-16 h-16 rounded-xl object-cover border border-gray-200 active:opacity-75"
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })
+      )}
     </div>
   )
 }
@@ -595,8 +627,17 @@ function RepsTab({ repStats, allReps = [] }) {
 // ─── Map Tab ──────────────────────────────────────────────────────────────────
 function MapTab({ interactions }) {
   const counts = interactions.reduce((acc, i) => { acc[i.outcome] = (acc[i.outcome] || 0) + 1; return acc }, {})
+  const mapRef = useRef(null)
+
+  // Jump the map to a geocoded address. The tight zoom (17) mirrors the
+  // street-level default so managers land looking at individual houses
+  // right after searching.
+  const handleGoTo = (lat, lng) => mapRef.current?.flyTo(lat, lng, 17)
+  const handleRecenter = () => mapRef.current?.fitToInteractions(40, 18)
+
   return (
     <div className="space-y-3">
+      <AddressSearch onResult={handleGoTo} onRecenter={handleRecenter} canRecenter={interactions.length > 0} />
       <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex gap-4 flex-wrap">
         {[
           { color: '#9CA3AF', label: `No Answer (${counts.no_answer || 0})` },
@@ -611,7 +652,13 @@ function MapTab({ interactions }) {
         ))}
       </div>
       <div className="rounded-2xl overflow-hidden border border-gray-200" style={{ height: '480px' }}>
-        <MapView interactions={interactions} className="w-full h-full" followUser={false} />
+        <MapView
+          ref={mapRef}
+          interactions={interactions}
+          className="w-full h-full"
+          followUser={false}
+          autoFit
+        />
       </div>
     </div>
   )
@@ -768,6 +815,16 @@ function TerritoryTab({ allReps, managerId }) {
         )}
       </div>
 
+      {/* Address search — jumps the map to any typed location. Helpful
+          for reviewing/drawing territories in a specific neighborhood. */}
+      <div className="px-4 py-3 bg-white border-b">
+        <AddressSearch
+          onResult={(lat, lng) => mapRef.current?.flyTo(lat, lng, 16)}
+          onRecenter={() => mapRef.current?.fitToAll(17)}
+          canRecenter={territories.length > 0 || doorHistory.length > 0}
+        />
+      </div>
+
       {/* Territory Map */}
       <div style={{ height: '380px' }}>
         <TerritoryMap
@@ -777,6 +834,7 @@ function TerritoryTab({ allReps, managerId }) {
           doNotKnock={doNotKnock}
           onPolygonComplete={handlePolygonComplete}
           className="w-full h-full"
+          autoFit
         />
       </div>
 
@@ -1177,6 +1235,18 @@ function LiveTab({ allReps }) {
 }
 
 // ─── Leaderboard Tab ──────────────────────────────────────────────────────────
+// Gold/silver/bronze medal treatment for the top three podium slots. Indexed
+// by rank (0 = 1st), and undefined for 4th+ so the card falls back to the
+// neutral white/gray style. Gradients are hand-picked to read as the right
+// metal at a glance without going costume-jewelry shiny — enough saturation
+// to pop against the white card background, tempered so it doesn't fight the
+// KnockIQ blue in the header.
+const MEDALS = [
+  { label: 'Gold',   emoji: '🥇', gradient: 'linear-gradient(135deg, #F5C542 0%, #D4941E 100%)', cardClass: 'border-yellow-300 bg-yellow-50' },
+  { label: 'Silver', emoji: '🥈', gradient: 'linear-gradient(135deg, #D6DCE4 0%, #9AA5B3 100%)', cardClass: 'border-gray-300 bg-gray-50' },
+  { label: 'Bronze', emoji: '🥉', gradient: 'linear-gradient(135deg, #D99363 0%, #9E5A2F 100%)', cardClass: 'border-orange-300 bg-orange-50' },
+]
+
 function LeaderboardTab() {
   const [period, setPeriod]         = useState('today')
   const [sortBy, setSortBy]         = useState('revenue')
@@ -1240,16 +1310,40 @@ function LeaderboardTab() {
           {/* Leaderboard rows */}
           {sorted.map((rep, i) => {
             const closeRate = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0'
-            const isFirst   = i === 0
+            const medal     = MEDALS[i]  // null for 4th place and beyond
             return (
               <div key={rep.id}
-                className={`rounded-2xl border p-4 ${isFirst ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-white'}`}>
+                className={`relative rounded-2xl border p-4 ${medal ? medal.cardClass : 'border-gray-200 bg-white'}`}>
+                {/* Medal ribbon — pinned to the top-right corner of the card
+                    for 1st/2nd/3rd, purely decorative alongside the rank badge. */}
+                {medal && (
+                  <div
+                    className="absolute -top-2 -right-2 w-9 h-9 rounded-full grid place-items-center text-[18px] shadow-md border-2 border-white"
+                    style={{ background: medal.gradient }}
+                    aria-label={medal.label}
+                    title={medal.label}
+                  >
+                    {medal.emoji}
+                  </div>
+                )}
                 <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${isFirst ? 'bg-yellow-400 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${medal ? 'text-white' : 'bg-gray-100 text-gray-600'}`}
+                    style={medal ? { background: medal.gradient } : {}}>
                     {i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-900 text-sm truncate">{rep.name}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-bold text-gray-900 text-sm truncate">{rep.name}</p>
+                      {medal && (
+                        <span
+                          className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full text-white"
+                          style={{ background: medal.gradient }}
+                        >
+                          {medal.label}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-400">{rep.bookings} booking{rep.bookings !== 1 ? 's' : ''} · {closeRate}% close rate</p>
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -1295,6 +1389,175 @@ function MicroStat({ label, value }) {
     <div className="text-center">
       <p className="font-bold text-gray-900 text-sm">{value}</p>
       <p className="text-xs text-gray-400">{label}</p>
+    </div>
+  )
+}
+
+// ─── Tab Bar with scroll-right indicator ─────────────────────────────────────
+// Wraps the horizontal tab strip and renders a right-edge fade + a pulsing
+// chevron when there's more content to the right. The hint hides once the
+// strip is scrolled to (or near) the end, and reappears if the manager
+// scrolls back. Uses onScroll rather than an IntersectionObserver to keep
+// the component self-contained and avoid a dep.
+function TabBar({ tabs, current, onChange }) {
+  const scrollerRef = useRef(null)
+  const [hasMoreRight, setHasMoreRight] = useState(false)
+
+  const recomputeHint = () => {
+    const el = scrollerRef.current
+    if (!el) return
+    // 12px slop so a near-end scroll still hides the fade.
+    setHasMoreRight(el.scrollWidth - el.clientWidth - el.scrollLeft > 12)
+  }
+
+  useEffect(() => {
+    recomputeHint()
+    const el = scrollerRef.current
+    if (!el) return
+    const onResize = () => recomputeHint()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // When tabs change (e.g. dynamic additions) or the active tab switches
+  // we re-check so the indicator stays accurate.
+  useEffect(() => { recomputeHint() }, [tabs, current])
+
+  const scrollRight = () => {
+    const el = scrollerRef.current
+    if (!el) return
+    el.scrollBy({ left: Math.max(120, el.clientWidth * 0.6), behavior: 'smooth' })
+  }
+
+  return (
+    <div className="relative bg-white border-b">
+      <div
+        ref={scrollerRef}
+        onScroll={recomputeHint}
+        className="flex overflow-x-auto scrollbar-hide"
+      >
+        {tabs.map((t) => {
+          const Icon   = t.icon
+          const active = current === t.id
+          return (
+            <button key={t.id} onClick={() => onChange(t.id)}
+              className={`flex-shrink-0 px-4 py-3 flex flex-col items-center gap-0.5 text-xs font-medium transition-colors min-w-[72px] ${active ? 'border-b-2' : 'text-gray-500'}`}
+              style={active ? { color: BRAND_GREEN, borderBottomColor: BRAND_GREEN } : {}}>
+              <Icon className="w-4 h-4" />
+              {t.label}
+            </button>
+          )
+        })}
+        {/* Extra right padding creates breathing room for the fade so the
+            last tab doesn't sit under the chevron button. */}
+        <div className="flex-shrink-0 w-8" aria-hidden="true" />
+      </div>
+
+      {hasMoreRight && (
+        <>
+          {/* Right-edge fade gradient — draws attention to the cut-off. */}
+          <div
+            className="pointer-events-none absolute top-0 right-0 h-full w-16"
+            style={{ background: 'linear-gradient(to left, white 20%, rgba(255,255,255,0))' }}
+            aria-hidden="true"
+          />
+          {/* Tap target that nudges the strip rightward. Pulses so it
+              reads as "more over here" rather than a decorative arrow. */}
+          <button
+            onClick={scrollRight}
+            aria-label="Scroll tabs right"
+            className="absolute top-1/2 right-1 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center shadow-sm"
+            style={{ backgroundColor: BRAND_GREEN, animation: 'knockiq-tab-hint 1.6s ease-in-out infinite' }}
+          >
+            <ChevronRight className="w-4 h-4 text-white" />
+          </button>
+          <style>{`
+            @keyframes knockiq-tab-hint {
+              0%, 100% { transform: translate(0, -50%);     opacity: 0.85; }
+              50%      { transform: translate(3px, -50%);   opacity: 1;    }
+            }
+          `}</style>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Address Search ──────────────────────────────────────────────────────────
+// Lightweight geocoder using OpenStreetMap's Nominatim. No API key required;
+// we keep queries short and include a clear User-Agent-equivalent via the
+// browser fetch defaults. Returns the top match back to the parent via
+// onResult(lat, lng). A "recenter" button runs the parent-supplied handler
+// to fit bounds to all activity on the map.
+function AddressSearch({ onResult, onRecenter, canRecenter = false, placeholder = 'Search an address, city, or ZIP' }) {
+  const [value, setValue]     = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState('')
+
+  async function handleSearch(e) {
+    e?.preventDefault?.()
+    const q = value.trim()
+    if (!q) return
+    setLoading(true); setError('')
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
+      if (!res.ok) throw new Error(`Lookup failed (${res.status})`)
+      const hits = await res.json()
+      if (!Array.isArray(hits) || hits.length === 0) {
+        setError('No match — try a more specific address.')
+        return
+      }
+      const lat = parseFloat(hits[0].lat)
+      const lng = parseFloat(hits[0].lon)
+      if (isNaN(lat) || isNaN(lng)) {
+        setError('Couldn\'t parse that result.')
+        return
+      }
+      onResult?.(lat, lng)
+    } catch (err) {
+      setError(err?.message || 'Lookup failed. Check your connection.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 px-3 py-2">
+      <form onSubmit={handleSearch} className="flex items-center gap-2">
+        <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        <input
+          value={value}
+          onChange={(e) => { setValue(e.target.value); if (error) setError('') }}
+          placeholder={placeholder}
+          className="flex-1 text-sm px-1 py-1.5 focus:outline-none bg-transparent"
+        />
+        {value && (
+          <button type="button" onClick={() => { setValue(''); setError('') }}
+            className="p-1 text-gray-300 hover:text-gray-500 flex-shrink-0">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <button
+          type="submit"
+          disabled={loading || !value.trim()}
+          className="flex-shrink-0 px-3 py-1.5 rounded-lg text-white text-xs font-semibold disabled:opacity-50"
+          style={{ backgroundColor: BRAND_GREEN }}
+        >
+          {loading ? '…' : 'Go'}
+        </button>
+        {canRecenter && (
+          <button
+            type="button"
+            onClick={onRecenter}
+            title="Recenter on activity"
+            className="flex-shrink-0 p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-700"
+          >
+            <Crosshair className="w-4 h-4" />
+          </button>
+        )}
+      </form>
+      {error && <p className="text-xs text-red-500 mt-1 ml-6">{error}</p>}
     </div>
   )
 }

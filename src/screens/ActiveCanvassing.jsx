@@ -4,11 +4,15 @@ import { Square, MapPin, Clock, Home, Pin, X, Signal } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import { gpsTracker } from '../lib/gps.js'
-import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, getWebhookUrl, fireZapierWebhook, getOrgRecentInteractions } from '../lib/supabase.js'
+import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, getWebhookUrl, fireZapierWebhook, getOrgRecentInteractions, getRepSessions, getMyCommissionConfig } from '../lib/supabase.js'
 import { acquireWakeLock, releaseWakeLock, isWakeLockSupported } from '../lib/wakeLock.js'
 import { usePrefs } from '../lib/prefs.js'
 import { dnkZones, pointInAnyZone, loadDnkZones } from '../lib/dnk.js'
 import { bucketIntoCells, filterByWindow, HEATMAP_COLORS } from '../lib/heatmap.js'
+import {
+  computeXP, computeLevel, computePeriodStats,
+  calcCommission, describeCommission,
+} from '../lib/repStats.js'
 import MapView from '../components/MapView.jsx'
 import InteractionModal from '../components/InteractionModal.jsx'
 
@@ -59,6 +63,32 @@ export default function ActiveCanvassing() {
   const locationBroadcastRef        = useRef(null)
   const currentPosRef               = useRef(null)
   const prefs                       = usePrefs()
+
+  // Rep history powering the in-header XP bar + revenue sparkline, and
+  // the rep's commission config (used to show live commission earned).
+  // Fetched once on mount — the values only shift after a session ends,
+  // so there's no need to re-poll during an active shift.
+  const [pastSessions, setPastSessions] = useState([])
+  const [commissionCfg, setCommissionCfg] = useState(null)
+  useEffect(() => {
+    if (!user?.id) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [sess, cfg] = await Promise.all([
+          getRepSessions(user.id, 50),
+          getMyCommissionConfig(),
+        ])
+        if (cancelled) return
+        setPastSessions(sess || [])
+        setCommissionCfg(cfg)
+      } catch {
+        // Soft-fail: the header still shows reasonable zero-state values
+        // so a flaky network doesn't block the rep from canvassing.
+      }
+    })()
+    return () => { cancelled = true }
+  }, [user?.id])
 
   // Load rep's assigned territories and DNK list. Polygon DNK zones
   // live in a separate module-level cache — we just trigger a reload
@@ -248,6 +278,30 @@ export default function ActiveCanvassing() {
     ? ((state.stats.doors / (elapsed / 3600))).toFixed(1)
     : '—'
 
+  // ── Live XP + commission + revenue widgets ─────────────────────────
+  // Baseline = lifetime XP across submitted sessions. Active session XP
+  // is added on top so the bar actually moves as the rep knocks doors /
+  // books jobs. computeXP normalizes estimates to at least `bookings`
+  // to match the same rule computePeriodStats applies to history — keeps
+  // the in-session XP consistent with what the home screen shows.
+  const lifetimeXPBase = computeXP(computePeriodStats(pastSessions).lifetime)
+  const sessionXP      = computeXP({
+    doors:         state.stats.doors,
+    conversations: state.stats.conversations,
+    estimates:     Math.max(state.stats.estimates || 0, state.stats.bookings || 0),
+    bookings:      state.stats.bookings,
+    revenue:       state.stats.revenue,
+  })
+  const levelInfo = computeLevel(lifetimeXPBase + sessionXP)
+  // Commission dollars earned so far in this session (per manager config).
+  const sessionCommission = calcCommission(
+    { revenue: state.stats.revenue, bookings: state.stats.bookings },
+    commissionCfg,
+  )
+  // Oldest → newest bars so the sparkline reads left-to-right like a
+  // normal trend chart. Cap at 7 to keep the inline chart readable.
+  const last7 = [...(pastSessions || [])].slice(0, 7).reverse()
+
   const handleStop = async () => {
     setStopping(true)
 
@@ -339,22 +393,69 @@ export default function ActiveCanvassing() {
   return (
     <div className="flex flex-col bg-gray-100 overflow-hidden" style={{ height: '100dvh' }}>
 
-      {/* Top Stats Bar */}
-      <div className="px-4 py-3 flex items-center justify-between shadow-sm z-10"
+      {/* Top Stats Bar + in-header XP progress. Wrapping in a column
+          lets us stack the scoreboard row above a compact level/XP bar
+          without disturbing existing spacing. Yellow XP fill pops nicely
+          against the BRAND_GREEN header. */}
+      <div className="px-4 pt-3 pb-3 shadow-sm z-10"
         style={{ backgroundColor: BRAND_GREEN }}>
-        <div className="flex items-center gap-1 text-white">
-          <Clock className="w-4 h-4 text-blue-300" />
-          <span className="font-mono text-lg font-bold">{formatTime(elapsed)}</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1 text-white">
+            <Clock className="w-4 h-4 text-blue-300" />
+            <span className="font-mono text-lg font-bold">{formatTime(elapsed)}</span>
+          </div>
+          <div className="flex items-center gap-1 text-white">
+            <Home className="w-4 h-4 text-blue-300" />
+            <span className="text-lg font-bold">{state.stats.doors}</span>
+            <span className="text-blue-300 text-sm ml-0.5">doors</span>
+          </div>
+          <div className="text-white text-right">
+            <span className="text-lg font-bold">${state.stats.revenue.toFixed(0)}</span>
+            <span className="text-blue-300 text-sm ml-0.5">booked</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1 text-white">
-          <Home className="w-4 h-4 text-blue-300" />
-          <span className="text-lg font-bold">{state.stats.doors}</span>
-          <span className="text-blue-300 text-sm ml-0.5">doors</span>
+
+        {/* Live XP bar — progress toward the next level, including XP
+            earned so far in the current session. "+N this session"
+            teases real-time progress so the rep sees the bar tick up
+            with every logged knock / booking. */}
+        <div className="mt-2.5">
+          <div className="flex items-baseline justify-between text-white mb-1">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-[13px] leading-none" aria-hidden="true">{levelInfo.icon}</span>
+              <span className="text-[10px] font-bold tracking-wider uppercase text-blue-100 truncate">
+                Lvl {levelInfo.level} · {levelInfo.title}
+              </span>
+            </div>
+            <div className="text-[10px] text-blue-100 font-medium tabular-nums flex items-baseline gap-2">
+              <span>
+                <span className="text-white font-bold">{levelInfo.xpIntoLevel.toLocaleString()}</span>
+                <span className="text-blue-300"> / {levelInfo.xpForNext.toLocaleString()} XP</span>
+              </span>
+              {sessionXP > 0 && (
+                <span className="font-bold" style={{ color: '#FACC15' }}>+{sessionXP.toLocaleString()}</span>
+              )}
+            </div>
+          </div>
+          <div className="h-[5px] bg-white/15 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-700"
+              style={{
+                width: `${Math.round(levelInfo.progress * 100)}%`,
+                background: 'linear-gradient(90deg, #FACC15 0%, #F59E0B 100%)',
+              }}
+            />
+          </div>
         </div>
-        <div className="text-white text-right">
-          <span className="text-lg font-bold">${state.stats.revenue.toFixed(0)}</span>
-          <span className="text-blue-300 text-sm ml-0.5">booked</span>
-        </div>
+      </div>
+
+      {/* Commission earned this session + 7-day revenue sparkline.
+          Two compact micro-charts between the header and the existing
+          secondary stats row. Both are read-only at-a-glance signals so
+          the rep doesn't lose focus from knocking. */}
+      <div className="bg-white border-b grid grid-cols-2 divide-x divide-gray-100">
+        <CommissionChip amount={sessionCommission} config={commissionCfg} />
+        <RevenueSparkline sessions={last7} />
       </div>
 
       {/* Secondary Stats */}
@@ -570,6 +671,75 @@ function MiniStat({ label, value, color = 'text-gray-900' }) {
     <div className="flex-1 py-1.5 text-center">
       <p className={`font-bold text-base ${color}`}>{value}</p>
       <p className="text-gray-400 text-xs">{label}</p>
+    </div>
+  )
+}
+
+/**
+ * CommissionChip
+ * ──────────────
+ * In-header widget that shows the rep's commission earned so far this
+ * session, along with a one-line description of the comp plan so the
+ * number has context. Uses the existing describeCommission helper to
+ * render "15% of revenue" / "$75 per booking" / "Tiered: …" so the rep
+ * knows where the $ number comes from without opening Settings.
+ */
+function CommissionChip({ amount, config }) {
+  const desc = describeCommission(config || null)
+  return (
+    <div className="px-3 py-2 flex items-center gap-2 min-w-0">
+      <div className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 grid place-items-center text-[13px] flex-shrink-0" aria-hidden="true">💰</div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold leading-none mb-0.5">Commission</p>
+        <p className="text-base font-bold text-emerald-600 leading-tight tabular-nums">${Number(amount || 0).toFixed(0)}</p>
+        <p className="text-[10px] text-gray-400 truncate leading-tight">{desc}</p>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * RevenueSparkline
+ * ────────────────
+ * Tiny bar chart showing the rep's last N submitted sessions' revenue,
+ * chronological (oldest → newest, left → right). The total is shown as
+ * the headline number so a glance conveys "how much have I booked
+ * recently" without forcing the rep to decode the bars. Empty bars
+ * render as gray so an inactive stretch is obvious.
+ */
+function RevenueSparkline({ sessions = [] }) {
+  const revs = sessions.map((s) => Number(s.revenue_booked) || 0)
+  // Max governs bar height so a $200 day doesn't dwarf the whole chart
+  // next to a $3000 day. Floor at 1 so we never divide by zero.
+  const max   = Math.max(1, ...revs)
+  const total = revs.reduce((a, b) => a + b, 0)
+  // Always render 7 slots so a new rep sees the full chart shape even
+  // before they have 7 sessions — empty slots read as "room to grow".
+  const slots = Array.from({ length: 7 }, (_, i) => revs[i] ?? 0)
+  const count = revs.length
+  return (
+    <div className="px-3 py-2 flex items-center gap-2 min-w-0">
+      <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-600 grid place-items-center text-[13px] flex-shrink-0" aria-hidden="true">📈</div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold leading-none mb-0.5">
+          Revenue · last {count || 7}
+        </p>
+        <p className="text-base font-bold text-gray-900 leading-tight tabular-nums">${total.toFixed(0)}</p>
+        <div className="flex items-end gap-[2px] h-3.5 mt-0.5" aria-hidden="true">
+          {slots.map((r, i) => (
+            <div
+              key={i}
+              className="flex-1 rounded-[2px]"
+              style={{
+                height: `${Math.max(12, (r / max) * 100)}%`,
+                backgroundColor: r > 0 ? BRAND_GREEN : '#E5E7EB',
+                minWidth: '3px',
+              }}
+              title={`$${Number(r).toFixed(0)}`}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

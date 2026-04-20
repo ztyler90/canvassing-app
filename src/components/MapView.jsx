@@ -142,7 +142,7 @@ function elapsedLabel(startedAt) {
  * @param {Array}   props.repLocations  - [{ rep_id, lat, lng, user, session }] live rep positions
  * @param {Function} props.onInteractionClick - (interaction) => void   Tap an existing pin to edit
  */
-export default function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null }) {
+const MapView = forwardRef(function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, autoFit = false }, ref) {
   const containerRef       = useRef(null)
   const mapRef             = useRef(null)
   const trailRef           = useRef(null)
@@ -153,6 +153,26 @@ export default function MapView({ trail = [], interactions = [], currentPos = nu
   const dnkZoneLayersRef   = useRef([])
   const heatmapLayersRef   = useRef([])
   const repMarkersRef      = useRef([])
+  const autoFitDoneRef     = useRef(false)
+
+  // Expose imperative API so parent (e.g. Manager Map tab) can fly the map
+  // to a geocoded address or programmatically re-fit to current activity.
+  useImperativeHandle(ref, () => ({
+    flyTo(lat, lng, zoom = 16) {
+      if (!mapRef.current || lat == null || lng == null) return
+      mapRef.current.flyTo([lat, lng], zoom, { duration: 0.75 })
+    },
+    fitToInteractions(pad = 40, maxZoom = 18) {
+      if (!mapRef.current) return
+      const pts = (interactions || []).filter((i) => i.lat && i.lng).map((i) => [i.lat, i.lng])
+      if (pts.length === 0) return
+      if (pts.length === 1) {
+        mapRef.current.setView(pts[0], Math.min(maxZoom, 17))
+      } else {
+        mapRef.current.fitBounds(pts, { padding: [pad, pad], maxZoom })
+      }
+    },
+  }))
 
   // Initialize map
   useEffect(() => {
@@ -427,7 +447,24 @@ export default function MapView({ trail = [], interactions = [], currentPos = nu
     }
   }, [repLocations])
 
+  // Auto-fit to interactions on first render where `autoFit` is true and
+  // we actually have data. Zooms as tight as the activity allows (up to 18).
+  useEffect(() => {
+    if (!autoFit || !mapRef.current) return
+    if (autoFitDoneRef.current) return
+    const pts = (interactions || []).filter((i) => i.lat && i.lng).map((i) => [i.lat, i.lng])
+    if (pts.length === 0) return
+    if (pts.length === 1) {
+      mapRef.current.setView(pts[0], 17)
+    } else {
+      mapRef.current.fitBounds(pts, { padding: [40, 40], maxZoom: 18 })
+    }
+    autoFitDoneRef.current = true
+  }, [autoFit, interactions])
+
   return (
     <div ref={containerRef} className={`w-full ${className}`} style={{ minHeight: '200px' }} />
   )
-}
+})
+
+export default MapView
