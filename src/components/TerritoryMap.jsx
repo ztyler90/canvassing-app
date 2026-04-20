@@ -84,6 +84,12 @@ const TerritoryMap = forwardRef(function TerritoryMap(
   const historyLayerRef    = useRef(null)   // L.layerGroup for history pins
   const dnkLayerRef        = useRef(null)   // L.layerGroup for DNK pins
   const autoFitDoneRef     = useRef(false)
+  // One-shot guard for the geolocation request in the auto-fit effect.
+  // Separate from autoFitDoneRef because we want to avoid firing the
+  // prompt twice across re-renders, without *also* blocking the eventual
+  // polygon-fit branch when territories finish loading. (See the auto-fit
+  // effect below for the full race-handling story.)
+  const geoRequestedRef    = useRef(false)
   // Flipped to true the first time anything else moves the map (address
   // search flyTo, user drag/zoom, manual recenter, etc.). The pending
   // geolocation callback in the auto-fit effect checks this so it won't
@@ -231,14 +237,14 @@ const TerritoryMap = forwardRef(function TerritoryMap(
     const onKey = (e) => { if (e.key === 'Escape') clearDraw() }
     document.addEventListener('keydown', onKey)
 
-    // Neutral default — picked to flash a city-level view (zoom 12) rather
-    // than the continent-wide zoom-4 we used to use. If auto-fit or
-    // geolocation lands within the next second the manager never sees this
-    // at all, and if they *do* (geolocation denied, no territories yet)
-    // they're already looking at a recognizable neighborhood-ish extent
-    // instead of the whole US. Center is the continental centroid so the
-    // initial tile load doesn't bias toward one coast.
-    map.setView([39.8283, -98.5795], 12)
+    // Initial default matches MapView exactly — Tampa, FL at zoom 17.75
+    // (street-level). Picked over the old continental-centroid-at-zoom-12
+    // because when geolocation gets denied AND the org has no territories
+    // yet, this default is the view the manager actually lives with.
+    // Zoom 12 over Smith Center, KS is useless tiles; 17.75 over Tampa
+    // at least looks like "a map of houses" while the auto-fit effect
+    // tries to put them somewhere more relevant.
+    map.setView([27.9506, -82.4572], 17.75)
     mapRef.current = map
 
     return () => {
@@ -370,25 +376,41 @@ const TerritoryMap = forwardRef(function TerritoryMap(
       return
     }
 
-    // Stage 2: no territories → center on the manager's current location.
-    // We guard with autoFitDoneRef before the async resolve so a fast
-    // territory-load race doesn't yank the map after the user already
-    // interacted with it.
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      autoFitDoneRef.current = true
+    // Stage 2: no territories → ask for the manager's current location
+    // ONCE (geoRequestedRef is the one-shot gate). Crucially, we do NOT
+    // set autoFitDoneRef=true here — we set it only inside the success
+    // callback. That way two race cases work correctly:
+    //   (a) Territories finish loading before geolocation resolves → the
+    //       next render of this effect runs stage 1 and fits to polygons.
+    //       The late geolocation callback sees autoFitDoneRef already
+    //       true and bails out.
+    //   (b) Geolocation is denied or times out → autoFitDoneRef stays
+    //       false, so when territories eventually load, stage 1 still
+    //       runs and fits to them instead of stranding the manager on
+    //       the default view (which used to be Smith Center, KS).
+    if (
+      typeof navigator !== 'undefined' &&
+      navigator.geolocation &&
+      !geoRequestedRef.current
+    ) {
+      geoRequestedRef.current = true
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           if (!mapRef.current) return
-          // If the user has already moved the map (e.g. typed an address
-          // into the search bar, panned, or zoomed) before geolocation
-          // resolved, leave their viewport alone.
+          // User already moved the map (address search, pan, zoom) — don't
+          // yank them back to GPS.
           if (userMovedRef.current) return
+          // Territories arrived and were fitted while this was pending —
+          // don't override that with a GPS snap.
+          if (autoFitDoneRef.current) return
           const { latitude, longitude } = pos.coords
           // Zoom 18 ≈ street-level where individual houses are clearly
-          // distinguishable. Was 17 which rendered a block-wide view.
+          // distinguishable.
           mapRef.current.setView([latitude, longitude], 18)
+          autoFitDoneRef.current = true
         },
-        () => { /* permission denied or timeout — keep default view */ },
+        () => { /* permission denied or timeout — leave the door open
+                   for a later polygon fit to land here instead */ },
         { enableHighAccuracy: false, timeout: 6000, maximumAge: 5 * 60 * 1000 }
       )
     }
