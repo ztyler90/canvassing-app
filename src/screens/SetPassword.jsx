@@ -110,11 +110,25 @@ export default function SetPassword() {
     }
 
     setStage('saving')
-    const { error } = await supabase.auth.updateUser({ password })
+    const { data: updateData, error } = await supabase.auth.updateUser({ password })
     if (error) {
       setStage('ready')
       setErrorMsg(error.message || 'Could not save your password. Please try again.')
       return
+    }
+
+    // Clear the force-password-change flag if it was set by the
+    // temp-password onboarding flow. Safe to run for invite-flow reps
+    // too — the column defaults to false, so this is a no-op there.
+    // If the update fails (transient RLS hiccup), don't block the rep;
+    // the worst case is they hit /set-password once more on next login.
+    const uid = updateData?.user?.id
+    if (uid) {
+      try {
+        await supabase.from('users').update({ force_password_change: false }).eq('id', uid)
+      } catch (e) {
+        console.warn('[SetPassword] could not clear force_password_change:', e)
+      }
     }
 
     // AuthContext's onAuthStateChange will fire USER_UPDATED and the rep

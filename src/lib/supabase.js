@@ -929,24 +929,37 @@ export async function transcribeVoiceNote(audioBlob, { language, prompt } = {}) 
 }
 
 /**
- * Create a new rep under this manager and email them a one-time invite link
- * to set their own password. No plaintext credentials are ever sent — the
- * edge function calls supabase.auth.admin.generateLink({ type: 'invite' })
- * and delivers the resulting action link via Resend.
+ * Create a new rep under this manager. Two onboarding modes:
  *
- * Returns { user, emailSent, emailError } so the UI can render a partial-
- * success toast if the rep row was created but the email send failed (e.g.
- * Resend API key not configured, domain not verified, etc.).
+ *   mode: 'invite' (default)
+ *     The edge function calls supabase.auth.admin.generateLink({
+ *     type: 'invite' }) and emails the one-time link via Resend.
+ *     Manager never sees credentials. Requires Resend to be configured.
+ *
+ *   mode: 'temp_password'
+ *     Caller passes a `password`; the edge function creates the auth
+ *     user with that password and stamps force_password_change=true on
+ *     public.users so first login is intercepted by SetPassword.jsx.
+ *     No email is sent — the manager delivers the credentials out of
+ *     band (typically by texting the rep using `phone`).
+ *
+ * `phone` is optional and persisted on public.users for both modes.
+ *
+ * Returns { user, mode, emailSent, emailError, loginUrl } — the UI
+ * uses `mode` to decide whether to show the credentials panel and
+ * `loginUrl` to build a pre-filled SMS body.
  */
-export async function createRep({ fullName, email }) {
+export async function createRep({ fullName, email, phone, mode = 'invite', password }) {
   const { data, error } = await callManageTeam({
-    action: 'create', fullName, email,
+    action: 'create', fullName, email, phone, mode, password,
   })
   if (error) return { error }
   return {
     user:       data?.user,
+    mode:       data?.mode || mode,
     emailSent:  Boolean(data?.email_sent),
     emailError: data?.email_error || null,
+    loginUrl:   data?.login_url || null,
     error:      null,
   }
 }

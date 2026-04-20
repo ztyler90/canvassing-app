@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send } from 'lucide-react'
+import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw } from 'lucide-react'
 import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal } from '../lib/supabase.js'
 import { describeCommission, DEFAULT_COMMISSION_CONFIG } from '../lib/repStats.js'
 
@@ -35,10 +35,22 @@ export default function Settings() {
   const [showAddRep, setShowAddRep]   = useState(false)
   const [newRepName, setNewRepName]   = useState('')
   const [newRepEmail, setNewRepEmail] = useState('')
+  const [newRepPhone, setNewRepPhone] = useState('')
+  // Invite mode — 'invite' uses the magic-link email flow (default, preferred
+  // when Resend is configured), 'temp_password' lets the manager set a
+  // temporary password themselves and SMS it to the rep. See
+  // ONBOARDING_EMAIL_SETUP.md for the trade-offs.
+  const [newRepMode, setNewRepMode]   = useState('invite')     // 'invite' | 'temp_password'
+  const [newRepPassword, setNewRepPassword] = useState('')
+  const [showTempPass, setShowTempPass] = useState(false)
   const [addingRep, setAddingRep]     = useState(false)
   const [deletingRepId, setDeletingRepId] = useState(null)
   const [resendingRepId, setResendingRepId] = useState(null)   // rep id currently being re-invited
   const [commissionRepId, setCommissionRepId] = useState(null) // rep whose commission is being edited
+  // Credentials panel — shown after a successful temp-password create so
+  // the manager can copy the password and/or fire off a pre-filled SMS.
+  // { fullName, email, phone, password, loginUrl } | null
+  const [pendingCreds, setPendingCreds] = useState(null)
 
   // Daily goal config — hydrated from org on load, edited in-place.
   const [goalType,     setGoalType]     = useState('revenue')  // 'revenue' | 'count'
@@ -111,36 +123,84 @@ export default function Settings() {
   }
 
   async function handleAddRep() {
-    if (!newRepName.trim() || !newRepEmail.trim()) {
+    const name  = newRepName.trim()
+    const mail  = newRepEmail.trim()
+    const phone = newRepPhone.trim()
+    const pass  = newRepPassword
+    if (!name || !mail) {
       showToast('Name and email are required.', 'error'); return
     }
+    if (newRepMode === 'temp_password') {
+      if (!pass || pass.length < 8) {
+        showToast('Temporary password must be at least 8 characters.', 'error'); return
+      }
+    }
     setAddingRep(true)
-    const { user: created, emailSent, emailError, error } = await createRep({
-      fullName: newRepName.trim(),
-      email:    newRepEmail.trim(),
+    const { user: created, mode, emailSent, emailError, loginUrl, error } = await createRep({
+      fullName: name,
+      email:    mail,
+      phone:    phone || null,
+      mode:     newRepMode,
+      password: newRepMode === 'temp_password' ? pass : undefined,
     })
     setAddingRep(false)
     if (error) {
       showToast('Failed to create rep: ' + error.message, 'error')
       return
     }
-    setReps(prev => [...prev, { id: created.id, email: created.email, full_name: created.full_name, role: 'rep' }])
-    setNewRepName(''); setNewRepEmail('')
+    setReps(prev => [...prev, {
+      id: created.id, email: created.email, full_name: created.full_name,
+      phone: created.phone || null, role: 'rep',
+    }])
+
+    // Reset the form — but keep the section expanded until the manager
+    // dismisses the creds panel (if we're showing one).
+    setNewRepName(''); setNewRepEmail(''); setNewRepPhone(''); setNewRepPassword('')
+    setShowTempPass(false)
+
+    if (mode === 'temp_password') {
+      // Surface credentials so the manager can copy/SMS them. The
+      // password is plaintext here by design — it's the only moment we
+      // can show it, and the manager explicitly asked for it. Once the
+      // rep logs in, force_password_change rotates them to their own.
+      setPendingCreds({
+        fullName: created.full_name,
+        email:    created.email,
+        phone:    created.phone || phone || '',
+        password: pass,
+        loginUrl: loginUrl || `${window.location.origin}/login`,
+      })
+      setShowAddRep(false)
+      showToast(`${created.full_name} added — deliver the credentials below.`)
+      return
+    }
+
+    // Invite-link mode — same partial-failure handling as before.
     setShowAddRep(false)
-    // The edge function returns { email_sent: true } on Resend success. If
-    // the rep row was created but the email couldn't be sent (Resend key
-    // missing, domain unverified, etc.), call that out so the manager knows
-    // to use "Resend invite" instead of assuming everything went through.
     if (emailSent) {
       showToast(`${created.full_name} added — invite emailed.`)
     } else {
       showToast(
         `${created.full_name} added, but we couldn't send the invite email` +
         (emailError ? `: ${emailError}` : '.') +
-        ' Use "Resend invite" once your email setup is working.',
+        ' Switch to "Temporary password" mode, or fix email and use "Resend invite".',
         'error',
       )
     }
+  }
+
+  // Generate a readable 14-character temp password: two English words
+  // + 4 digits, e.g. "brisk-otter-4921". Readable enough to dictate
+  // over the phone, strong enough to clear Supabase's 6-char minimum
+  // (we enforce 8+ in the edge function). The rep rotates it on first
+  // login, so entropy here is a second-line concern.
+  function generateTempPassword() {
+    const adjectives = ['brisk', 'sunny', 'quick', 'brave', 'lucky', 'merry', 'quiet', 'mighty', 'clever', 'snappy']
+    const animals    = ['otter', 'finch', 'lynx', 'raven', 'panda', 'tiger', 'koala', 'zebra', 'moose', 'fox']
+    const a = adjectives[Math.floor(Math.random() * adjectives.length)]
+    const n = animals[Math.floor(Math.random() * animals.length)]
+    const d = String(Math.floor(1000 + Math.random() * 9000))
+    return `${a}-${n}-${d}`
   }
 
   async function handleResendInvite(rep) {
@@ -441,6 +501,18 @@ export default function Settings() {
             </button>
           </div>
 
+          {/* Credentials panel — rendered after a temp-password create
+              so the manager can copy the password and/or fire off a
+              pre-filled SMS to the rep. Dismissing it doesn't undo
+              anything; the rep is already created. */}
+          {pendingCreds && (
+            <CredentialsPanel
+              creds={pendingCreds}
+              onCopyToast={(m, type) => showToast(m, type)}
+              onDismiss={() => setPendingCreds(null)}
+            />
+          )}
+
           {/* Add Rep form */}
           {showAddRep && (
             <div className="bg-white rounded-2xl p-4 shadow-sm border border-blue-200 mb-3 space-y-3">
@@ -454,6 +526,39 @@ export default function Settings() {
                   <p className="text-xs text-gray-400">{reps.length + 1} rep{reps.length + 1 !== 1 ? 's' : ''} total</p>
                 </div>
               </div>
+
+              {/* Onboarding-mode segmented control. Email-invite remains
+                  the default (and preferred) path; temp-password is the
+                  escape hatch for orgs that haven't configured Resend
+                  yet. Both persist the phone field. */}
+              <div>
+                <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 mb-1.5">
+                  Onboarding Method
+                </p>
+                <div className="grid grid-cols-2 gap-1 bg-gray-50 rounded-xl p-1 border border-gray-200">
+                  {[
+                    { id: 'invite',        label: 'Email Invite',    icon: Mail },
+                    { id: 'temp_password', label: 'Temp Password',   icon: Key  },
+                  ].map(opt => {
+                    const active = newRepMode === opt.id
+                    const Icon   = opt.icon
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setNewRepMode(opt.id)}
+                        className="py-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                        style={active
+                          ? { backgroundColor: BRAND_BLUE, color: 'white' }
+                          : { color: '#4B5563' }}>
+                        <Icon className="w-3.5 h-3.5" />
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs text-gray-400 font-medium block mb-1">Full Name</label>
                 <input
@@ -475,21 +580,86 @@ export default function Settings() {
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
               </div>
-
-              {/* Invite-flow explainer. Replaces the old "Temporary Password"
-                  input — reps now set their own password via a one-time link
-                  so no credentials are ever typed or stored by the manager. */}
-              <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
-                <Mail className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-blue-700 leading-relaxed">
-                  We'll email {newRepName.trim() || 'them'} a secure invite link. They'll set their own password
-                  on first sign-in — you never see or handle their credentials.
-                </p>
+              <div>
+                <label className="text-xs text-gray-400 font-medium block mb-1">
+                  Phone <span className="text-gray-300 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={newRepPhone}
+                  onChange={e => setNewRepPhone(e.target.value)}
+                  placeholder="+1 555 123 4567"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+                {newRepMode === 'temp_password' && (
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Add a phone so you can text the credentials straight from the confirmation panel.
+                  </p>
+                )}
               </div>
+
+              {/* Temp-password input — only shown in temp_password mode.
+                  Includes a "Generate" button that fills a readable
+                  two-word password, plus a show/hide eye toggle. */}
+              {newRepMode === 'temp_password' && (
+                <div>
+                  <label className="text-xs text-gray-400 font-medium block mb-1">Temporary Password</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={showTempPass ? 'text' : 'password'}
+                        value={newRepPassword}
+                        onChange={e => setNewRepPassword(e.target.value)}
+                        placeholder="At least 8 characters"
+                        autoComplete="off"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowTempPass(s => !s)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-gray-500 px-2 py-1 rounded-md hover:bg-gray-100">
+                        {showTempPass ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setNewRepPassword(generateTempPassword()); setShowTempPass(true) }}
+                      className="flex items-center gap-1.5 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Generate
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Mode-specific explainer. Keeps the manager oriented on
+                  what actually happens after they click the button. */}
+              {newRepMode === 'invite' ? (
+                <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
+                  <Mail className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-blue-700 leading-relaxed">
+                    We'll email {newRepName.trim() || 'them'} a secure invite link. They'll set their own password
+                    on first sign-in — you never see or handle their credentials.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
+                  <Key className="w-4 h-4 text-amber-700 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    We'll show the password once so you can text it to {newRepName.trim() || 'the rep'}.
+                    They'll be prompted to pick their own on first login — nothing is stored in plaintext afterwards.
+                  </p>
+                </div>
+              )}
 
               <div className="flex gap-2">
                 <button
-                  onClick={() => { setShowAddRep(false); setNewRepName(''); setNewRepEmail('') }}
+                  onClick={() => {
+                    setShowAddRep(false)
+                    setNewRepName(''); setNewRepEmail(''); setNewRepPhone('')
+                    setNewRepPassword(''); setShowTempPass(false)
+                  }}
                   className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium">
                   Cancel
                 </button>
@@ -497,7 +667,9 @@ export default function Settings() {
                   onClick={handleAddRep}
                   disabled={addingRep}
                   className="btn-brand flex-1 py-2.5 rounded-xl text-sm font-bold">
-                  {addingRep ? 'Sending invite…' : 'Send Invite'}
+                  {addingRep
+                    ? (newRepMode === 'invite' ? 'Sending invite…' : 'Creating rep…')
+                    : (newRepMode === 'invite' ? 'Send Invite' : 'Create & Show Credentials')}
                 </button>
               </div>
             </div>
@@ -985,6 +1157,142 @@ function CommissionEditor({ initialConfig, onSave, onCancel }) {
           style={{ backgroundColor: LIME }}>
           {saving ? <Loader className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           Save Commission
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ── Credentials Panel ──────────────────────────────────────────────────────
+ * Shown immediately after a temp-password create. Renders the email +
+ * temp password with copy buttons and, if a phone is on file, an
+ * `sms:` deep-link that drafts a ready-to-send message in the
+ * manager's default texting app.
+ *
+ * This is the ONLY moment the password is visible — once dismissed, it
+ * isn't recoverable. The rep is forced to rotate it on first login
+ * (force_password_change = true on their public.users row), so even
+ * if someone shoulder-surfs the panel, the credential is single-use
+ * in practice.
+ */
+function CredentialsPanel({ creds, onCopyToast, onDismiss }) {
+  const BRAND = '#1B4FCC'
+
+  function copy(value, label) {
+    try {
+      navigator.clipboard.writeText(value)
+      onCopyToast(`${label} copied`)
+    } catch {
+      onCopyToast(`Couldn't copy — long-press to copy manually`, 'error')
+    }
+  }
+
+  // Build the SMS body once so the "Text to rep" link and the
+  // "Copy message" button stay in sync. Plain text, kept short
+  // because some carriers truncate links inside long SMS bodies.
+  const smsBody =
+    `Hey ${(creds.fullName || '').split(' ')[0] || 'there'} — your KnockIQ login is ready.\n` +
+    `Email: ${creds.email}\n` +
+    `Temp password: ${creds.password}\n` +
+    `Sign in: ${creds.loginUrl}\n` +
+    `(You'll be asked to set your own password on first sign-in.)`
+
+  // sms: URI — the body must be percent-encoded. Phone is optional;
+  // omitting it still drafts a blank-recipient SMS on iOS/Android.
+  const smsHref = creds.phone
+    ? `sms:${encodeURIComponent(creds.phone)}?body=${encodeURIComponent(smsBody)}`
+    : `sms:?body=${encodeURIComponent(smsBody)}`
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border-2 border-amber-300 mb-3 overflow-hidden">
+      <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Key className="w-4 h-4 text-amber-700" />
+          <p className="text-sm font-semibold text-amber-900">
+            One-time credentials for {creds.fullName}
+          </p>
+        </div>
+        <button
+          onClick={onDismiss}
+          className="p-1 rounded-md text-amber-700 hover:bg-amber-100"
+          title="Dismiss — credentials won't be shown again">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="px-4 py-3 space-y-3">
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 leading-relaxed">
+          This password is shown once. The rep will be forced to set their own on first sign-in.
+        </p>
+
+        {/* Email row */}
+        <div>
+          <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 mb-1">Email</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-800 truncate">
+              {creds.email}
+            </code>
+            <button
+              onClick={() => copy(creds.email, 'Email')}
+              className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+              title="Copy email">
+              <Copy className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Password row */}
+        <div>
+          <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 mb-1">Temporary Password</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-800 truncate">
+              {creds.password}
+            </code>
+            <button
+              onClick={() => copy(creds.password, 'Password')}
+              className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+              title="Copy password">
+              <Copy className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Phone row — only if we captured one */}
+        {creds.phone && (
+          <div>
+            <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 mb-1">Phone on file</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-800 truncate flex items-center gap-2">
+                <Phone className="w-3.5 h-3.5 text-gray-400" />
+                {creds.phone}
+              </code>
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons — Text-to-rep is the headline action when a
+            phone exists; otherwise it falls back to a no-recipient
+            draft so the manager can still use it as a clipboard. */}
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <button
+            onClick={() => copy(smsBody, 'Message')}
+            className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+            <Copy className="w-4 h-4" />
+            Copy Message
+          </button>
+          <a
+            href={smsHref}
+            className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-sm font-bold"
+            style={{ backgroundColor: BRAND }}>
+            <MessageSquare className="w-4 h-4" />
+            {creds.phone ? 'Text Rep' : 'Open SMS'}
+          </a>
+        </div>
+
+        <button
+          onClick={onDismiss}
+          className="w-full py-2 rounded-xl text-xs font-semibold text-gray-500 hover:bg-gray-50">
+          I've delivered the credentials — dismiss
         </button>
       </div>
     </div>

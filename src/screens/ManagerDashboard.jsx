@@ -203,34 +203,6 @@ export default function ManagerDashboard() {
           scroll within ~12px of the end. */}
       <TabBar tabs={TABS} current={tab} onChange={setTab} />
 
-      {/* Filter bar — date range + rep selector, as segmented controls
-          that mirror the Daily/Weekly/Monthly styling introduced on the
-          Overview tab. Replaces the two dropdowns that previously lived
-          in the dark header nav. Hidden on tabs that don't honor the
-          filters (Live / Leaderboard / Territories). */}
-      {!NO_FILTER_TABS.has(tab) && (
-        <div className="bg-white border-b border-slate-200 px-4 py-3">
-          <div className="max-w-7xl mx-auto w-full flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-6">
-            <SegmentedControl
-              label="Period"
-              value={dateRange}
-              onChange={setDateRange}
-              options={RANGE_OPTIONS}
-            />
-            <SegmentedControl
-              label="Rep"
-              value={selectedRep}
-              onChange={setSelectedRep}
-              options={[
-                { value: 'all', label: 'All Reps' },
-                ...reps.map((r) => ({ value: r.id, label: r.full_name || r.email })),
-              ]}
-              scrollable
-            />
-          </div>
-        </div>
-      )}
-
       {/* Content */}
       <div className={`flex-1 overflow-y-auto ${!NO_FILTER_TABS.has(tab) ? 'px-4 py-5 pb-8' : ''}`}>
         {!NO_FILTER_TABS.has(tab) && loading ? (
@@ -240,6 +212,29 @@ export default function ManagerDashboard() {
           </div>
         ) : (
           <div className={!NO_FILTER_TABS.has(tab) ? 'max-w-7xl mx-auto w-full space-y-4' : ''}>
+            {/* Filter controls — Period segmented control + Rep dropdown,
+                right-aligned in the content area so they sit in the light-gray
+                space just below the tab bar. Hidden on tabs that don't honor
+                these filters (Live / Leaderboard / Territories). */}
+            {!NO_FILTER_TABS.has(tab) && (
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <SegmentedControl
+                  label="Period"
+                  value={dateRange}
+                  onChange={setDateRange}
+                  options={RANGE_OPTIONS}
+                />
+                <PillDropdown
+                  label="Rep"
+                  value={selectedRep}
+                  onChange={setSelectedRep}
+                  options={[
+                    { value: 'all', label: 'All Reps' },
+                    ...reps.map((r) => ({ value: r.id, label: r.full_name || r.email })),
+                  ]}
+                />
+              </div>
+            )}
             {tab === 'overview' && (
               <OverviewTab sessions={sessions} totalRevenue={totalRevenue} totalDoors={totalDoors}
                 totalBookings={totalBookings} totalEstimates={totalEstimates}
@@ -1829,6 +1824,43 @@ function MicroStat({ label, value }) {
     <div className="text-center">
       <p className="font-bold text-gray-900 text-sm">{value}</p>
       <p className="text-xs text-gray-400">{label}</p>
+    </div>
+  )
+}
+
+// ─── Pill Dropdown ───────────────────────────────────────────────────────────
+// Native <select> wearing the same slate-100 track + white-card pill
+// aesthetic as SegmentedControl. Used for filters where the option set
+// is too large to pillify (e.g. a team's rep list) but should still feel
+// visually consistent with the adjacent segmented controls.
+function PillDropdown({ label, value, onChange, options }) {
+  return (
+    <div className="flex items-center gap-2">
+      {label && (
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 shrink-0">
+          {label}
+        </span>
+      )}
+      <div className="inline-flex rounded-xl bg-slate-100 p-1">
+        <div className="relative">
+          <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="appearance-none bg-white rounded-lg text-sm font-medium text-slate-900 pl-3 pr-9 py-1.5 ring-1 ring-slate-200 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {options.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <svg
+            aria-hidden="true"
+            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500"
+            fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth="2"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" />
+          </svg>
+        </div>
+      </div>
     </div>
   )
 }

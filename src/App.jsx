@@ -56,6 +56,18 @@ function AppRoutes() {
     </Routes>
   )
 
+  // Force-password-change gate. Set on a rep's row when their manager
+  // creates them with a temporary password (Settings → Add Rep → Temp
+  // Password mode). Until the rep picks a real password via /set-password
+  // (which clears the flag), funnel every route into that screen so they
+  // can't poke around the app on the manager's credential.
+  if (user.force_password_change) return (
+    <Routes>
+      <Route path="/set-password" element={<SetPassword />} />
+      <Route path="*"             element={<Navigate to="/set-password" replace />} />
+    </Routes>
+  )
+
   if (user.role === 'manager') return (
     <Routes>
       <Route path="/manager"           element={<ManagerDashboard />} />

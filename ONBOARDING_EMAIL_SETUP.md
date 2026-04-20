@@ -1,13 +1,29 @@
-# Rep Onboarding Email Setup
+# Rep Onboarding
 
-When a manager adds a rep in Settings → Team, KnockIQ emails the new rep a
-one-time invite link to set their own password. No credentials are ever
-handled by the manager or sent in plaintext.
+When a manager adds a rep in Settings → Team, they now choose one of two
+onboarding methods with the segmented control at the top of the Add Rep
+form:
 
-This doc covers the production secrets you need and how the flow works
-end-to-end.
+- **Email Invite** — KnockIQ emails the rep a one-time invite link; they
+  set their own password on first load. No credential is ever handled by
+  the manager. **Requires Resend to be configured** (see below).
+- **Temp Password** — the manager sets a temporary password in the form
+  (or clicks *Generate* for a readable two-word one), the edge function
+  creates the auth user directly, and the manager is shown the
+  credentials once with a pre-filled **Text Rep** SMS link. On first
+  sign-in the rep is force-routed to `/set-password` to pick their own.
+  Useful when email isn't wired up yet, or for reps who aren't
+  reliable email users.
 
-## How the flow works
+Both flows persist the new optional **Phone** field on `public.users`
+so the temp-password confirmation panel can deep-link straight into the
+manager's SMS app.
+
+The rest of this doc covers the production secrets and DNS needed for
+the **Email Invite** path — the Temp Password path needs no email
+configuration.
+
+## How the email-invite flow works
 
 1. **Manager clicks "Add Rep"** in Settings → Team → fills in name + email.
 2. The client calls the `manage-team` edge function with `action: 'create'`.
@@ -112,11 +128,51 @@ we use from this repo).
 | Link expired (rep opens it > 24 h after send)             | Manager clicks the paper-airplane icon next to the rep in Settings → Team to send a fresh magic-link.            |
 | "Forbidden: owner role required"                          | Caller's `users.role` is not `manager`. Super-admins bypass this only on `delete`/`resend_invite` via same-org checks. |
 
+## Temp Password flow (no email required)
+
+Use this when Resend isn't set up yet, or you simply want to text the
+credentials to a rep. Mechanics:
+
+1. **Manager picks "Temp Password"** in Settings → Add Rep, types (or
+   generates) a password, optionally fills in the rep's phone.
+2. `manage-team` edge function calls
+   `supabase.auth.admin.createUser({ email, password, email_confirm: true })`
+   — the `email_confirm: true` skips the email-verification step so the
+   rep can sign in immediately.
+3. The function upserts `public.users` with
+   `force_password_change = true` and the phone number.
+4. The UI shows a one-time **credentials panel** with copy buttons and a
+   pre-filled `sms:` deep-link (populated with the rep's phone if one
+   was entered). Dismissing the panel is permanent — the password
+   isn't stored in plaintext server-side.
+5. The rep signs in on `/login` with the temp password. `AppRoutes`
+   sees `force_password_change = true` on their profile and funnels
+   every route to `/set-password`.
+6. After `supabase.auth.updateUser({ password })` succeeds,
+   `SetPassword.jsx` clears the `force_password_change` flag. Subsequent
+   logins go straight to RepHome.
+
+Security notes:
+- The temp password is the rep's password until they sign in — treat
+  it the way you'd treat any shared credential (prefer SMS over email
+  or group chat).
+- The force-change flag makes it single-use in practice, so even if
+  the SMS is snooped after the rep logs in, the credential is dead.
+- The edge function rejects temp passwords under 8 characters. The
+  `Generate` button produces a 14-char word-word-digits password.
+
 ## Files involved
 
 - `supabase/functions/manage-team/index.ts` — the edge function
-- `src/screens/SetPassword.jsx` — password-set screen the invite lands on
-- `src/screens/Settings.jsx` — Add Rep form + resend invite button
+  (invite + temp-password modes)
+- `supabase/migrations/20260420_rep_invite_alternatives.sql` — adds
+  `users.phone` (nullable) and `users.force_password_change`
+- `src/screens/SetPassword.jsx` — password-set screen; clears the
+  force-change flag after save
+- `src/screens/Settings.jsx` — Add Rep form (mode toggle, phone,
+  password generator) + credentials panel
 - `src/lib/supabase.js` — `createRep` / `resendRepInvite` client wrappers
-- `src/App.jsx` — `/set-password` route, mounted in both the unauth and
-  rep route trees
+- `src/contexts/AuthContext.jsx` — profile now exposes
+  `force_password_change` and `phone`
+- `src/App.jsx` — `/set-password` route + the force-change gate that
+  blocks every other route until the rep rotates the temp password
