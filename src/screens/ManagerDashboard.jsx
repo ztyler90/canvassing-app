@@ -133,54 +133,56 @@ export default function ManagerDashboard() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <div className="px-5 pt-12 pb-4" style={{ backgroundColor: BRAND_GREEN }}>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="flex items-center gap-1.5">
-              <p className="text-blue-200 text-sm">Owner View</p>
-              {user?.organization?.name && (
-                <span className="text-blue-200/80 text-xs">· {user.organization.name}</span>
+        <div className="max-w-7xl mx-auto w-full">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <p className="text-blue-200 text-sm">Owner View</p>
+                {user?.organization?.name && (
+                  <span className="text-blue-200/80 text-xs">· {user.organization.name}</span>
+                )}
+              </div>
+              <div className="flex items-baseline gap-0.5 mt-0.5">
+                <span className="text-white text-xl font-extrabold">Knock</span>
+                <span className="text-xl font-extrabold" style={{ color: BRAND_LIME }}>IQ</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {user?.is_super_admin && (
+                <button
+                  onClick={() => navigate('/super-admin')}
+                  title="Super-Admin Dashboard"
+                  className="p-2 rounded-full bg-white/20 ring-1 ring-white/40">
+                  <Shield className="w-5 h-5 text-white" />
+                </button>
               )}
-            </div>
-            <div className="flex items-baseline gap-0.5 mt-0.5">
-              <span className="text-white text-xl font-extrabold">Knock</span>
-              <span className="text-xl font-extrabold" style={{ color: BRAND_LIME }}>IQ</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {user?.is_super_admin && (
-              <button
-                onClick={() => navigate('/super-admin')}
-                title="Super-Admin Dashboard"
-                className="p-2 rounded-full bg-white/20 ring-1 ring-white/40">
-                <Shield className="w-5 h-5 text-white" />
+              <button onClick={() => navigate('/settings')} className="p-2 rounded-full bg-white/20">
+                <Settings className="w-5 h-5 text-white" />
               </button>
-            )}
-            <button onClick={() => navigate('/settings')} className="p-2 rounded-full bg-white/20">
-              <Settings className="w-5 h-5 text-white" />
-            </button>
-            <button onClick={signOut} className="p-2 rounded-full bg-white/20">
-              <LogOut className="w-5 h-5 text-white" />
-            </button>
+              <button onClick={signOut} className="p-2 rounded-full bg-white/20">
+                <LogOut className="w-5 h-5 text-white" />
+              </button>
+            </div>
           </div>
+          {!NO_FILTER_TABS.has(tab) && (
+            <div className="flex gap-2">
+              <select value={dateRange} onChange={(e) => setDateRange(e.target.value)}
+                className="flex-1 bg-white/20 text-white text-sm rounded-xl px-3 py-2 border border-white/30 focus:outline-none">
+                <option value="today" className="text-gray-900">Today</option>
+                <option value="week"  className="text-gray-900">This week</option>
+                <option value="month" className="text-gray-900">This month</option>
+                <option value="all"   className="text-gray-900">All time</option>
+              </select>
+              <select value={selectedRep} onChange={(e) => setSelectedRep(e.target.value)}
+                className="flex-1 bg-white/20 text-white text-sm rounded-xl px-3 py-2 border border-white/30 focus:outline-none">
+                <option value="all" className="text-gray-900">All Reps</option>
+                {reps.map((r) => (
+                  <option key={r.id} value={r.id} className="text-gray-900">{r.full_name || r.email}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
-        {!NO_FILTER_TABS.has(tab) && (
-          <div className="flex gap-2">
-            <select value={dateRange} onChange={(e) => setDateRange(e.target.value)}
-              className="flex-1 bg-white/20 text-white text-sm rounded-xl px-3 py-2 border border-white/30 focus:outline-none">
-              <option value="today" className="text-gray-900">Today</option>
-              <option value="week"  className="text-gray-900">This week</option>
-              <option value="month" className="text-gray-900">This month</option>
-              <option value="all"   className="text-gray-900">All time</option>
-            </select>
-            <select value={selectedRep} onChange={(e) => setSelectedRep(e.target.value)}
-              className="flex-1 bg-white/20 text-white text-sm rounded-xl px-3 py-2 border border-white/30 focus:outline-none">
-              <option value="all" className="text-gray-900">All Reps</option>
-              {reps.map((r) => (
-                <option key={r.id} value={r.id} className="text-gray-900">{r.full_name || r.email}</option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
 
       {/* Trial banner */}
@@ -189,10 +191,12 @@ export default function ManagerDashboard() {
         const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)))
         const isExpired = msLeft <= 0
         return (
-          <div className={`px-4 py-2 text-center text-sm font-medium ${isExpired ? 'bg-red-50 text-red-900' : 'bg-amber-50 text-amber-900'}`}>
-            {isExpired
-              ? 'Your free trial has ended. Upgrade to keep using KnockIQ.'
-              : `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left in your free trial.`}
+          <div className={`px-4 py-2 text-sm font-medium ${isExpired ? 'bg-red-50 text-red-900' : 'bg-amber-50 text-amber-900'}`}>
+            <div className="max-w-7xl mx-auto w-full text-center">
+              {isExpired
+                ? 'Your free trial has ended. Upgrade to keep using KnockIQ.'
+                : `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left in your free trial.`}
+            </div>
           </div>
         )
       })()}
@@ -204,14 +208,14 @@ export default function ManagerDashboard() {
       <TabBar tabs={TABS} current={tab} onChange={setTab} />
 
       {/* Content */}
-      <div className={`flex-1 overflow-y-auto ${!NO_FILTER_TABS.has(tab) ? 'px-4 py-5 space-y-4 pb-8' : ''}`}>
+      <div className={`flex-1 overflow-y-auto ${!NO_FILTER_TABS.has(tab) ? 'px-4 py-5 pb-8' : ''}`}>
         {!NO_FILTER_TABS.has(tab) && loading ? (
           <div className="flex justify-center py-16">
             <div className="animate-spin w-8 h-8 rounded-full"
               style={{ borderWidth: 3, borderStyle: 'solid', borderColor: `${BRAND_GREEN} transparent transparent transparent` }} />
           </div>
         ) : (
-          <>
+          <div className={!NO_FILTER_TABS.has(tab) ? 'max-w-7xl mx-auto w-full space-y-4' : ''}>
             {tab === 'overview' && (
               <OverviewTab sessions={sessions} totalRevenue={totalRevenue} totalDoors={totalDoors}
                 totalBookings={totalBookings} totalEstimates={totalEstimates}
@@ -227,7 +231,7 @@ export default function ManagerDashboard() {
             {tab === 'bookings'    && <BookingsTab bookings={bookings} />}
             {tab === 'map'         && <MapTab interactions={mapData} />}
             {tab === 'territories' && <TerritoryTab allReps={reps} managerId={user?.id} />}
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -1011,7 +1015,7 @@ function TerritoryTab({ allReps, managerId }) {
   )
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col max-w-7xl mx-auto w-full">
       {/* Control bar */}
       <div className="px-4 py-3 bg-white border-b">
         <div className="flex items-center justify-between gap-2">
@@ -1387,7 +1391,7 @@ function LiveTab({ allReps }) {
     })
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full max-w-7xl mx-auto w-full">
       {/* Status bar */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-white border-b">
         <div className="flex items-center gap-2">
@@ -1549,7 +1553,7 @@ function LeaderboardTab() {
   ]
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col max-w-7xl mx-auto w-full">
       {/* Controls */}
       <div className="px-4 py-3 bg-white border-b flex items-center gap-2">
         {['today', 'week', 'month'].map((p) => (
@@ -1849,7 +1853,7 @@ function TabBar({ tabs, current, onChange }) {
       <div
         ref={scrollerRef}
         onScroll={recomputeHint}
-        className="flex overflow-x-auto scrollbar-hide"
+        className="flex overflow-x-auto scrollbar-hide max-w-7xl mx-auto w-full"
       >
         {tabs.map((t) => {
           const Icon   = t.icon
