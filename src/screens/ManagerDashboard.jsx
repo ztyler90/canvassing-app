@@ -37,6 +37,17 @@ const TABS = [
 // Tabs that suppress the date/rep filter bar
 const NO_FILTER_TABS = new Set(['territories', 'live', 'leaderboard'])
 
+// Period options used by the segmented-control filter bar that sits
+// just below the tab bar. Labels mirror the manager's mental model
+// (Daily / Weekly / Monthly / All time); values match the shared
+// dateRange state that drives the Supabase query in ManagerDashboard.
+const RANGE_OPTIONS = [
+  { value: 'today', label: 'Daily' },
+  { value: 'week',  label: 'Weekly' },
+  { value: 'month', label: 'Monthly' },
+  { value: 'all',   label: 'All time' },
+]
+
 // Resolve a period keyword to a concrete { dateFrom, dateTo } ISO pair.
 // "today" / "week" (Mon-start) / "month" are calendar-bounded — so at 9am
 // Wednesday "this week" covers Mon 0:00 → now, and "this month" covers
@@ -167,24 +178,6 @@ export default function ManagerDashboard() {
               </button>
             </div>
           </div>
-          {!NO_FILTER_TABS.has(tab) && (
-            <div className="flex gap-2">
-              <select value={dateRange} onChange={(e) => setDateRange(e.target.value)}
-                className="flex-1 bg-white/20 text-white text-sm rounded-xl px-3 py-2 border border-white/30 focus:outline-none">
-                <option value="today" className="text-gray-900">Today</option>
-                <option value="week"  className="text-gray-900">This week</option>
-                <option value="month" className="text-gray-900">This month</option>
-                <option value="all"   className="text-gray-900">All time</option>
-              </select>
-              <select value={selectedRep} onChange={(e) => setSelectedRep(e.target.value)}
-                className="flex-1 bg-white/20 text-white text-sm rounded-xl px-3 py-2 border border-white/30 focus:outline-none">
-                <option value="all" className="text-gray-900">All Reps</option>
-                {reps.map((r) => (
-                  <option key={r.id} value={r.id} className="text-gray-900">{r.full_name || r.email}</option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
       </div>
 
@@ -209,6 +202,34 @@ export default function ManagerDashboard() {
           Territories) live past the fold. The hint fades away once they
           scroll within ~12px of the end. */}
       <TabBar tabs={TABS} current={tab} onChange={setTab} />
+
+      {/* Filter bar — date range + rep selector, as segmented controls
+          that mirror the Daily/Weekly/Monthly styling introduced on the
+          Overview tab. Replaces the two dropdowns that previously lived
+          in the dark header nav. Hidden on tabs that don't honor the
+          filters (Live / Leaderboard / Territories). */}
+      {!NO_FILTER_TABS.has(tab) && (
+        <div className="bg-white border-b border-slate-200 px-4 py-3">
+          <div className="max-w-7xl mx-auto w-full flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-6">
+            <SegmentedControl
+              label="Period"
+              value={dateRange}
+              onChange={setDateRange}
+              options={RANGE_OPTIONS}
+            />
+            <SegmentedControl
+              label="Rep"
+              value={selectedRep}
+              onChange={setSelectedRep}
+              options={[
+                { value: 'all', label: 'All Reps' },
+                ...reps.map((r) => ({ value: r.id, label: r.full_name || r.email })),
+              ]}
+              scrollable
+            />
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className={`flex-1 overflow-y-auto ${!NO_FILTER_TABS.has(tab) ? 'px-4 py-5 pb-8' : ''}`}>
@@ -1854,6 +1875,56 @@ function MicroStat({ label, value }) {
     <div className="text-center">
       <p className="font-bold text-gray-900 text-sm">{value}</p>
       <p className="text-xs text-gray-400">{label}</p>
+    </div>
+  )
+}
+
+// ─── Segmented Control ───────────────────────────────────────────────────────
+// Small pill-group control used by the filter bar below the TabBar to pick a
+// period (Daily/Weekly/Monthly/All time) and a rep (All Reps / individual).
+// Styling intentionally matches the "Daily/Weekly/Monthly" toggle that the
+// Overview tab has been using: a slate-100 track with a white-card pill for
+// the active option. `scrollable` turns the track into a horizontal scroller
+// so the rep selector can accommodate teams of arbitrary size on mobile.
+function SegmentedControl({ label, value, onChange, options, scrollable = false }) {
+  return (
+    <div className={`flex items-center gap-2 ${scrollable ? 'min-w-0 lg:flex-1' : ''}`}>
+      {label && (
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 shrink-0">
+          {label}
+        </span>
+      )}
+      <div
+        role="tablist"
+        aria-label={label}
+        className={
+          'inline-flex rounded-xl bg-slate-100 p-1 ' +
+          (scrollable
+            ? 'max-w-full overflow-x-auto whitespace-nowrap [scrollbar-width:thin] [-ms-overflow-style:none]'
+            : '')
+        }
+      >
+        {options.map((opt) => {
+          const active = value === opt.value
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onChange(opt.value)}
+              className={
+                'px-3 py-1.5 text-sm font-medium rounded-lg transition-colors shrink-0 ' +
+                (active
+                  ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                  : 'text-slate-600 hover:text-slate-900')
+              }
+            >
+              {opt.label}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
