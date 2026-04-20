@@ -997,15 +997,32 @@ export async function getTerritories() {
   return data || []
 }
 
-export async function createTerritory({ name, color, polygon, createdBy }) {
+export async function createTerritory({ name, color, polygon, createdBy, category = null }) {
   // Stamp the row with the caller's organization_id so it shows up for
   // every manager/rep in the same org. Without this, the insert either
   // fails RLS or creates an orphan row that nobody can read back — this
   // was the root cause of "I created territories but see 0 listed".
+  //
+  // If the caller has no organization_id we refuse the insert up-front
+  // rather than writing an orphan row that no later SELECT can see. The
+  // previous behavior was the direct cause of the "I drew a territory
+  // but the list still says 'No territories yet'" report — the insert
+  // silently succeeded with organization_id=null, but the list query
+  // filters by the manager's own org so nothing came back.
   const orgId = await getMyOrgId()
+  if (!orgId) {
+    return {
+      data:  null,
+      error: new Error('Your account has no organization. Ask an admin to re-invite you.'),
+    }
+  }
   const { data, error } = await supabase
     .from('territories')
-    .insert({ name, color, polygon, created_by: createdBy, organization_id: orgId })
+    .insert({
+      name, color, polygon, category,
+      created_by: createdBy,
+      organization_id: orgId,
+    })
     .select()
     .single()
   return { data, error }
@@ -1034,13 +1051,90 @@ export async function setTerritoryAssignments(territoryId, repIds, assignedBy) {
   )
 }
 
-/** Get territories assigned to a specific rep */
+/**
+ * Territories visible to a rep.
+ *
+ * Changed from assignment-gated → org-wide in 20260419. Rationale: when a
+ * manager draws a zone they almost always want every rep in the org to
+ * see it on the map; assignments became a *priority flag* (the rep's
+ * territory inbox highlights "Assigned to you" entries first), not an
+ * access gate. This function now returns every zone in the rep's org and
+ * stamps each row with `assigned_to_me` so the UI can style / sort.
+ *
+ * Callers that want ONLY the assigned subset can filter on the flag.
+ */
 export async function getRepTerritories(repId) {
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
   const { data } = await supabase
-    .from('territory_assignments')
-    .select(`territories ( * )`)
-    .eq('rep_id', repId)
-  return (data || []).map((row) => row.territories).filter(Boolean)
+    .from('territories')
+    .select(`*, territory_assignments ( rep_id )`)
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: true })
+  return (data || []).map((t) => ({
+    ...t,
+    assigned_to_me: (t.territory_assignments || []).some((a) => a.rep_id === repId),
+  }))
+}
+
+/**
+ * Rich territory feed for the rep's "Next Stops" inbox on RepHome:
+ * every org zone, each with the assigned-to-me flag, the count of
+ * interactions that have ever landed inside it, and the most recent
+ * knock date. Used to render recency/assignment badges without the
+ * client having to join door-history arrays client-side.
+ */
+export async function getOrgTerritoriesForRep(repId) {
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
+  const [{ data: terrs }, history] = await Promise.all([
+    supabase
+      .from('territories')
+      .select(`*, territory_assignments ( rep_id, users ( id, full_name ) )`)
+      .eq('organization_id', orgId)
+      .order('created_at', { ascending: true }),
+    getAllDoorHistory(),
+  ])
+  const rows = terrs || []
+
+  // Inline ray-cast — matches TerritoryMap.pip. Keeps this file free of a
+  // circular dep on components/.
+  const pip = (lat, lng, polygon) => {
+    let inside = false
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const [yi, xi] = polygon[i]
+      const [yj, xj] = polygon[j]
+      if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+        inside = !inside
+      }
+    }
+    return inside
+  }
+
+  return rows.map((t) => {
+    const poly = Array.isArray(t.polygon) ? t.polygon : null
+    let lastKnockAt = null
+    let interactionCount = 0
+    if (poly && poly.length >= 3) {
+      for (const h of history) {
+        if (h.lat == null || h.lng == null) continue
+        if (!pip(h.lat, h.lng, poly)) continue
+        interactionCount += 1
+        if (!lastKnockAt || new Date(h.created_at) > new Date(lastKnockAt)) {
+          lastKnockAt = h.created_at
+        }
+      }
+    }
+    return {
+      ...t,
+      assigned_to_me:    (t.territory_assignments || []).some((a) => a.rep_id === repId),
+      assigned_rep_names: (t.territory_assignments || [])
+        .map((a) => a.users?.full_name)
+        .filter(Boolean),
+      interaction_count: interactionCount,
+      last_knock_at:     lastKnockAt,
+    }
+  })
 }
 
 /** All interactions ever (no date filter) for territory door-history overlay */

@@ -158,16 +158,23 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
   // Expose imperative API so parent (e.g. Manager Map tab) can fly the map
   // to a geocoded address or programmatically re-fit to current activity.
   useImperativeHandle(ref, () => ({
-    flyTo(lat, lng, zoom = 16) {
+    // Default zoom bumped 16 → 17.75 so address-search lands on a
+    // street-level view matching the rep's Start-Canvassing default
+    // (same constant used as the initial viewport below).
+    flyTo(lat, lng, zoom = 17.75) {
       if (!mapRef.current || lat == null || lng == null) return
       mapRef.current.flyTo([lat, lng], zoom, { duration: 0.75 })
     },
-    fitToInteractions(pad = 40, maxZoom = 18) {
+    // Tighter defaults: 20px padding (was 40) and maxZoom 18.5 so a
+    // small cluster of pins frames to individual-house detail rather
+    // than block-wide. Single-pin case no longer artificially caps at
+    // 17 — it uses the full maxZoom.
+    fitToInteractions(pad = 20, maxZoom = 18.5) {
       if (!mapRef.current) return
       const pts = (interactions || []).filter((i) => i.lat && i.lng).map((i) => [i.lat, i.lng])
       if (pts.length === 0) return
       if (pts.length === 1) {
-        mapRef.current.setView(pts[0], Math.min(maxZoom, 17))
+        mapRef.current.setView(pts[0], maxZoom)
       } else {
         mapRef.current.fitBounds(pts, { padding: [pad, pad], maxZoom })
       }
@@ -436,28 +443,33 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
       repMarkersRef.current.push(marker)
     })
 
-    // Auto-fit map to show all active reps
+    // Auto-fit map to show all active reps. Tighter than before
+    // (single rep → zoom 17, cluster → maxZoom 17 with 20px padding)
+    // so a manager peeking at live activity lands on street-level
+    // context instead of a city-wide overview.
     if (repLocations.length > 0) {
       const latlngs = repLocations.filter((r) => r.lat && r.lng).map((r) => [r.lat, r.lng])
       if (latlngs.length === 1) {
-        mapRef.current.setView(latlngs[0], 15)
+        mapRef.current.setView(latlngs[0], 17)
       } else if (latlngs.length > 1) {
-        mapRef.current.fitBounds(latlngs, { padding: [40, 40], maxZoom: 16 })
+        mapRef.current.fitBounds(latlngs, { padding: [20, 20], maxZoom: 17 })
       }
     }
   }, [repLocations])
 
   // Auto-fit to interactions on first render where `autoFit` is true and
-  // we actually have data. Zooms as tight as the activity allows (up to 18).
+  // we actually have data. Zooms as tight as the activity allows (up to
+  // 18.5 — individual-house detail) with 20px padding instead of 40 so
+  // pins frame closer to the street they're on.
   useEffect(() => {
     if (!autoFit || !mapRef.current) return
     if (autoFitDoneRef.current) return
     const pts = (interactions || []).filter((i) => i.lat && i.lng).map((i) => [i.lat, i.lng])
     if (pts.length === 0) return
     if (pts.length === 1) {
-      mapRef.current.setView(pts[0], 17)
+      mapRef.current.setView(pts[0], 18)
     } else {
-      mapRef.current.fitBounds(pts, { padding: [40, 40], maxZoom: 18 })
+      mapRef.current.fitBounds(pts, { padding: [20, 20], maxZoom: 18.5 })
     }
     autoFitDoneRef.current = true
   }, [autoFit, interactions])

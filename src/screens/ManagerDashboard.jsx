@@ -858,8 +858,14 @@ function TerritoryTab({ allReps, managerId }) {
   const [showForm, setShowForm]       = useState(false)
   const [editingId, setEditingId]     = useState(null)
   const [newPolygon, setNewPolygon]   = useState(null)
-  const [form, setForm]               = useState({ name: '', color: '#3B82F6', repIds: [] })
+  const [form, setForm]               = useState({ name: '', color: '#3B82F6', category: '', repIds: [] })
   const [saving, setSaving]           = useState(false)
+  // Surface save errors (missing org, RLS, network) directly in the form
+  // instead of silently closing the modal. Before this, a failed insert
+  // would close the sheet and the list would stay empty — looking like a
+  // UI bug ("No territories yet after I drew one") when it was actually a
+  // silently-dropped error.
+  const [saveError, setSaveError]     = useState('')
 
   // DNK form
   const [showDnkForm, setShowDnkForm] = useState(false)
@@ -906,7 +912,8 @@ function TerritoryTab({ allReps, managerId }) {
     setDrawPts(0)
     setNewPolygon(coords)
     setEditingId(null)
-    setForm({ name: '', color: '#3B82F6', repIds: [] })
+    setForm({ name: '', color: '#3B82F6', category: '', repIds: [] })
+    setSaveError('')
     setShowForm(true)
   }
 
@@ -914,28 +921,51 @@ function TerritoryTab({ allReps, managerId }) {
     setEditingId(territory.id)
     setNewPolygon(null)
     setForm({
-      name:   territory.name,
-      color:  territory.color || '#3B82F6',
-      repIds: (territory.territory_assignments || []).map((a) => a.rep_id),
+      name:     territory.name,
+      color:    territory.color || '#3B82F6',
+      category: territory.category || '',
+      repIds:   (territory.territory_assignments || []).map((a) => a.rep_id),
     })
+    setSaveError('')
     setShowForm(true)
   }
 
   async function handleSave() {
     if (!form.name.trim()) return
     setSaving(true)
+    setSaveError('')
     try {
       if (editingId) {
-        await updateTerritory(editingId, { name: form.name.trim(), color: form.color })
+        const { error: updErr } = await updateTerritory(editingId, {
+          name:     form.name.trim(),
+          color:    form.color,
+          category: form.category?.trim() || null,
+        })
+        if (updErr) throw updErr
         await setTerritoryAssignments(editingId, form.repIds, managerId)
       } else {
-        const { data } = await createTerritory({
-          name: form.name.trim(), color: form.color, polygon: newPolygon, createdBy: managerId,
+        const { data, error } = await createTerritory({
+          name:       form.name.trim(),
+          color:      form.color,
+          category:   form.category?.trim() || null,
+          polygon:    newPolygon,
+          createdBy:  managerId,
         })
-        if (data) await setTerritoryAssignments(data.id, form.repIds, managerId)
+        // Previously we discarded `error` and just checked for truthy
+        // `data`; when createTerritory's org-scoping failed silently the
+        // modal closed and the list stayed empty — the exact "No
+        // territories yet" bug. Now we raise it into `saveError` so the
+        // manager sees why the save didn't stick.
+        if (error || !data) throw (error || new Error('Territory could not be saved.'))
+        if (form.repIds.length) {
+          await setTerritoryAssignments(data.id, form.repIds, managerId)
+        }
       }
       setShowForm(false); setNewPolygon(null); setEditingId(null)
       await loadAll()
+    } catch (err) {
+      console.warn('[Territory] save failed:', err)
+      setSaveError(err?.message || 'Could not save. Please try again.')
     } finally { setSaving(false) }
   }
 
@@ -1090,6 +1120,14 @@ function TerritoryTab({ allReps, managerId }) {
               <div className="flex items-center gap-2">
                 <div className="w-3.5 h-3.5 rounded-sm flex-shrink-0" style={{ backgroundColor: t.color }} />
                 <p className="font-semibold text-gray-900 text-sm flex-1 truncate">{t.name}</p>
+                {t.category && (
+                  <span
+                    className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: `${t.color}18`, color: t.color }}
+                  >
+                    {t.category}
+                  </span>
+                )}
                 <button onClick={() => openEditForm(t)} className="p-1.5 text-gray-400 hover:text-blue-500">
                   <Edit2 className="w-3.5 h-3.5" />
                 </button>
@@ -1098,7 +1136,7 @@ function TerritoryTab({ allReps, managerId }) {
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-1 ml-5">
-                {assignedReps.length ? assignedReps.join(', ') : 'Unassigned'}
+                {assignedReps.length ? `Priority for ${assignedReps.join(', ')}` : 'Visible to everyone'}
               </p>
             </div>
           )
@@ -1179,6 +1217,16 @@ function TerritoryTab({ allReps, managerId }) {
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 mb-4" />
 
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">
+              Category <span className="text-gray-400 normal-case font-normal">(optional)</span>
+            </label>
+            <input placeholder="e.g. Window Cleaning, Lawn Care" value={form.category}
+              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 mb-1" />
+            <p className="text-[11px] text-gray-400 mb-4">
+              A tag shown to reps in their Next Stops inbox — helps them match zones to the service they sell.
+            </p>
+
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Color</label>
             <div className="flex gap-2 flex-wrap mb-4">
               {TERRITORY_COLORS.map((c) => (
@@ -1190,7 +1238,10 @@ function TerritoryTab({ allReps, managerId }) {
               ))}
             </div>
 
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Assign Reps</label>
+            <div className="flex items-baseline justify-between mb-2">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Priority for</label>
+              <span className="text-[11px] text-gray-400">All reps can see this zone either way</span>
+            </div>
             {allReps.length === 0 && <p className="text-xs text-gray-400 mb-4">No reps available.</p>}
             <div className="space-y-2 mb-5">
               {allReps.map((rep) => {
@@ -1209,6 +1260,12 @@ function TerritoryTab({ allReps, managerId }) {
                 )
               })}
             </div>
+
+            {saveError && (
+              <div className="mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
+                {saveError}
+              </div>
+            )}
 
             <div className="flex gap-3">
               <button onClick={() => setShowForm(false)}

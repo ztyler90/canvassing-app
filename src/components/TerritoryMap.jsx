@@ -119,7 +119,10 @@ const TerritoryMap = forwardRef(function TerritoryMap(
     completeDrawing() { finishDraw() },
     isDrawing()     { return drawingRef.current },
     getDrawPointCount() { return drawPtsRef.current.length },
-    flyTo(lat, lng, zoom = 16) {
+    // Default zoom bumped from 16 → 17.5 so typing an address lands the
+    // manager at street-level, where individual driveways are legible,
+    // instead of a city-block overview.
+    flyTo(lat, lng, zoom = 17.5) {
       if (!mapRef.current || lat == null || lng == null) return
       // Mark the viewport as user-owned so a late-resolving geolocation
       // callback from the auto-fit effect doesn't snap the map back to the
@@ -129,9 +132,12 @@ const TerritoryMap = forwardRef(function TerritoryMap(
     },
     /**
      * Fit bounds to all activity: territory polygons + door history + DNK.
-     * Zooms as tight as the data allows (capped at maxZoom).
+     * Zooms as tight as the data allows (capped at maxZoom). Defaults
+     * were relaxed in the April 2026 update — maxZoom 18 + 20px padding
+     * keeps tight clusters of activity tightly framed instead of adding
+     * block-wide whitespace around them.
      */
-    fitToAll(maxZoom = 17) {
+    fitToAll(maxZoom = 18) {
       if (!mapRef.current) return
       const pts = []
       territories.forEach((t) => {
@@ -143,9 +149,9 @@ const TerritoryMap = forwardRef(function TerritoryMap(
       doNotKnock.forEach((d) => { if (d.lat && d.lng) pts.push([d.lat, d.lng]) })
       if (pts.length === 0) return
       if (pts.length === 1) {
-        mapRef.current.setView(pts[0], Math.min(maxZoom, 16))
+        mapRef.current.setView(pts[0], maxZoom)
       } else {
-        mapRef.current.fitBounds(pts, { padding: [40, 40], maxZoom })
+        mapRef.current.fitBounds(pts, { padding: [20, 20], maxZoom })
       }
     },
   }))
@@ -225,10 +231,14 @@ const TerritoryMap = forwardRef(function TerritoryMap(
     const onKey = (e) => { if (e.key === 'Escape') clearDraw() }
     document.addEventListener('keydown', onKey)
 
-    // Neutral "somewhere in the US" default — this only flashes for a few
-    // frames before either the territory-auto-fit or the geolocation
-    // fallback pulls the map to where the manager actually cares about.
-    map.setView([39.8283, -98.5795], 4)
+    // Neutral default — picked to flash a city-level view (zoom 12) rather
+    // than the continent-wide zoom-4 we used to use. If auto-fit or
+    // geolocation lands within the next second the manager never sees this
+    // at all, and if they *do* (geolocation denied, no territories yet)
+    // they're already looking at a recognizable neighborhood-ish extent
+    // instead of the whole US. Center is the continental centroid so the
+    // initial tile load doesn't bias toward one coast.
+    map.setView([39.8283, -98.5795], 12)
     mapRef.current = map
 
     return () => {
@@ -348,9 +358,13 @@ const TerritoryMap = forwardRef(function TerritoryMap(
     })
     if (polyPts.length > 0) {
       if (polyPts.length === 1) {
-        mapRef.current.setView(polyPts[0], 17)
+        mapRef.current.setView(polyPts[0], 18)
       } else {
-        mapRef.current.fitBounds(polyPts, { padding: [40, 40], maxZoom: 17 })
+        // Tighter padding (20px vs the old 40) + one extra maxZoom step
+        // so a small drawn polygon lands at street-level instead of
+        // block-level. Leaflet will still back off to whatever wider
+        // zoom is needed if the polygon spans more than the viewport.
+        mapRef.current.fitBounds(polyPts, { padding: [20, 20], maxZoom: 18 })
       }
       autoFitDoneRef.current = true
       return
@@ -370,7 +384,9 @@ const TerritoryMap = forwardRef(function TerritoryMap(
           // resolved, leave their viewport alone.
           if (userMovedRef.current) return
           const { latitude, longitude } = pos.coords
-          mapRef.current.setView([latitude, longitude], 17)
+          // Zoom 18 ≈ street-level where individual houses are clearly
+          // distinguishable. Was 17 which rendered a block-wide view.
+          mapRef.current.setView([latitude, longitude], 18)
         },
         () => { /* permission denied or timeout — keep default view */ },
         { enableHighAccuracy: false, timeout: 6000, maximumAge: 5 * 60 * 1000 }

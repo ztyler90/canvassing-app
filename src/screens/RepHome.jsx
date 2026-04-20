@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import {
   MapPin, DollarSign, Settings, Trophy, Play,
   TrendingUp, Users, Target, ChevronRight, Sparkles, LogOut,
+  Map, Inbox, Flag,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
@@ -11,7 +12,7 @@ import {
   startSession, getRepSessions, getActiveSession,
   updateSessionStats, getMyCommissionConfig, getSessionInteractions,
   getMyOrganization, getRepOutcomesForHour, signOut,
-  getLeaderboardData, getLeaderboardRange,
+  getLeaderboardData, getLeaderboardRange, getOrgTerritoriesForRep,
 } from '../lib/supabase.js'
 import { requestGPSPermission } from '../lib/gps.js'
 import { gpsTracker } from '../lib/gps.js'
@@ -102,6 +103,12 @@ export default function RepHome() {
   const [boardToday,    setBoardToday]    = useState([])
   const [boardThisWeek, setBoardThisWeek] = useState([])
   const [boardLastWeek, setBoardLastWeek] = useState([])
+  // "Next Stops" inbox — every territory in the rep's org with the
+  // assigned-to-me flag, an interaction count, and the most-recent knock
+  // date. Loaded independently of the main dashboard so a slow door-
+  // history query can't delay the Start-Canvassing CTA.
+  const [territoryInbox, setTerritoryInbox] = useState([])
+  const [loadingInbox,   setLoadingInbox]   = useState(true)
 
   useEffect(() => {
     loadData()
@@ -149,6 +156,15 @@ export default function RepHome() {
       setBoardThisWeek(week || [])
       setBoardLastWeek(last || [])
     })
+
+    // Territory inbox — loaded in parallel with the other dashboard data
+    // so the Next Stops card fills in as soon as it's ready. Failures
+    // silently leave the list empty rather than blocking the rest of the
+    // dashboard (the card then renders the "no zones yet" empty state).
+    getOrgTerritoriesForRep(user.id)
+      .then((rows) => setTerritoryInbox(rows || []))
+      .catch(() => setTerritoryInbox([]))
+      .finally(() => setLoadingInbox(false))
   }
 
   // If an active session already exists in Supabase (e.g. rep closed the
@@ -417,6 +433,15 @@ export default function RepHome() {
           closeDiag={closeDiag}
           levelProximity={levelProximity}
           teamPulse={teamPulse}
+        />
+
+        {/* Next Stops — territory inbox. Assigned zones float to the top
+            with a pulsing Flag badge, the rest follow sorted by least-
+            recently-canvassed first so the rep always has a "go here
+            next" anchor even if nothing is explicitly assigned. */}
+        <NextStopsCard
+          territories={territoryInbox}
+          loading={loadingInbox}
         />
 
         {/* Scoreboard row: Today's Goal + Level (2 cards, same styling) */}
@@ -768,6 +793,131 @@ export function ConversionFunnel({ stats, conv, estimateLabel = 'Estimates' }) {
       </div>
     </div>
   )
+}
+
+/**
+ * NextStopsCard — the rep's territory inbox.
+ *
+ * Shows every zone in the org. Zones the manager has flagged for this rep
+ * ("priority") float to the top and get a lime "Assigned" chip; the rest
+ * are suggestions, sorted by staleness (least-recently-canvassed first).
+ *
+ * The card intentionally does NOT show dates or deadlines — territories
+ * are durable regions the rep can revisit whenever, not one-off tasks.
+ * Category tag and last-knock recency are the two coordinates the rep
+ * actually needs to decide where to go next.
+ */
+function NextStopsCard({ territories, loading }) {
+  if (loading) {
+    return (
+      <section className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <p className="text-gray-700 font-semibold text-sm flex items-center gap-1.5 mb-2">
+          <Inbox className="w-4 h-4 text-gray-400" /> Next Stops
+        </p>
+        <div className="h-16 bg-gray-50 rounded-lg animate-pulse" />
+      </section>
+    )
+  }
+
+  if (!territories || territories.length === 0) {
+    return (
+      <section className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <p className="text-gray-700 font-semibold text-sm flex items-center gap-1.5 mb-2">
+          <Inbox className="w-4 h-4 text-gray-400" /> Next Stops
+        </p>
+        <div className="flex items-start gap-2.5 text-gray-500 text-xs">
+          <Map className="w-4 h-4 text-gray-300 mt-0.5 shrink-0" />
+          <p>
+            No territories yet. Once your manager draws a zone in the
+            Territories tab, it'll show up here.
+          </p>
+        </div>
+      </section>
+    )
+  }
+
+  // Sort: assigned first, then by last-knocked asc (stale zones float up,
+  // with "never" treated as the stalest). This matches the product intent
+  // that a rep should always see *somewhere* to go next.
+  const sorted = [...territories].sort((a, b) => {
+    if (a.assigned_to_me !== b.assigned_to_me) return a.assigned_to_me ? -1 : 1
+    const aT = a.last_knock_at ? new Date(a.last_knock_at).getTime() : 0
+    const bT = b.last_knock_at ? new Date(b.last_knock_at).getTime() : 0
+    return aT - bT
+  })
+
+  const assignedCount = sorted.filter((t) => t.assigned_to_me).length
+
+  return (
+    <section className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-gray-700 font-semibold text-sm flex items-center gap-1.5">
+          <Inbox className="w-4 h-4 text-gray-400" />
+          Next Stops
+        </p>
+        {assignedCount > 0 && (
+          <span
+            className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
+            style={{ background: '#F1F8E1', color: '#4A7A17' }}
+          >
+            {assignedCount} assigned to you
+          </span>
+        )}
+      </div>
+      <div className="space-y-2">
+        {sorted.map((t) => (
+          <TerritoryRow key={t.id} territory={t} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function TerritoryRow({ territory }) {
+  const color = territory.color || '#3B82F6'
+  const recency = describeRecency(territory.last_knock_at)
+  const assigned = territory.assigned_to_me
+  return (
+    <div
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border ${assigned ? 'bg-lime-50/60 border-lime-200' : 'bg-white border-gray-100'}`}
+    >
+      <div
+        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+        style={{ backgroundColor: `${color}1F`, color }}
+      >
+        {assigned ? <Flag className="w-4 h-4" fill="currentColor" /> : <MapPin className="w-4 h-4" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-semibold text-gray-900 truncate">{territory.name}</p>
+          {territory.category && (
+            <span
+              className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full shrink-0"
+              style={{ backgroundColor: `${color}18`, color }}
+            >
+              {territory.category}
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+          {assigned ? 'Assigned to you · ' : ''}
+          {recency}
+          {territory.interaction_count > 0 && ` · ${territory.interaction_count} knock${territory.interaction_count === 1 ? '' : 's'} logged`}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function describeRecency(iso) {
+  if (!iso) return 'Never canvassed'
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
+  if (days === 0)    return 'Canvassed today'
+  if (days === 1)    return 'Canvassed yesterday'
+  if (days < 7)      return `Canvassed ${days} days ago`
+  if (days < 30)     return `Canvassed ${Math.floor(days / 7)} wk ago`
+  if (days < 365)    return `Canvassed ${Math.floor(days / 30)} mo ago`
+  return `Canvassed ${Math.floor(days / 365)} yr ago`
 }
 
 export function SessionRow({ session, onClick }) {
