@@ -2,7 +2,7 @@
  * MapView — Leaflet map with GPS trail and color-coded interaction pins.
  * Works for both the Active Canvassing screen and the Manager Dashboard.
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
