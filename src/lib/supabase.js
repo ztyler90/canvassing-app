@@ -1577,3 +1577,78 @@ export async function fireZapierWebhook(webhookUrl, payload) {
     return false
   }
 }
+
+// ── Organization services ───────────────────────────────────────────────────
+//
+// The list of offerings a company sells (e.g. "Window Cleaning", "HVAC
+// Tune-Up", "Solar Consultation"). Managers manage this list from
+// Settings; reps see it as the chip selector in InteractionModal when
+// booking a job. Org-scoped via RLS + an explicit org filter on reads
+// (same belt-and-suspenders pattern as getTerritories).
+
+/** Fetch all services for the caller's org, ordered for display. */
+export async function getOrgServices() {
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
+  const { data, error } = await supabase
+    .from('organization_services')
+    .select('id, label, sort_order')
+    .eq('organization_id', orgId)
+    .order('sort_order', { ascending: true })
+    .order('label',      { ascending: true })
+  if (error) {
+    console.warn('[getOrgServices] query failed:', error)
+    return []
+  }
+  return data || []
+}
+
+/**
+ * Add a service. Returns { data, error } so callers can surface a
+ * friendly inline message for the case-insensitive unique-violation
+ * (Postgres error code 23505) — that's the "you already added this"
+ * path the Settings UI needs to render gracefully.
+ */
+export async function createOrgService(label) {
+  const orgId = await getMyOrgId()
+  if (!orgId) return { data: null, error: new Error('No organization') }
+  const trimmed = (label || '').trim()
+  if (!trimmed) return { data: null, error: new Error('Service name is required') }
+  // Place new services at the end of the list. We could compute max+1
+  // server-side via an RPC but a tiny client-side read keeps this
+  // simple and the race (two managers adding at once) just produces
+  // equal sort_orders, which fall back to alphabetical at query time.
+  const existing = await getOrgServices()
+  const nextSort = existing.length > 0
+    ? Math.max(...existing.map((s) => s.sort_order || 0)) + 1
+    : 0
+  const { data, error } = await supabase
+    .from('organization_services')
+    .insert({ organization_id: orgId, label: trimmed, sort_order: nextSort })
+    .select('id, label, sort_order')
+    .single()
+  return { data, error }
+}
+
+export async function updateOrgService(id, { label, sortOrder } = {}) {
+  const updates = {}
+  if (label !== undefined)     updates.label      = (label || '').trim()
+  if (sortOrder !== undefined) updates.sort_order = sortOrder
+  if (Object.keys(updates).length === 0) return { data: null, error: null }
+  if (updates.label === '') return { data: null, error: new Error('Service name is required') }
+  const { data, error } = await supabase
+    .from('organization_services')
+    .update(updates)
+    .eq('id', id)
+    .select('id, label, sort_order')
+    .single()
+  return { data, error }
+}
+
+export async function deleteOrgService(id) {
+  const { error } = await supabase
+    .from('organization_services')
+    .delete()
+    .eq('id', id)
+  return { error }
+}

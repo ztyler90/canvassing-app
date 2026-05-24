@@ -14,6 +14,7 @@ import {
   uploadInteractionPhoto,
   updateInteractionPhotos,
   flagInteractionFollowUp,
+  getOrgServices,
 } from '../lib/supabase.js'
 import { reverseGeocodeCandidates } from '../lib/geocoding.js'
 import VoiceNoteButton from './VoiceNoteButton.jsx'
@@ -25,14 +26,11 @@ const OUTCOMES = [
   { id: 'booked',             label: 'Booked!',         emoji: '✅', color: '#10B981', bg: '#ECFDF5' },
 ]
 
-const SERVICES = [
-  'Window Cleaning',
-  'Gutter Cleaning',
-  'House Washing',
-  'Roof Cleaning',
-  'Driveway Washing',
-  'Holiday Lights',
-]
+// SERVICES is now manager-configurable per organization — see Settings →
+// Services. The hardcoded exterior-cleaning list that used to live here
+// (Window/Gutter/House/Roof/Driveway/Holiday) was a default that broke
+// the UX for any company outside home-services, so it's been moved into
+// public.organization_services and is fetched on mount below.
 
 const CONFETTI_COLORS = ['#10B981', '#F59E0B', '#3B82F6', '#EC4899', '#8B5CF6', '#EF4444', '#14B8A6', '#F97316']
 
@@ -62,6 +60,21 @@ export default function InteractionModal({
   const [contactPhone, setContactPhone] = useState(existingInteraction?.contact_phone || '')
   const [contactEmail, setContactEmail] = useState(existingInteraction?.contact_email || '')
   const [selectedServices, setServices] = useState(existingInteraction?.service_types || [])
+  // Org-defined service list (e.g. "Window Cleaning", "HVAC Tune-Up").
+  // Loaded once when the modal mounts; managers maintain this in
+  // Settings → Services. If empty, we show an inline nudge so the rep
+  // knows to ping their manager instead of staring at a blank section.
+  const [availableServices, setAvailableServices] = useState([])
+  const [servicesLoaded, setServicesLoaded]       = useState(false)
+  useEffect(() => {
+    let alive = true
+    getOrgServices().then((rows) => {
+      if (!alive) return
+      setAvailableServices(rows)
+      setServicesLoaded(true)
+    })
+    return () => { alive = false }
+  }, [])
   const [estimatedValue, setEstValue]   = useState(
     existingInteraction?.estimated_value != null ? String(existingInteraction.estimated_value) : ''
   )
@@ -616,29 +629,38 @@ export default function InteractionModal({
               />
             </div>
 
-            {/* Services */}
+            {/* Services — populated from the org's configured list (Settings → Services). */}
             <div>
               <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Services</p>
-              <div className="flex flex-wrap gap-2">
-                {SERVICES.map((svc) => {
-                  const active = selectedServices.includes(svc)
-                  return (
-                    <button
-                      key={svc}
-                      type="button"
-                      onClick={() => toggleService(svc)}
-                      className="px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-colors"
-                      style={{
-                        backgroundColor: active ? '#1A6B3A' : 'transparent',
-                        borderColor:     active ? '#1A6B3A' : '#D1D5DB',
-                        color:           active ? 'white'   : '#374151',
-                      }}
-                    >
-                      {svc}
-                    </button>
-                  )
-                })}
-              </div>
+              {!servicesLoaded ? (
+                <div className="text-xs text-gray-400 py-2">Loading services…</div>
+              ) : availableServices.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-xs text-gray-500">
+                  No services configured yet. Ask your manager to add them in
+                  <span className="font-semibold text-gray-700"> Settings → Services</span>.
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {availableServices.map((svc) => {
+                    const active = selectedServices.includes(svc.label)
+                    return (
+                      <button
+                        key={svc.id}
+                        type="button"
+                        onClick={() => toggleService(svc.label)}
+                        className="px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-colors"
+                        style={{
+                          backgroundColor: active ? '#1A6B3A' : 'transparent',
+                          borderColor:     active ? '#1A6B3A' : '#D1D5DB',
+                          color:           active ? 'white'   : '#374151',
+                        }}
+                      >
+                        {svc.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Estimated value */}

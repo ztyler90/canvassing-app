@@ -9,8 +9,8 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw } from 'lucide-react'
-import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal } from '../lib/supabase.js'
+import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil } from 'lucide-react'
+import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService } from '../lib/supabase.js'
 import { describeCommission, DEFAULT_COMMISSION_CONFIG } from '../lib/repStats.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -59,6 +59,18 @@ export default function Settings() {
   const [countLabel,   setCountLabel]   = useState('estimates') // 'estimates' | 'appointments'
   const [savingGoal,   setSavingGoal]   = useState(false)
 
+  // Services — manager-defined list of offerings (window cleaning, HVAC
+  // tune-up, solar consult, etc.) that powers the rep's booking modal.
+  // No defaults — new orgs start empty and must explicitly add services
+  // so the chip list always reflects what the company actually sells.
+  const [services,        setServices]        = useState([])
+  const [newServiceLabel, setNewServiceLabel] = useState('')
+  const [addingService,   setAddingService]   = useState(false)
+  const [editingSvcId,    setEditingSvcId]    = useState(null)
+  const [editingSvcLabel, setEditingSvcLabel] = useState('')
+  const [savingSvcId,     setSavingSvcId]     = useState(null)
+  const [deletingSvcId,   setDeletingSvcId]   = useState(null)
+
   useEffect(() => {
     loadSettings()
   }, [])
@@ -81,14 +93,16 @@ export default function Settings() {
   }, [])
 
   async function loadSettings() {
-    const [u, repList, myOrg] = await Promise.all([
+    const [u, repList, myOrg, svcList] = await Promise.all([
       getCurrentUser(),
       getAllReps(),
       getMyOrganization(),
+      getOrgServices(),
     ])
     setUser(u)
     setReps(repList)
     setOrg(myOrg)
+    setServices(svcList)
     if (myOrg) {
       setGoalType(myOrg.daily_goal_type || 'revenue')
       setGoalValue(String(myOrg.daily_goal_value ?? 1000))
@@ -100,6 +114,80 @@ export default function Settings() {
       setSavedUrl(url)
     }
     setLoading(false)
+  }
+
+  // ── Services CRUD handlers ────────────────────────────────────────────
+  async function handleAddService(e) {
+    if (e) e.preventDefault()
+    const label = newServiceLabel.trim()
+    if (!label) return
+    // Client-side duplicate guard before round-tripping. The DB unique
+    // index is case-insensitive, so we match the same way here to give
+    // an instant inline message instead of waiting for the 23505 round-trip.
+    if (services.some((s) => s.label.toLowerCase() === label.toLowerCase())) {
+      showToast(`"${label}" is already in your services list`, 'error')
+      return
+    }
+    setAddingService(true)
+    const { data, error } = await createOrgService(label)
+    setAddingService(false)
+    if (error) {
+      // Postgres unique-violation = race lost to another tab/manager.
+      const msg = error.code === '23505'
+        ? `"${label}" is already in your services list`
+        : `Couldn't add service: ${error.message || 'unknown error'}`
+      showToast(msg, 'error')
+      return
+    }
+    setServices((prev) => [...prev, data])
+    setNewServiceLabel('')
+    showToast(`Added "${data.label}"`)
+  }
+
+  function beginEditService(svc) {
+    setEditingSvcId(svc.id)
+    setEditingSvcLabel(svc.label)
+  }
+
+  function cancelEditService() {
+    setEditingSvcId(null)
+    setEditingSvcLabel('')
+  }
+
+  async function handleSaveServiceEdit(svc) {
+    const label = editingSvcLabel.trim()
+    if (!label) { showToast('Service name is required', 'error'); return }
+    if (label === svc.label) { cancelEditService(); return }
+    if (services.some((s) => s.id !== svc.id && s.label.toLowerCase() === label.toLowerCase())) {
+      showToast(`"${label}" is already in your services list`, 'error')
+      return
+    }
+    setSavingSvcId(svc.id)
+    const { data, error } = await updateOrgService(svc.id, { label })
+    setSavingSvcId(null)
+    if (error) {
+      const msg = error.code === '23505'
+        ? `"${label}" is already in your services list`
+        : `Couldn't save: ${error.message || 'unknown error'}`
+      showToast(msg, 'error')
+      return
+    }
+    setServices((prev) => prev.map((s) => (s.id === svc.id ? data : s)))
+    cancelEditService()
+    showToast('Service updated')
+  }
+
+  async function handleDeleteService(svc) {
+    if (!window.confirm(`Remove "${svc.label}" from your services list?\n\nReps will no longer be able to select it on new bookings. Past bookings keep their service name.`)) return
+    setDeletingSvcId(svc.id)
+    const { error } = await deleteOrgService(svc.id)
+    setDeletingSvcId(null)
+    if (error) {
+      showToast(`Couldn't delete: ${error.message || 'unknown error'}`, 'error')
+      return
+    }
+    setServices((prev) => prev.filter((s) => s.id !== svc.id))
+    showToast(`Removed "${svc.label}"`)
   }
 
   async function handleSaveGoal() {
@@ -828,6 +916,119 @@ export default function Settings() {
                 </>
               )}
             </button>
+          </div>
+        </section>
+
+        {/* ── Services ───────────────────────────────────────────────── */}
+        {/* Manager-defined list of offerings (window cleaning, HVAC tune-up,
+            solar consult, etc.) that powers the chip selector in the rep's
+            booking modal. Empty by default — reps see an empty-state nudge
+            until the manager adds at least one service here, so the list
+            always reflects what THIS company actually sells. */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Tag className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+            <h2 className="text-gray-700 font-semibold text-base">Services</h2>
+          </div>
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
+            <p className="text-gray-500 text-xs">
+              These are the services your reps can select when booking a job.
+              Add the offerings your company sells — anything from "Window Cleaning"
+              to "HVAC Tune-Up" to "Solar Consultation".
+            </p>
+
+            {/* Existing services list */}
+            {services.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center">
+                <p className="text-gray-600 text-sm font-medium">No services yet</p>
+                <p className="text-gray-400 text-xs mt-1">
+                  Reps won't see any service chips on the booking screen until you add at least one below.
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-1.5">
+                {services.map((svc) => {
+                  const isEditing = editingSvcId === svc.id
+                  const isSaving  = savingSvcId === svc.id
+                  const isDeleting = deletingSvcId === svc.id
+                  return (
+                    <li key={svc.id}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-100 bg-gray-50">
+                      {isEditing ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editingSvcLabel}
+                            autoFocus
+                            onChange={(e) => setEditingSvcLabel(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter')  { e.preventDefault(); handleSaveServiceEdit(svc) }
+                              if (e.key === 'Escape') { e.preventDefault(); cancelEditService() }
+                            }}
+                            disabled={isSaving}
+                            className="flex-1 min-w-0 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+                          />
+                          <button
+                            onClick={() => handleSaveServiceEdit(svc)}
+                            disabled={isSaving}
+                            className="p-1.5 rounded-lg text-white disabled:opacity-50"
+                            style={{ backgroundColor: BRAND_BLUE }}
+                            title="Save">
+                            {isSaving ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                          </button>
+                          <button
+                            onClick={cancelEditService}
+                            disabled={isSaving}
+                            className="p-1.5 rounded-lg bg-gray-200 text-gray-600 disabled:opacity-50"
+                            title="Cancel">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1 text-sm text-gray-800">{svc.label}</span>
+                          <button
+                            onClick={() => beginEditService(svc)}
+                            disabled={isDeleting}
+                            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 disabled:opacity-50"
+                            title="Edit">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteService(svc)}
+                            disabled={isDeleting}
+                            className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-50"
+                            title="Delete">
+                            {isDeleting ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                          </button>
+                        </>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+
+            {/* Add new service */}
+            <form onSubmit={handleAddService} className="flex items-center gap-2 pt-1">
+              <input
+                type="text"
+                value={newServiceLabel}
+                onChange={(e) => setNewServiceLabel(e.target.value)}
+                placeholder="e.g. Window Cleaning"
+                disabled={addingService}
+                className="flex-1 min-w-0 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={addingService || !newServiceLabel.trim()}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
+                style={{ backgroundColor: BRAND_BLUE }}>
+                {addingService
+                  ? <Loader className="w-4 h-4 animate-spin" />
+                  : <><Plus className="w-4 h-4" /> Add</>}
+              </button>
+            </form>
           </div>
         </section>
 
