@@ -92,6 +92,12 @@
       transition: color .15s;
     }
     .nav-links a:hover { color: var(--ink); }
+    .nav-actions { display: flex; align-items: center; gap: 16px; }
+    .nav-signin {
+      font-size: 14px; color: var(--text); font-weight: 500;
+      transition: color .15s;
+    }
+    .nav-signin:hover { color: var(--ink); }
 
     .btn {
       display: inline-flex; align-items: center; gap: 8px;
@@ -1035,6 +1041,10 @@
     @media (max-width: 600px) {
       .section { padding: 72px 0; }
       .nav-links { display: none; }
+      .nav-inner { padding: 0 16px; }
+      .nav-actions { gap: 10px; }
+      .nav-signin { font-size: 13px; }
+      .nav-actions .btn { padding: 9px 14px; font-size: 13px; }
       .auto-compare { grid-template-columns: 1fr; }
       .hero-trust { flex-direction: column; gap: 8px; }
     }
@@ -1055,9 +1065,11 @@
       <li><a href="#for-managers">For Managers</a></li>
       <li><a href="#for-reps">For Reps</a></li>
       <li><a href="#pricing">Pricing</a></li>
-      <li><a href="/login">Sign In</a></li>
     </ul>
-    <a href="/signup" class="btn btn-blue">Start Free Trial</a>
+    <div class="nav-actions">
+      <a href="/login" class="nav-signin">Sign In</a>
+      <a href="/signup" class="btn btn-blue">Start Free Trial</a>
+    </div>
   </div>
 </nav>
 

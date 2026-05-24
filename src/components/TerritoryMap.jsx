@@ -75,12 +75,16 @@ function timeAgo(dateStr) {
 }
 
 const TerritoryMap = forwardRef(function TerritoryMap(
-  { territories = [], doorHistory = [], doNotKnock = [], onPolygonComplete, onDrawPointsChange, className = '', autoFit = false },
+  { territories = [], doorHistory = [], doNotKnock = [], onPolygonComplete, onDrawPointsChange, onEditTerritory, className = '', autoFit = false },
   ref
 ) {
   const containerRef       = useRef(null)
   const mapRef             = useRef(null)
   const territoryLayersRef = useRef([])
+  // Keep latest callback in a ref so popup click handlers always see the
+  // current closure even after re-renders.
+  const onEditTerritoryRef = useRef(onEditTerritory)
+  useEffect(() => { onEditTerritoryRef.current = onEditTerritory }, [onEditTerritory])
   const historyLayerRef    = useRef(null)   // L.layerGroup for history pins
   const dnkLayerRef        = useRef(null)   // L.layerGroup for DNK pins
   const autoFitDoneRef     = useRef(false)
@@ -296,8 +300,13 @@ const TerritoryMap = forwardRef(function TerritoryMap(
         ? territory.territory_assignments.map((a) => a.users?.full_name || 'Unknown').join(', ')
         : 'Unassigned'
 
+      const lastDateText = last
+        ? new Date(last.created_at).toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+          })
+        : null
       const lastText = last
-        ? `${timeAgo(last.created_at)} by ${last.users?.full_name || 'rep'}`
+        ? `${lastDateText} (${timeAgo(last.created_at)}) by ${last.users?.full_name || 'rep'}`
         : 'Never canvassed'
 
       // Recency badge color
@@ -308,10 +317,14 @@ const TerritoryMap = forwardRef(function TerritoryMap(
       const recencyLabel = daysSinceLast <= 7 ? '● Recent' : daysSinceLast <= 30 ? '● Moderate' : '● Stale'
 
       const popupHtml = `
-        <div style="min-width:200px;font-family:system-ui;padding:4px 2px">
+        <div style="min-width:220px;font-family:system-ui;padding:4px 2px">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
             <div style="width:12px;height:12px;background:${color};border-radius:3px;flex-shrink:0"></div>
-            <span style="font-weight:700;font-size:14px;color:#0F172A">${territory.name}</span>
+            <span style="font-weight:700;font-size:14px;color:#0F172A;flex:1">${territory.name}</span>
+            <button data-edit-territory="${territory.id}" title="Edit territory"
+              style="background:transparent;border:none;cursor:pointer;padding:4px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;color:#64748B;line-height:0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+            </button>
           </div>
           <div style="font-size:12px;color:#475569;margin-bottom:4px">
             <span style="color:#94A3B8">Assigned:</span> ${assignedReps}
@@ -335,6 +348,18 @@ const TerritoryMap = forwardRef(function TerritoryMap(
       poly.bindTooltip(territory.name, { sticky: true, direction: 'center' })
       poly.on('mouseover', function () { this.setStyle({ fillOpacity: 0.25 }) })
       poly.on('mouseout',  function () { this.setStyle({ fillOpacity: 0.13 }) })
+      poly.on('popupopen', function (e) {
+        const btn = e.popup.getElement()?.querySelector(`[data-edit-territory="${territory.id}"]`)
+        if (!btn) return
+        const handler = (ev) => {
+          ev.stopPropagation()
+          poly.closePopup()
+          onEditTerritoryRef.current?.(territory)
+        }
+        btn.addEventListener('click', handler)
+        btn.addEventListener('mouseenter', () => { btn.style.background = '#F1F5F9'; btn.style.color = '#0F172A' })
+        btn.addEventListener('mouseleave', () => { btn.style.background = 'transparent'; btn.style.color = '#64748B' })
+      })
       poly.addTo(mapRef.current)
       territoryLayersRef.current.push(poly)
     })
@@ -375,16 +400,27 @@ const TerritoryMap = forwardRef(function TerritoryMap(
   //      a "whole continent" view when they've got an empty territory list.
   useEffect(() => {
     if (!autoFit || !mapRef.current) return
-    if (autoFitDoneRef.current) return
 
-    // Stage 1: fit to drawn polygons if we have any.
+    // Stage 1: fit to drawn polygons whenever territories are present and
+    // the manager hasn't taken control of the viewport yet. We intentionally
+    // do NOT gate this on autoFitDoneRef — that one-shot guard previously
+    // caused the tab to strand the manager on a stale view (default Tampa
+    // or a cached geolocation) when territories loaded *after* the first
+    // effect run, so they had to manually zoom into their market every
+    // visit. userMovedRef still keeps us from yanking the viewport after
+    // a drag/zoom/address-search.
     const polyPts = []
     territories.forEach((t) => {
       if (Array.isArray(t.polygon)) {
         t.polygon.forEach((p) => { if (p && p.length === 2) polyPts.push(p) })
       }
     })
-    if (polyPts.length > 0) {
+    if (polyPts.length > 0 && !userMovedRef.current) {
+      // The Territories tab mounts the map inside a freshly-shown container,
+      // so Leaflet's cached container size can be 0×0 on the first effect
+      // run — which makes fitBounds resolve to a tiny zoom (whole-country
+      // view). invalidateSize() forces a re-measure before we fit.
+      mapRef.current.invalidateSize()
       if (polyPts.length === 1) {
         mapRef.current.setView(polyPts[0], 18)
       } else {
@@ -397,6 +433,7 @@ const TerritoryMap = forwardRef(function TerritoryMap(
       autoFitDoneRef.current = true
       return
     }
+    if (autoFitDoneRef.current) return
 
     // Stage 2: no territories → ask for the manager's current location
     // ONCE (geoRequestedRef is the one-shot gate). Crucially, we do NOT

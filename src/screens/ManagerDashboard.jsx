@@ -1125,6 +1125,7 @@ function TerritoryTab({ allReps, managerId }) {
           doNotKnock={doNotKnock}
           onPolygonComplete={handlePolygonComplete}
           onDrawPointsChange={setDrawPts}
+          onEditTerritory={openEditForm}
           className="w-full h-full"
           autoFit
         />
