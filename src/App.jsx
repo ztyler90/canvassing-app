@@ -35,7 +35,10 @@ class ErrorBoundary extends Component {
 }
 
 function WelcomeRedirect() {
-  if (typeof window !== 'undefined') window.location.replace('/welcome.html')
+  // Send unknown / unauthenticated routes to "/". Vercel rewrites "/" to
+  // serve public/welcome.html silently, so the URL bar stays clean instead
+  // of flashing "/welcome.html".
+  if (typeof window !== 'undefined') window.location.replace('/')
   return null
 }
 
