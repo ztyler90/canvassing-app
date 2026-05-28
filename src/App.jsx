@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'
 import { SessionProvider } from './contexts/SessionContext.jsx'
 import Login             from './screens/Login.jsx'
 import Signup            from './screens/Signup.jsx'
+import RepJoin           from './screens/RepJoin.jsx'
+import PendingApproval   from './screens/PendingApproval.jsx'
 import SetPassword       from './screens/SetPassword.jsx'
 import RepHome           from './screens/RepHome.jsx'
 import ActiveCanvassing  from './screens/ActiveCanvassing.jsx'
@@ -67,12 +69,34 @@ function AppRoutes() {
     <Routes>
       <Route path="/signup"        element={<Signup />} />
       <Route path="/login"         element={<Login />} />
+      {/* /join/:code — shareable invite-link rep sign-up. Reachable
+          pre-auth because the whole point is letting someone without an
+          account create one. Resolves the code to an org-name preview
+          before asking for any info, so a stale link surfaces an error
+          immediately instead of after a failed signup. */}
+      <Route path="/join/:code"    element={<RepJoin />} />
       {/* /set-password renders both pre-auth (while Supabase is still
           parsing the invite link from the URL hash) and post-auth (once
           the session has landed and the rep needs to pick a password),
           so it needs to be reachable in both trees. */}
       <Route path="/set-password"  element={<SetPassword />} />
       <Route path="*"              element={<WelcomeRedirect />} />
+    </Routes>
+  )
+
+  // Pending-approval gate. Reps who self-registered via an invite link
+  // land here in `status='pending'` until their manager taps Approve in
+  // Settings. The check sits ABOVE force_password_change because invite-
+  // link reps already chose their own password during the join flow —
+  // they don't have a temp-password override to clear, and even if some
+  // future code path stamped both flags, "your account isn't approved
+  // yet" is the more honest first message to show. PendingApproval has
+  // a "Check again" button that calls refreshUser(); the moment the
+  // owner flips status → 'active', the next render falls through to
+  // the rep tree below.
+  if (user.status === 'pending') return (
+    <Routes>
+      <Route path="*" element={<PendingApproval />} />
     </Routes>
   )
 

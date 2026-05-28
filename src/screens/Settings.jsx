@@ -9,8 +9,8 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil } from 'lucide-react'
-import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService } from '../lib/supabase.js'
+import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2 } from 'lucide-react'
+import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl } from '../lib/supabase.js'
 import { describeCommission, DEFAULT_COMMISSION_CONFIG } from '../lib/repStats.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -59,6 +59,22 @@ export default function Settings() {
   const [countLabel,   setCountLabel]   = useState('estimates') // 'estimates' | 'appointments'
   const [savingGoal,   setSavingGoal]   = useState(false)
 
+  // Shareable invite link — owner generates one URL their reps can sign
+  // up through, avoiding manual rep-by-rep account creation. State is
+  // hydrated from the get_my_invite_code RPC on load. `code` may be null
+  // briefly for orgs that existed before the 20260528 migration ran
+  // (the migration backfills, but the UI defends against null anyway).
+  const [inviteCode,     setInviteCode]     = useState(null)        // string | null
+  const [inviteEnabled,  setInviteEnabled]  = useState(true)
+  const [inviteToggling, setInviteToggling] = useState(false)
+  const [inviteRotating, setInviteRotating] = useState(false)
+
+  // Pending reps — populated for managers whose org received self-signups
+  // via the invite link. The owner Approves (status → 'active') or
+  // Rejects (status → 'rejected', org_id cleared) one at a time.
+  const [pendingReps,    setPendingReps]    = useState([])
+  const [pendingActionId, setPendingActionId] = useState(null)      // rep id mid-Approve/Reject
+
   // Services — manager-defined list of offerings (window cleaning, HVAC
   // tune-up, solar consult, etc.) that powers the rep's booking modal.
   // No defaults — new orgs start empty and must explicitly add services
@@ -93,16 +109,25 @@ export default function Settings() {
   }, [])
 
   async function loadSettings() {
-    const [u, repList, myOrg, svcList] = await Promise.all([
+    // Fire everything in parallel — invite + pending live alongside the
+    // other Settings fetches so the page renders in one paint.
+    const [u, repList, myOrg, svcList, invite, pending] = await Promise.all([
       getCurrentUser(),
       getAllReps(),
       getMyOrganization(),
       getOrgServices(),
+      getMyInviteCode(),
+      getPendingReps(),
     ])
     setUser(u)
     setReps(repList)
     setOrg(myOrg)
     setServices(svcList)
+    setPendingReps(pending || [])
+    if (invite) {
+      setInviteCode(invite.code || null)
+      setInviteEnabled(Boolean(invite.enabled))
+    }
     if (myOrg) {
       setGoalType(myOrg.daily_goal_type || 'revenue')
       setGoalValue(String(myOrg.daily_goal_value ?? 1000))
@@ -114,6 +139,104 @@ export default function Settings() {
       setSavedUrl(url)
     }
     setLoading(false)
+  }
+
+  // ── Invite-link + pending-approval handlers ─────────────────────────
+  async function handleToggleInvite() {
+    const next = !inviteEnabled
+    setInviteToggling(true)
+    // Optimistic flip — the network round-trip is short and the cost of
+    // a flicker is more annoying than re-syncing on error.
+    setInviteEnabled(next)
+    const { error } = await setInviteCodeEnabled(next)
+    setInviteToggling(false)
+    if (error) {
+      setInviteEnabled(!next)
+      showToast('Could not update the invite link: ' + error.message, 'error')
+    } else {
+      showToast(next ? 'Invite link enabled' : 'Invite link disabled')
+    }
+  }
+
+  async function handleRotateInvite() {
+    if (!window.confirm(
+      'Regenerate the invite code? Anyone with the old link will no longer be able to join.',
+    )) return
+    setInviteRotating(true)
+    const { code, error } = await regenerateInviteCode()
+    setInviteRotating(false)
+    if (error) {
+      showToast('Could not regenerate: ' + error.message, 'error')
+      return
+    }
+    setInviteCode(code)
+    showToast('New invite link generated')
+  }
+
+  async function handleCopyInviteUrl() {
+    const url = buildInviteUrl(inviteCode)
+    if (!url) return
+    try {
+      await navigator.clipboard.writeText(url)
+      showToast('Invite link copied')
+    } catch {
+      showToast("Couldn't copy — long-press the link to copy it manually.", 'error')
+    }
+  }
+
+  async function handleShareInvite() {
+    const url = buildInviteUrl(inviteCode)
+    if (!url) return
+    const orgName = org?.name || 'our team'
+    const message = `Join ${orgName} on KnockIQ — sign up here: ${url}`
+    // Native share sheet on mobile (iOS/Android) when available; falls
+    // back to a copy on desktop browsers that don't expose Web Share.
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title: 'KnockIQ team invite', text: message, url })
+        return
+      } catch (e) {
+        // User cancelled the share sheet — not an error.
+        if (e?.name === 'AbortError') return
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(message)
+      showToast('Invite message copied')
+    } catch {
+      showToast("Couldn't open share — long-press the link instead.", 'error')
+    }
+  }
+
+  async function handleApproveRep(rep) {
+    setPendingActionId(rep.id)
+    const { error } = await approveRep(rep.id)
+    setPendingActionId(null)
+    if (error) {
+      showToast('Could not approve: ' + error.message, 'error')
+      return
+    }
+    setPendingReps(prev => prev.filter(p => p.id !== rep.id))
+    // Optimistically add to the rep list so the manager sees them
+    // immediately under "Team" without a re-fetch.
+    setReps(prev => prev.find(r => r.id === rep.id) ? prev : [
+      ...prev,
+      { id: rep.id, email: rep.email, full_name: rep.full_name, phone: rep.phone || null, role: 'rep' },
+    ])
+    showToast(`${rep.full_name || rep.email} approved`)
+  }
+
+  async function handleRejectRep(rep) {
+    if (!window.confirm(`Reject ${rep.full_name || rep.email}'s sign-up request?`)) return
+    setPendingActionId(rep.id)
+    const { error } = await rejectRep(rep.id)
+    setPendingActionId(null)
+    if (error) {
+      showToast('Could not reject: ' + error.message, 'error')
+      return
+    }
+    setPendingReps(prev => prev.filter(p => p.id !== rep.id))
+    showToast(`${rep.full_name || rep.email} rejected`)
   }
 
   // ── Services CRUD handlers ────────────────────────────────────────────
@@ -562,6 +685,167 @@ export default function Settings() {
           </div>
         </section>
 
+        {/* ── Team Invite Link ────────────────────────────────────────
+            Lets the owner share ONE URL that any number of reps can
+            self-onboard through. Designed for companies with too many
+            reps to add one-by-one in the form below. Sign-ups land in
+            the Pending Approvals queue right under this card. */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Link2 className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+              <h2 className="text-gray-700 font-semibold text-base">Team Invite Link</h2>
+            </div>
+            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+              <span className="text-xs font-medium text-gray-500">
+                {inviteEnabled ? 'Active' : 'Disabled'}
+              </span>
+              <span
+                onClick={inviteToggling ? undefined : handleToggleInvite}
+                className={`relative inline-block w-9 h-5 rounded-full transition-colors ${inviteEnabled ? '' : 'bg-gray-300'} ${inviteToggling ? 'opacity-60' : ''}`}
+                style={inviteEnabled ? { backgroundColor: BRAND_BLUE } : {}}
+                role="switch"
+                aria-checked={inviteEnabled}
+              >
+                <span
+                  className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform"
+                  style={{ transform: inviteEnabled ? 'translateX(16px)' : 'translateX(0)' }}
+                />
+              </span>
+            </label>
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Share this link so reps can sign up themselves. Each new sign-up shows
+              up below under <span className="font-semibold text-gray-700">Pending Approvals</span>{' '}
+              for you to confirm before they can canvass.
+            </p>
+
+            {/* URL row */}
+            <div>
+              <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 mb-1">
+                Sign-up URL
+              </p>
+              <div className="flex items-center gap-2">
+                <code
+                  className={`flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono text-gray-800 truncate ${!inviteEnabled ? 'opacity-50' : ''}`}
+                  title={buildInviteUrl(inviteCode)}
+                >
+                  {inviteCode ? buildInviteUrl(inviteCode) : 'No invite code yet'}
+                </code>
+                <button
+                  onClick={handleCopyInviteUrl}
+                  disabled={!inviteCode || !inviteEnabled}
+                  className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                  title="Copy URL"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Code row — easier to read aloud over the phone than the URL */}
+            <div>
+              <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 mb-1">
+                Or share the code
+              </p>
+              <div className="flex items-center gap-2">
+                <code
+                  className={`flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-base font-mono tracking-widest text-gray-800 text-center ${!inviteEnabled ? 'opacity-50' : ''}`}
+                >
+                  {inviteCode || '—'}
+                </code>
+              </div>
+            </div>
+
+            {/* Actions — Share is primary so it gets the brand color. */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                onClick={handleRotateInvite}
+                disabled={inviteRotating}
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
+                title="Generate a new code — old link stops working"
+              >
+                {inviteRotating ? <Loader className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Regenerate
+              </button>
+              <button
+                onClick={handleShareInvite}
+                disabled={!inviteCode || !inviteEnabled}
+                className="btn-brand flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
+              >
+                <Share2 className="w-4 h-4" />
+                Share Link
+              </button>
+            </div>
+
+            {!inviteEnabled && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                The link is disabled — anyone who taps it sees an "invite isn't active" page.
+              </p>
+            )}
+          </div>
+
+          {/* Pending Approvals — only renders when there's something to do.
+              Sits inside the invite-link section because it's the direct
+              consequence of having an active link. */}
+          {pendingReps.length > 0 && (
+            <div className="mt-4 bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden">
+              <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-700" />
+                <p className="text-sm font-semibold text-amber-900">
+                  Pending Approvals
+                </p>
+                <span className="text-[11px] font-bold text-white bg-amber-600 px-1.5 py-0.5 rounded-full">
+                  {pendingReps.length}
+                </span>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {pendingReps.map((p) => (
+                  <div key={p.id} className="px-4 py-3 flex items-center gap-3">
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' }}
+                    >
+                      {(p.full_name || p.email || '?')[0].toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {p.full_name || '—'}
+                      </p>
+                      <p className="text-xs text-gray-400 truncate">{p.email}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleRejectRep(p)}
+                        disabled={pendingActionId === p.id}
+                        title="Reject sign-up"
+                        className="p-2 rounded-xl text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                      >
+                        {pendingActionId === p.id
+                          ? <Loader className="w-4 h-4 animate-spin" />
+                          : <XCircle className="w-4 h-4" />}
+                      </button>
+                      <button
+                        onClick={() => handleApproveRep(p)}
+                        disabled={pendingActionId === p.id}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-white text-xs font-bold disabled:opacity-40"
+                        style={{ backgroundColor: BRAND_BLUE }}
+                      >
+                        {pendingActionId === p.id
+                          ? <Loader className="w-3.5 h-3.5 animate-spin" />
+                          : <UserCheck className="w-3.5 h-3.5" />}
+                        Approve
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
         {/* ── Team Management ────────────────────────────────────────── */}
         <section ref={teamSectionRef}>
           <div className="flex items-center justify-between mb-3">
@@ -604,6 +888,29 @@ export default function Settings() {
                   </p>
                   <p className="text-xs text-gray-400">{reps.length + 1} rep{reps.length + 1 !== 1 ? 's' : ''} total</p>
                 </div>
+              </div>
+
+              {/* Discovery hint — surfaces the invite-link option for teams
+                  that would rather not type every rep by hand. Shown inside
+                  the manual form (only when it's open) so it can't be missed
+                  the moment a manager starts the per-rep workflow. */}
+              <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
+                <Link2 className="w-4 h-4 text-blue-700 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-blue-800 leading-relaxed">
+                  Onboarding a lot of reps? Share the{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Scroll the invite-link card into view — it's the
+                      // section right above the Team header.
+                      teamSectionRef.current?.previousElementSibling?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+                    }}
+                    className="underline font-semibold"
+                  >
+                    invite link
+                  </button>{' '}
+                  above so they can sign up themselves. You'll approve each one before they can canvass.
+                </p>
               </div>
 
               {/* Email-invite flow is disabled for now — the Add Rep form

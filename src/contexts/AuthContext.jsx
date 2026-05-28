@@ -43,13 +43,17 @@ async function buildProfile(sessionUser) {
     avatar_url: meta.avatar_url || null,
     force_password_change: false,
     phone: null,
+    // 'active' is the safe default — only the consume_invite_code RPC
+    // writes 'pending', so the metadata fallback can never legitimately
+    // belong to a pending rep (their row exists by definition).
+    status: 'active',
   })
 
   try {
     const { data: row } = await withTimeout(
       supabase
         .from('users')
-        .select('id, email, full_name, role, organization_id, is_super_admin, avatar_url, force_password_change, phone')
+        .select('id, email, full_name, role, organization_id, is_super_admin, avatar_url, force_password_change, phone, status')
         .eq('id', sessionUser.id)
         .single(),
       4000,

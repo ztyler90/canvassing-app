@@ -990,6 +990,161 @@ export async function deleteRep(repId) {
   return { error: error || null }
 }
 
+// ── Invite-code (shareable rep sign-up link) helpers ──────────────────────────
+//
+// The "Add Rep" form is fine when an owner has a handful of new hires, but it
+// gets brutal at scale (think a roofing company onboarding 100+ door-to-door
+// reps before a busy season). The invite-code flow lets the owner generate one
+// URL — https://app.knockiq.com/join/<code> — that any number of reps can
+// self-onboard through. Joiners land in `status='pending'` and the owner taps
+// Approve in Settings before they can canvass. All of the actual code +
+// approval state lives on the server (organizations.invite_code* and
+// users.status) and is exposed through the RPCs added in 20260528_invite_codes.
+
+/**
+ * Build the shareable URL for a given invite code. Mirrors the App.jsx route
+ * shape (/join/:code) and uses window.location.origin so the same code
+ * formats correctly on localhost, preview deploys, and production.
+ *
+ *   buildInviteUrl('K7P29W4Q')  // → 'https://app.knockiq.com/join/K7P29W4Q'
+ */
+export function buildInviteUrl(code) {
+  if (!code) return ''
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${origin}/join/${encodeURIComponent(code)}`
+}
+
+/**
+ * Public lookup — used by the /join/:code screen to show "You're joining
+ * Acme Solar" BEFORE the rep types anything. Returns null if the code is
+ * unknown or has been disabled by the owner; the caller treats null as
+ * "this link is dead" and renders an error state. Safe for unauthenticated
+ * callers (the RPC is granted to anon).
+ */
+export async function lookupInviteCode(code) {
+  if (!code) return null
+  const { data, error } = await supabase.rpc('lookup_invite_code', { p_code: code })
+  if (error) return null
+  // RPC returns SETOF — the first row (or undefined if no match).
+  const row = Array.isArray(data) ? data[0] : data
+  if (!row) return null
+  return {
+    organizationId:   row.organization_id,
+    organizationName: row.organization_name,
+    tier:             row.tier,
+  }
+}
+
+/**
+ * Called by the freshly-signed-up rep AFTER supabase.auth.signUp returns a
+ * session. The RPC reads auth.uid() server-side and stamps the rep's
+ * public.users row with the right organization_id + status='pending'.
+ *
+ * Throws are surfaced as { error }; we never want a thrown exception here
+ * because the rep is already authenticated and the UI needs to recover
+ * gracefully (e.g. show "couldn't attach you to the org — contact your
+ * manager" rather than a generic crash).
+ */
+export async function consumeInviteCode({ code, fullName, phone }) {
+  const { data, error } = await supabase.rpc('consume_invite_code', {
+    p_code:      code,
+    p_full_name: fullName || null,
+    p_phone:     phone    || null,
+  })
+  if (error) return { error }
+  const row = Array.isArray(data) ? data[0] : data
+  return {
+    organizationId:   row?.organization_id || null,
+    organizationName: row?.organization_name || null,
+    status:           row?.status || 'pending',
+    error:            null,
+  }
+}
+
+/**
+ * Owner-side: read the current invite code + enabled state for the caller's
+ * org. Returns null if the caller isn't a manager — the Settings UI uses
+ * that to skip rendering the section entirely (defensive; the section is
+ * already gated to managers up the tree).
+ */
+export async function getMyInviteCode() {
+  const { data, error } = await supabase.rpc('get_my_invite_code')
+  if (error) {
+    console.warn('[getMyInviteCode]', error.message)
+    return null
+  }
+  const row = Array.isArray(data) ? data[0] : data
+  if (!row) return null
+  return {
+    code:    row.invite_code,
+    enabled: row.invite_code_enabled,
+    orgId:   row.organization_id,
+    orgName: row.organization_name,
+  }
+}
+
+/**
+ * Rotate the invite code. Any previously-distributed URL stops resolving
+ * the moment this returns — the old code is overwritten in place, so the
+ * existing partial unique index guarantees no collisions on the new value.
+ * Returns the new code string so the caller can refresh its local state
+ * without an extra round-trip.
+ */
+export async function regenerateInviteCode() {
+  const { data, error } = await supabase.rpc('regenerate_invite_code')
+  if (error) return { error }
+  return { code: data, error: null }
+}
+
+/** Enable / disable the invite link without rotating the code. */
+export async function setInviteCodeEnabled(enabled) {
+  const { data, error } = await supabase.rpc('set_invite_code_enabled', {
+    p_enabled: Boolean(enabled),
+  })
+  if (error) return { error }
+  return { enabled: data, error: null }
+}
+
+/**
+ * List reps in the caller's org who have signed up via an invite link and
+ * are waiting for approval. Returns [] for non-managers or empty orgs.
+ *
+ * Sorted oldest-first so the owner sees "this person has been waiting the
+ * longest" at the top of the list — matches the mental model of an inbox.
+ */
+export async function getPendingReps() {
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, full_name, email, phone, created_at')
+    .eq('organization_id', orgId)
+    .eq('role',            'rep')
+    .eq('status',          'pending')
+    .order('created_at', { ascending: true })
+  if (error) {
+    console.warn('[getPendingReps]', error.message)
+    return []
+  }
+  return data || []
+}
+
+/** Approve a pending rep (flips users.status → 'active'). Owner-only. */
+export async function approveRep(repId) {
+  const { error } = await supabase.rpc('approve_rep', { p_rep_id: repId })
+  return { error: error || null }
+}
+
+/**
+ * Reject a pending rep. Owner-only. The auth user is preserved so the
+ * person can re-join later via a fresh code — to permanently remove,
+ * use deleteRep().
+ */
+export async function rejectRep(repId) {
+  const { error } = await supabase.rpc('reject_rep', { p_rep_id: repId })
+  return { error: error || null }
+}
+
 // ── Territory helpers ─────────────────────────────────────────────────────────
 
 export async function getTerritories() {
