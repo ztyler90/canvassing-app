@@ -22,6 +22,16 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // CRITICAL: do NOT let the SW intercept "/" or "/welcome.html".
+        // Vercel rewrites "/" → /welcome.html (the marketing landing page).
+        // Without these denylist entries, the default Workbox NavigationRoute
+        // serves the precached React index.html for "/" instead, which then
+        // boots the app, finds no user, and fires <WelcomeRedirect> →
+        // window.location.replace("/"). The SW intercepts again, app boots
+        // again, infinite redirect loop = "loading screen blinks forever".
+        // The denylist makes "/" fall through to the network so Vercel's
+        // rewrite to welcome.html actually gets a chance to fire.
+        navigateFallbackDenylist: [/^\/$/, /^\/welcome\.html$/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/tile\.openstreetmap\.org\/.*/i,

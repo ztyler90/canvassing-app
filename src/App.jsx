@@ -38,7 +38,23 @@ function WelcomeRedirect() {
   // Send unknown / unauthenticated routes to "/". Vercel rewrites "/" to
   // serve public/welcome.html silently, so the URL bar stays clean instead
   // of flashing "/welcome.html".
-  if (typeof window !== 'undefined') window.location.replace('/')
+  //
+  // Guard against an infinite-redirect loop: if we somehow rendered the
+  // React app at "/" itself (stale service worker that hasn't picked up
+  // the navigateFallbackDenylist yet, dev mode where Vercel rewrites
+  // don't apply, or a CDN cache anomaly), redirecting to "/" again just
+  // re-loads the React app and re-fires this component — that's the
+  // "loading screen blinks forever" symptom users reported. Going to
+  // /welcome.html directly bypasses both the rewrite and the loop. The
+  // URL bar shows /welcome.html for that one navigation, which is a
+  // small cosmetic cost compared to the marketing page never appearing.
+  if (typeof window !== 'undefined') {
+    if (window.location.pathname === '/') {
+      window.location.replace('/welcome.html')
+    } else {
+      window.location.replace('/')
+    }
+  }
   return null
 }
 
@@ -119,6 +135,8 @@ function LoadingScreen() {
 
   // Force a clean reload: bypass the SPA router AND nudge the service worker
   // to drop its cached HTML by appending a cache-busting query string.
+  // Preserve the user's current path — for a logged-in rep stuck loading on
+  // /canvassing, we don't want to dump them on the marketing page.
   const handleReload = () => {
     try {
       // Best-effort: tell any registered SW to skip waiting / re-fetch.
@@ -128,7 +146,8 @@ function LoadingScreen() {
         }).catch(() => {})
       }
     } finally {
-      window.location.href = `/?_r=${Date.now()}`
+      const path = window.location.pathname || '/'
+      window.location.href = `${path}?_r=${Date.now()}`
     }
   }
 
