@@ -84,8 +84,40 @@ export default function ManagerDashboard() {
   const [loading, setLoading]       = useState(true)
   const [dateRange, setDateRange]   = useState('month')
   const [selectedRep, setSelectedRep] = useState('all')
+  // First-time onboarding callout — points new owners at Settings to
+  // finish company setup (services, daily goal, team). Dismissal is
+  // stored per-org in localStorage so it doesn't reappear once the
+  // owner has dismissed it, even if they reload before adding any
+  // reps. Initialized synchronously from localStorage so the banner
+  // doesn't flash-on-then-vanish on first render.
+  const [setupDismissed, setSetupDismissed] = useState(() => {
+    if (typeof window === 'undefined' || !user?.organization_id) return false
+    try {
+      return localStorage.getItem(`knockiq:onboarding-callout:${user.organization_id}`) === '1'
+    } catch { return false }
+  })
 
   useEffect(() => { loadData() }, [dateRange, selectedRep])
+
+  // If the user object loaded AFTER mount (the initial useState reads
+  // before user.organization_id is available), sync the dismissed flag
+  // from localStorage once we have an org id to key on.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user?.organization_id) return
+    try {
+      const flag = localStorage.getItem(`knockiq:onboarding-callout:${user.organization_id}`) === '1'
+      setSetupDismissed(flag)
+    } catch { /* localStorage blocked — show the banner, it's not critical */ }
+  }, [user?.organization_id])
+
+  function dismissSetupCallout() {
+    setSetupDismissed(true)
+    try {
+      if (user?.organization_id) {
+        localStorage.setItem(`knockiq:onboarding-callout:${user.organization_id}`, '1')
+      }
+    } catch { /* best-effort */ }
+  }
 
   async function loadData() {
     setLoading(true)
@@ -140,6 +172,14 @@ export default function ManagerDashboard() {
   })
   const repStats = Object.values(repMap).sort((a, b) => b.revenue - a.revenue)
 
+  // "Needs setup" = a brand-new org with no reps and no canvassing activity.
+  // We don't gate on `org.created_at` because the better signal is "have they
+  // actually started using it yet" — an owner who joined 3 weeks ago but
+  // never finished setup still benefits from the nudge. Once they add a rep
+  // or log a single session, the cue goes away on its own.
+  const needsSetup  = !loading && reps.length === 0 && sessions.length === 0
+  const showCallout = needsSetup && !setupDismissed
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
@@ -170,8 +210,34 @@ export default function ManagerDashboard() {
                   <Shield className="w-5 h-5 text-white" />
                 </button>
               )}
-              <button onClick={() => navigate('/settings')} className="p-2 rounded-full bg-white/20">
-                <Settings className="w-5 h-5 text-white" />
+              {/* Gear icon — gets a pulsing lime ring + small dot when the
+                  org still needs setup, so a new owner has an obvious
+                  visual breadcrumb pointing them to Settings. The ring
+                  uses Tailwind's animate-ping on an absolutely-positioned
+                  sibling so the button itself stays still (animating the
+                  ring instead of the button keeps the icon click target
+                  steady). Cue disappears the moment reps.length > 0 or
+                  any session is logged. */}
+              <button
+                onClick={() => navigate('/settings')}
+                className="relative p-2 rounded-full bg-white/20"
+                aria-label={needsSetup ? 'Settings (setup recommended)' : 'Settings'}
+              >
+                {needsSetup && (
+                  <>
+                    <span
+                      className="pointer-events-none absolute inset-0 rounded-full animate-ping"
+                      style={{ backgroundColor: BRAND_LIME, opacity: 0.45 }}
+                      aria-hidden="true"
+                    />
+                    <span
+                      className="pointer-events-none absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white"
+                      style={{ backgroundColor: BRAND_LIME }}
+                      aria-hidden="true"
+                    />
+                  </>
+                )}
+                <Settings className="w-5 h-5 text-white relative" />
               </button>
               <button onClick={signOut} className="p-2 rounded-full bg-white/20">
                 <LogOut className="w-5 h-5 text-white" />
@@ -196,6 +262,54 @@ export default function ManagerDashboard() {
           </div>
         )
       })()}
+
+      {/* First-run setup callout — visible across every tab so a new owner
+          can't miss it. Sits below the trial banner intentionally: trial
+          status is the most time-sensitive info; this is the next step.
+          Dismissible (per-org localStorage). Self-hides the moment the
+          owner has any rep or session activity, so it can't survive into
+          a real working state. */}
+      {showCallout && (
+        <div className="px-4 pt-3">
+          <div className="max-w-7xl mx-auto w-full">
+            <div
+              className="relative rounded-2xl border-2 p-4 sm:p-5 flex items-start gap-3 shadow-sm"
+              style={{ borderColor: BRAND_LIME, backgroundColor: '#F7FCE8' }}
+            >
+              <div
+                className="hidden sm:flex w-11 h-11 rounded-xl items-center justify-center shrink-0"
+                style={{ backgroundColor: BRAND_LIME }}
+              >
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0 pr-6">
+                <p className="font-bold text-gray-900 text-sm sm:text-base">
+                  Welcome to KnockIQ — let's finish setting up your company
+                </p>
+                <p className="text-gray-700 text-xs sm:text-sm mt-0.5 leading-relaxed">
+                  Head to <span className="font-semibold">Settings</span> to add your services,
+                  set a daily goal, and invite your reps. Takes about two minutes.
+                </p>
+                <button
+                  onClick={() => navigate('/settings')}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-bold"
+                  style={{ backgroundColor: BRAND_GREEN }}
+                >
+                  Open Settings
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <button
+                onClick={dismissSetupCallout}
+                aria-label="Dismiss setup callout"
+                className="absolute top-2 right-2 p-1.5 rounded-md text-gray-500 hover:bg-black/5"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab Bar — horizontally scrollable for 7 tabs. A right-edge fade
           + pulsing chevron signals to the manager that more tabs (Map,
