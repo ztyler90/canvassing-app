@@ -1,0 +1,51 @@
+-- ============================================================
+-- KnockIQ — Hotfix: drop the recursive RLS policy added by
+-- 20260528_invite_codes.sql.
+--
+-- Background: that migration added
+--
+--   CREATE POLICY "Managers can read pending reps in their org"
+--     ON public.users FOR SELECT
+--     USING (EXISTS (SELECT 1 FROM public.users m WHERE m.id = auth.uid() ...));
+--
+-- which is a self-referential subquery on the same table the policy
+-- is attached to. Postgres tolerates the existing single-policy
+-- "Managers can read all users" pattern, but stacking another
+-- recursive EXISTS on top trips
+--
+--   ERROR: infinite recursion detected in policy for relation "users"
+--
+-- The same trap was previously called out in 20260418_super_admin_insights.sql
+-- — I should have followed that prior art and used a SECURITY DEFINER
+-- helper. The symptom users see is dramatic:
+--
+--   1. Every supabase.from('users').select() returns the recursion error.
+--   2. AuthContext.buildProfile() catches it, logs, and falls back to a
+--      metadata-only profile where `is_super_admin: false`.
+--   3. The Shield icon in the manager header disappears — the user
+--      reports "I lost my Super-Admin access."
+--   4. Pending Approvals list shows empty (the query also errors out).
+--   5. Settings page may render stale because /users reads from other
+--      helpers (getAllReps, etc.) all fail too.
+--
+-- Fix: drop the offending policy. We don't need to re-add it — the
+-- pre-existing "Managers can read all users" policy already lets a
+-- manager read every user in the database, and getPendingReps()
+-- narrows to the right org client-side via .eq('organization_id', orgId).
+-- Cross-org leakage isn't a regression vs. behavior before this week
+-- (the existing policy has always been that permissive for managers).
+-- ============================================================
+
+DROP POLICY IF EXISTS "Managers can read pending reps in their org" ON public.users;
+
+-- Sanity check — uncomment and run interactively if you want to confirm
+-- the policy is gone and the recursion is fixed:
+--
+--   SELECT policyname FROM pg_policies
+--   WHERE schemaname = 'public' AND tablename = 'users';
+--
+-- Expected list (no "Managers can read pending reps in their org"):
+--   Users can read own profile
+--   Managers can read all users
+--   Users can update own profile
+--   Super admins read all users

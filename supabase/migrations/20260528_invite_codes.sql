@@ -283,31 +283,25 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.set_invite_code_enabled(BOOLEAN) TO authenticated;
 
--- ── 9. RLS so the owner can see their pending reps ─────────────────────────
--- Existing policies already let managers read their own org's users, but
--- to keep this migration self-contained we add an explicit policy that
--- covers pending rows too — defensive against future RLS tightening.
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'users'
-      AND policyname = 'Managers can read pending reps in their org'
-  ) THEN
-    EXECUTE $POLICY$
-      CREATE POLICY "Managers can read pending reps in their org"
-        ON public.users FOR SELECT
-        USING (
-          EXISTS (
-            SELECT 1 FROM public.users m
-            WHERE m.id = auth.uid()
-              AND m.role = 'manager'
-              AND m.organization_id = public.users.organization_id
-          )
-        );
-    $POLICY$;
-  END IF;
-END $$;
+-- ── 9. RLS for pending reps ────────────────────────────────────────────────
+-- INTENTIONALLY NO NEW POLICY HERE.
+--
+-- An earlier draft of this migration added a "Managers can read pending
+-- reps in their org" policy with a self-referential EXISTS subquery on
+-- public.users. Postgres rejects that with "infinite recursion detected
+-- in policy for relation users" the moment it stacks alongside the
+-- pre-existing "Managers can read all users" policy (see
+-- 20260418_super_admin_insights.sql for the same trap, with the same
+-- failure mode — Shield icon vanishes, every users.select errors out).
+--
+-- The existing "Managers can read all users" policy already gives the
+-- owner read access to every row in public.users, including pending
+-- reps. getPendingReps() narrows to the owner's own org client-side
+-- via .eq('organization_id', orgId), so no new server-side policy is
+-- needed. If you ever want a defensive same-org filter at the policy
+-- layer, do it via a SECURITY DEFINER helper (mirroring
+-- is_current_user_super_admin) — never via inline EXISTS on the same
+-- table the policy is attached to.
 
 -- ── 10. Approve / reject helpers (owner-only) ───────────────────────────────
 -- We expose these as RPCs (rather than letting the client write directly)
