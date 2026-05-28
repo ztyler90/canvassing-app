@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blog — KnockIQ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue-600: #1B4FCC;
+      --blue-700: #1640A8;
+      --blue-50:  #EEF3FF;
+      --lime:     #7DC31E;
+      --green:    #059669;
+      --amber:    #F59E0B;
+      --red:      #DC2626;
+      --pink:     #DB2777;
+      --violet:   #6D28D9;
+      --cyan:     #06B6D4;
+      --indigo:   #6366F1;
+      --sky:      #0EA5E9;
+      --rose:     #E11D48;
+      --slate-blue: #475569;
+      --yellow:   #EAB308;
+
+      --ink:      #0F172A;
+      --ink-2:    #1E293B;
+      --text:     #334155;
+      --muted:    #64748B;
+      --line:     #E2E8F0;
+      --line-2:   #F1F5F9;
+      --bg:       #F8FAFC;
+      --bg-2:     #F1F5F9;
+      --white:    #ffffff;
+
+      --sh-sm: 0 1px 2px rgba(15,23,42,.06), 0 1px 1px rgba(15,23,42,.04);
+      --sh:    0 4px 14px rgba(15,23,42,.08);
+      --sh-lg: 0 18px 40px -12px rgba(15,23,42,.18);
+
+      --r-card: 20px;
+      --r-btn:  12px;
+      --r-chip: 999px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      background: var(--white);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.55;
+    }
+    img { max-width: 100%; display: block; }
+    a   { color: inherit; text-decoration: none; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 28px; }
+
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.85);
+      backdrop-filter: saturate(180%) blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-inner {
+      max-width: 1200px; margin: 0 auto;
+      padding: 0 28px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 800; font-size: 17px; letter-spacing: -0.01em;
+    }
+    .nav-logo img { height: 52px; width: auto; display: block; }
+    .nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+    .nav-links a { font-size: 14px; color: var(--text); font-weight: 500; transition: color .15s; }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-links a.active { color: var(--blue-600); font-weight: 600; }
+    .nav-actions { display: flex; align-items: center; gap: 16px; }
+    .nav-signin { font-size: 14px; color: var(--text); font-weight: 500; transition: color .15s; }
+    .nav-signin:hover { color: var(--ink); }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: var(--r-btn);
+      font-weight: 600; font-size: 14px;
+      transition: transform .15s, box-shadow .15s; white-space: nowrap;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-blue {
+      background: linear-gradient(135deg, #2E6BFF 0%, var(--blue-600) 100%);
+      color: white; box-shadow: 0 10px 24px -8px rgba(27,79,204,.55);
+    }
+    .btn-blue:hover { filter: brightness(1.05); }
+
+    .blog-hero {
+      padding: 80px 0 56px; text-align: center;
+      background: linear-gradient(180deg, var(--blue-50) 0%, var(--white) 100%);
+    }
+    .blog-hero h1 {
+      font-size: clamp(2rem, 5vw, 3rem); font-weight: 800;
+      letter-spacing: -0.02em; color: var(--ink); margin-bottom: 12px;
+    }
+    .blog-hero p { font-size: 1.1rem; color: var(--muted); max-width: 520px; margin: 0 auto; }
+
+    .blog-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 28px; padding: 0 0 96px;
+    }
+    .blog-card {
+      background: var(--white); border: 1px solid var(--line);
+      border-radius: var(--r-card); overflow: hidden;
+      transition: transform .2s, box-shadow .2s;
+      display: flex; flex-direction: column;
+    }
+    .blog-card:hover { transform: translateY(-4px); box-shadow: var(--sh-lg); }
+    .card-accent { height: 5px; width: 100%; }
+    .card-body { padding: 28px 28px 24px; flex: 1; display: flex; flex-direction: column; }
+    .card-tag {
+      display: inline-block; padding: 4px 12px; border-radius: var(--r-chip);
+      font-size: 11px; font-weight: 600; letter-spacing: 0.4px;
+      text-transform: uppercase; margin-bottom: 14px; width: fit-content;
+    }
+    .card-title { font-size: 1.15rem; font-weight: 700; color: var(--ink); line-height: 1.35; margin-bottom: 8px; }
+    .card-desc { font-size: 14px; color: var(--muted); line-height: 1.5; margin-bottom: 18px; flex: 1; }
+    .card-link { font-size: 14px; font-weight: 600; color: var(--blue-600); transition: gap .2s; display: inline-flex; align-items: center; gap: 4px; }
+    .card-link:hover { gap: 8px; }
+
+    .tag-blue      { background: rgba(27,79,204,.08); color: #1B4FCC; }
+    .tag-emerald   { background: rgba(5,150,105,.08);  color: #059669; }
+    .tag-amber     { background: rgba(245,158,11,.1);  color: #B45309; }
+    .tag-purple    { background: rgba(109,40,217,.08); color: #6D28D9; }
+    .tag-green     { background: rgba(22,163,74,.08);  color: #16A34A; }
+    .tag-yellow    { background: rgba(234,179,8,.1);   color: #A16207; }
+    .tag-slate     { background: rgba(71,85,105,.1);   color: #475569; }
+    .tag-cyan      { background: rgba(6,182,212,.08);  color: #0891B2; }
+    .tag-violet    { background: rgba(109,40,217,.08); color: #6D28D9; }
+    .tag-rose      { background: rgba(225,29,72,.08);  color: #E11D48; }
+    .tag-indigo    { background: rgba(99,102,241,.08); color: #4F46E5; }
+
+    .accent-blue    { background: #1B4FCC; }
+    .accent-emerald { background: #059669; }
+    .accent-amber   { background: #F59E0B; }
+    .accent-purple  { background: linear-gradient(90deg, #1B4FCC, #6D28D9); }
+    .accent-green   { background: #16A34A; }
+    .accent-yellow  { background: #EAB308; }
+    .accent-slate   { background: #475569; }
+    .accent-cyan    { background: #06B6D4; }
+    .accent-violet  { background: #6D28D9; }
+    .accent-rose    { background: #E11D48; }
+    .accent-indigo  { background: #6366F1; }
+
+    footer {
+      background: var(--ink); color: #94A3B8;
+      padding: 40px 0; text-align: center; font-size: 13px;
+    }
+    footer a { color: #CBD5E1; margin: 0 12px; }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .nav-inner { padding: 0 16px; }
+      .nav-actions { gap: 10px; }
+      .nav-signin { font-size: 13px; }
+      .nav-actions .btn { padding: 9px 14px; font-size: 13px; }
+      .blog-grid { grid-template-columns: 1fr; gap: 20px; }
+      .blog-hero { padding: 56px 0 40px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="/welcome.html">
+      <img src="/logo.png" alt="KnockIQ" />
+    </a>
+    <ul class="nav-links">
+      <li><a href="/welcome.html#auto">Auto Knocking</a></li>
+      <li><a href="/welcome.html#for-managers">For Managers</a></li>
+      <li><a href="/welcome.html#for-reps">For Reps</a></li>
+      <li><a href="/welcome.html#pricing">Pricing</a></li>
+      <li><a href="/blog.html" class="active">Blog</a></li>
+    </ul>
+    <div class="nav-actions">
+      <a href="/login" class="nav-signin">Sign In</a>
+      <a href="/signup" class="btn btn-blue">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<section class="blog-hero">
+  <div class="container">
+    <h1>KnockIQ Blog</h1>
+    <p>Guides, playbooks, and real talk for door-to-door sales teams</p>
+  </div>
+</section>
+
+<section style="padding-top:48px;">
+  <div class="container">
+    <div class="blog-grid">
+
+      <a href="/blog/01-door-knocking-software.html" class="blog-card">
+        <div class="card-accent accent-blue"></div>
+        <div class="card-body">
+          <span class="card-tag tag-blue">Buyer's Guide</span>
+          <div class="card-title">Door Knocking Software in 2026</div>
+          <div class="card-desc">What to look for, what to avoid, and why most tools miss the mark for field teams.</div>
+          <span class="card-link">Read article &rarr;</span>
+        </div>
+      </a>
+
+      <a href="/blog/02-tracking-every-door.html" class="blog-card">
+        <div class="card-accent accent-emerald"></div>
+        <div class="card-body">
+          <span class="card-tag tag-emerald">Field Guide</span>
+          <div class="card-title">Why Tracking Every Door Changes Everything</div>
+          <div class="card-desc">The difference between guessing and knowing starts at the front door.</div>
+          <span class="card-link">Read article &rarr;</span>
+        </div>
+      </a>
+
+      <a href="/blog/03-hidden-cost-whiteboard.html" class="blog-card">
+        <div class="card-accent accent-amber"></div>
+        <div class="card-body">
+          <span class="card-tag tag-amber">Operations</span>
+          <div class="card-title">The Hidden Cost of a Whiteboard</div>
+          <div class="card-desc">How manual tracking is quietly costing your team deals, time, and morale.</div>
+          <span class="card-link">Read article &rarr;</span>
+        </div>
+      </a>
+
+      <a href="/blog/04-seven-metrics.html" class="blog-card">
+        <div class="card-accent accent-purple"></div>
+        <div class="card-body">
+          <span class="card-tag tag-purple">Manager's Guide</span>
+          <div class="card-title">7 Metrics Every D2D Manager Should Watch Daily</div>
+          <div class="card-desc">The numbers that actually predict revenue, retention, and rep performance.</div>
+          <span class="card-link">Read article &rarr;</span>
+        </div>
+      </a>
+
+      <a href="/blog/05-competitor-comparison.html" class="blog-card">
+        <div class="card-accent accent-green"></div>
+        <div class="card-body">
+          <span class="card-tag tag-green">Comparison</span>
+          <div class="card-title">KnockIQ vs SalesRabbit vs Spotio</div>
+          <div class="card-desc">A side-by-side look at the top canvassing platforms for field sales teams.</div>
+          <span class="card-link">Read article &rarr;</span>
+        </div>
+      </a>
+
+      <a href="/blog/06-solar-pipeline.html" class="blog-card">
+        <div class="card-accent accent-yellow"></div>
+        <div class="card-body">
+          <span class="card-tag tag-yellow">Solar</span>
+          <div class="card-title">Closing More Solar Deals</div>
+          <div class="card-desc">How top solar teams use canvassing data to shorten sales cycles.</div>
+          <span class="card-link">Read article &rarr;</span>
+        </div>
+      </a>
+
+      <a href="/blog/07-roofing-storm.html" class="blog-card">
+        <div class="card-accent accent-slate"></div>
+        <div class="card-body">
+          <span class="card-tag tag-slate">Roofing</span>
+          <div class="card-title">After the Storm: Roofing Canvassing</div>
+          <div class="card-desc">Storm-chasing done right with territory mapping and real-time team coordination.</div>
+          <span class="card-link">Read article &rarr;</span>
+        </div>
+      </a>
+
+      <a href="/blog/08-pest-control-seasonal.html" class="blog-card">
+        <div class="card-accent accent-green"></div>
+        <div class="card-body">
+          <span class="card-tag tag-green">Pest Control</span>
+          <div class="card-title">Pest Control: Summer Blitz to Year-Round</div>
+          <div class="card-desc">Turn seasonal spikes into a twelve-month pipeline with smarter canvassing.</div>
+          <span class="card-link">Read article &rarr;</span>
+        </div>
+      </a>
+
+      <a href="/blog/09-onboarding-rep.html" class="blog-card">
+        <div class="card-accent accent-cyan"></div>
+        <div class="card-body">
+          <span class="card-tag tag-cyan">Onboarding</span>
+          <div class="card-title">Onboarding a New Rep in Their First Week</div>
+          <div class="card-desc">Get new reps knocking doors with confidence from day one.</div>
+          <span class="card-link">Read article &rarr;</span>
+        </div>
+      </a>
+
+      <a href="/blog/10-knock-goals.html" class="blog-card">
+        <div class="card-accent accent-violet"></div>
+        <div class="card-body">
+          <span class="card-tag tag-violet">Manager's Guide</span>
+          <div class="card-title">Setting Realistic Knock Goals</div>
+          <div class="card-desc">Data-backed benchmarks to set goals that push reps without burning them out.</div>
+          <span class="card-link">Read article &rarr;</span>
+        </div>
+      </a>
+
+      <a href="/blog/11-why-reps-quit.html" class="blog-card">
+        <div class="card-accent accent-rose"></div>
+        <div class="card-body">
+          <span class="card-tag tag-rose">Founder's Take</span>
+          <div class="card-title">Why Your Reps Quit</div>
+          <div class="card-desc">It's not the doors. It's the lack of support, visibility, and purpose.</div>
+          <span class="card-link">Read article &rarr;</span>
+        </div>
+      </a>
+
+      <a href="/blog/12-door-to-deal.html" class="blog-card">
+        <div class="card-accent accent-indigo"></div>
+        <div class="card-body">
+          <span class="card-tag tag-indigo">Process</span>
+          <div class="card-title">From Door to Deal: Building a Sales Process</div>
+          <div class="card-desc">A step-by-step framework for turning knocks into closed deals.</div>
+          <span class="card-link">Read article &rarr;</span>
+        </div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div style="margin-bottom:12px;">
+      <img src="/logo-white.png" alt="KnockIQ" style="height: 42px; width: auto; display: inline-block;" />
+    </div>
+    <div>
+      <a href="/login">Sign in</a> &middot;
+      <a href="/signup">Start trial</a> &middot;
+      <a href="mailto:hello@knockiq.com">Contact</a> &middot;
+      <a href="/blog.html">Blog</a> &middot;
+      <a href="/welcome.html#pricing">Pricing</a>
+    </div>
+    <div style="margin-top:16px; opacity:.6;">&copy; 2026 KnockIQ &middot; Built for the field.</div>
+  </div>
+</footer>
+
+</body>
+</html>

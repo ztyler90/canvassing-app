@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>From Door to Deal: Building a Sales Process Your Whole Team Can Follow</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e1a;color:#e2e8f0;font-family:'Inter',sans-serif;line-height:1.6;overflow-x:hidden}
+.container{max-width:1100px;margin:0 auto;padding:0 24px}
+
+.hero{padding:100px 0 80px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-40%;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(circle,rgba(99,102,241,.12) 0%,transparent 70%);pointer-events:none}
+.badge{display:inline-block;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:#6366f1;padding:8px 20px;border-radius:100px;font-size:13px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:24px}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;line-height:1.15;max-width:800px;margin:0 auto 20px}
+.hero h1 .accent{background:linear-gradient(135deg,#6366f1,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#94a3b8;font-size:clamp(1rem,2vw,1.15rem);max-width:600px;margin:0 auto}
+
+.section{padding:60px 0}
+.section-label{font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#6366f1;margin-bottom:12px}
+.section-title{font-size:clamp(1.4rem,3vw,2rem);font-weight:700;margin-bottom:32px}
+
+.card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:16px;padding:32px;transition:transform .25s,box-shadow .25s}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.card-accent{border-top:3px solid #6366f1}
+.card .icon{font-size:28px;margin-bottom:12px}
+.card h3{font-size:1.1rem;font-weight:700;margin-bottom:8px;color:#e2e8f0}
+.card p{color:#94a3b8;font-size:.95rem}
+
+.grid-5{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:20px}
+.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px}
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+
+/* Question Cards */
+.q-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.q-card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-left:3px solid #6366f1;border-radius:12px;padding:24px;transition:transform .2s}
+.q-card:hover{transform:translateX(4px)}
+.q-card .q-num{font-size:13px;font-weight:700;color:#6366f1;margin-bottom:6px}
+.q-card p{color:#cbd5e1;font-size:.93rem;font-weight:500}
+
+/* Pipeline Flow */
+.pipeline{display:flex;align-items:center;gap:0;overflow-x:auto;padding:20px 0;margin-bottom:20px}
+.pipeline-stage{flex-shrink:0;text-align:center;padding:18px 16px;min-width:120px}
+.pipeline-stage .stage-icon{font-size:24px;margin-bottom:8px}
+.pipeline-stage .stage-name{font-size:.82rem;font-weight:600;color:#cbd5e1;line-height:1.3}
+.pipeline-arrow{flex-shrink:0;color:#6366f1;font-size:1.1rem;margin:0 -2px}
+.pipeline-wrapper{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:16px;padding:32px 24px;overflow-x:auto}
+
+/* Numbered Steps */
+.steps{display:flex;flex-direction:column;gap:16px}
+.step{display:flex;gap:20px;align-items:flex-start;background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:16px;padding:28px 32px;transition:transform .2s}
+.step:hover{transform:translateX(6px)}
+.step-num{flex-shrink:0;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:12px;font-size:1.1rem;font-weight:800;color:#fff}
+.step-content h3{font-size:1.05rem;font-weight:700;color:#e2e8f0;margin-bottom:4px}
+.step-content p{color:#94a3b8;font-size:.93rem}
+
+/* Callout Quote */
+.callout{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid rgba(99,102,241,.25);border-radius:16px;padding:48px;text-align:center}
+.callout .quote{font-size:clamp(1.05rem,2.5vw,1.35rem);font-weight:600;color:#e2e8f0;font-style:italic;line-height:1.5;max-width:700px;margin:0 auto}
+.callout .quote .accent{color:#818cf8;font-style:normal}
+
+/* CTA */
+.cta-section{text-align:center;padding:80px 0 100px}
+.cta-btn{display:inline-block;padding:18px 48px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:1.05rem;font-weight:700;border-radius:14px;text-decoration:none;box-shadow:0 8px 30px rgba(99,102,241,.3);transition:transform .2s,box-shadow .2s}
+.cta-btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(99,102,241,.45)}
+.divider{height:1px;background:linear-gradient(90deg,transparent,#1e293b,transparent);margin:20px 0}
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:100;background:rgba(10,14,26,.95);backdrop-filter:blur(14px);border-bottom:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;">
+    <a href="/welcome.html" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;color:#fff;text-decoration:none;">
+      <img src="/logo-white.png" alt="KnockIQ" style="height:36px;width:auto;" />
+    </a>
+    <div style="display:flex;align-items:center;gap:24px;">
+      <a href="/blog.html" style="color:#94a3b8;font-size:14px;font-weight:500;text-decoration:none;">&larr; Back to Blog</a>
+      <a href="/signup" style="background:linear-gradient(135deg,#2E6BFF,#1B4FCC);color:#fff;font-weight:600;font-size:13px;padding:8px 18px;border-radius:10px;text-decoration:none;">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="badge">🔧 Process Blueprint</div>
+    <h1>From <span class="accent">Door to Deal</span>: Building a Sales Process Your Whole Team Can Follow</h1>
+    <p>A repeatable, teachable process that doesn't depend on any one person's instinct.</p>
+  </section>
+
+  <!-- Section 1: What a Real Sales Process Is -->
+  <section class="section">
+    <div class="section-label">Foundation</div>
+    <div class="section-title">What a Real Sales Process Is</div>
+    <div class="q-grid">
+      <div class="q-card">
+        <div class="q-num">01</div>
+        <p>What stages does a lead move through?</p>
+      </div>
+      <div class="q-card">
+        <div class="q-num">02</div>
+        <p>What moves a lead from one stage to the next?</p>
+      </div>
+      <div class="q-card">
+        <div class="q-num">03</div>
+        <p>Who is responsible at each stage?</p>
+      </div>
+      <div class="q-card">
+        <div class="q-num">04</div>
+        <p>What gets captured at each stage?</p>
+      </div>
+      <div class="q-card">
+        <div class="q-num">05</div>
+        <p>What happens when leads stall?</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 2: 8 Universal Stages -->
+  <section class="section">
+    <div class="section-label">The Pipeline</div>
+    <div class="section-title">The 8 Universal Stages</div>
+    <div class="pipeline-wrapper">
+      <div class="pipeline">
+        <div class="pipeline-stage">
+          <div class="stage-icon">🚪</div>
+          <div class="stage-name">Door<br>Knocked</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="stage-icon">💬</div>
+          <div class="stage-name">Conver-<br>sation</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="stage-icon">📅</div>
+          <div class="stage-name">Appoint-<br>ment</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="stage-icon">🪑</div>
+          <div class="stage-name">Sit</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="stage-icon">📄</div>
+          <div class="stage-name">Proposal</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="stage-icon">✍️</div>
+          <div class="stage-name">Agreement</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="stage-icon">🔨</div>
+          <div class="stage-name">Job<br>Delivered</div>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-stage">
+          <div class="stage-icon">✅</div>
+          <div class="stage-name">Account<br>Active</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3: 7 Steps -->
+  <section class="section">
+    <div class="section-label">Build It</div>
+    <div class="section-title">7 Steps to Build Your Process</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h3>Map Your Current Process Honestly</h3>
+          <p>Write down what actually happens today — not what you wish happened. Include the messy parts.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h3>Define Stages Clearly</h3>
+          <p>Each stage should have a clear entry and exit criteria. If you can't explain when a lead enters a stage, the stage isn't defined.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h3>Define What Moves Leads Between Stages</h3>
+          <p>What specific action or event moves a lead from "conversation" to "appointment"? Make it explicit.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h3>Assign Clear Ownership</h3>
+          <p>At every stage, one person is responsible. Not "the team" — a specific role or person.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <h3>Decide What Gets Captured</h3>
+          <p>What information must be recorded at each stage? Keep it to what's actually useful — not everything possible.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-content">
+          <h3>Decide What Happens When Leads Stall</h3>
+          <p>Leads will get stuck. Define the follow-up cadence, re-engagement triggers, and when to mark a lead dead.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-content">
+          <h3>Document and Teach It</h3>
+          <p>If it's not written down and trained, it doesn't exist. Every new rep should be able to learn the process in their first week.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 4: Running the Process -->
+  <section class="section">
+    <div class="section-label">Execution</div>
+    <div class="section-title">Running the Process</div>
+    <div class="grid-4">
+      <div class="card card-accent">
+        <div class="icon">📋</div>
+        <h3>Weekly Pipeline Review</h3>
+        <p>Look at every stage once a week. Where are leads stuck? Where are they flowing? What's the bottleneck?</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">📊</div>
+        <h3>Stage Conversion Reports</h3>
+        <p>Track conversion rates between each stage. This tells you exactly where the process is breaking.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">🎯</div>
+        <h3>Process-Based Coaching</h3>
+        <p>Coach reps on their stage performance — not just their close rate. Fix the stage, fix the outcome.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">🔄</div>
+        <h3>Quarterly Process Review</h3>
+        <p>Every 90 days, review the process itself. What stages need adjusting? What's changed about your market?</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Callout -->
+  <section class="section">
+    <div class="callout">
+      <div class="quote">"A business that runs on instinct only scales as far as the founder can cover. A business that runs on a <span class="accent">defined process</span> scales much further."</div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="divider"></div>
+    <br><br>
+    <a href="#" class="cta-btn">See KnockIQ Configured for Your Sales Process →</a>
+  </section>
+
+</div>
+
+<footer style="background:#0f172a;padding:40px 0;text-align:center;border-top:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;">
+    <div style="margin-bottom:12px;"><img src="/logo-white.png" alt="KnockIQ" style="height:42px;width:auto;display:inline-block;" /></div>
+    <div style="color:#94a3b8;">
+      <a href="/login" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Sign in</a> &middot;
+      <a href="/signup" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Start trial</a> &middot;
+      <a href="mailto:hello@knockiq.com" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Contact</a> &middot;
+      <a href="/blog.html" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Blog</a> &middot;
+      <a href="/welcome.html#pricing" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Pricing</a>
+    </div>
+    <div style="margin-top:16px;opacity:.6;color:#94a3b8;">&copy; 2026 KnockIQ &middot; Built for the field.</div>
+  </div>
+</footer>
+</body>
+</html>

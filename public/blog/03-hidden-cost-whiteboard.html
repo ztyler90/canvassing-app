@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Hidden Cost of a Whiteboard | KnockIQ</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e1a;color:#e2e8f0;font-family:'Inter',sans-serif;line-height:1.6;overflow-x:hidden}
+.container{max-width:1100px;margin:0 auto;padding:0 24px}
+
+.hero{padding:80px 0 60px;text-align:center;background:radial-gradient(ellipse at 50% 0%,rgba(245,158,11,.15),transparent 70%)}
+.badge{display:inline-block;padding:6px 18px;border-radius:100px;font-size:13px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.25);margin-bottom:20px}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;line-height:1.15;margin-bottom:16px}
+.hero h1 span{background:linear-gradient(135deg,#f59e0b,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#94a3b8;font-size:clamp(1rem,2vw,1.15rem);max-width:640px;margin:0 auto}
+
+section{padding:60px 0}
+.section-label{text-transform:uppercase;letter-spacing:3px;font-size:12px;font-weight:600;color:#f59e0b;margin-bottom:10px}
+.section-title{font-size:clamp(1.4rem,3vw,2rem);font-weight:700;margin-bottom:32px}
+
+/* Countdown cards */
+.countdown{display:flex;flex-direction:column;gap:28px}
+.cost-card{display:flex;gap:24px;align-items:flex-start;background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:14px;padding:32px;transition:transform .25s,box-shadow .25s}
+.cost-card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(0,0,0,.4)}
+.cost-num{min-width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.5rem;color:#0a0e1a;flex-shrink:0}
+.cost-content h3{font-size:1.1rem;font-weight:700;margin-bottom:6px}
+.cost-content p{color:#94a3b8;font-size:.9rem}
+.cost-stat{display:inline-block;margin-top:8px;padding:4px 12px;border-radius:8px;background:rgba(245,158,11,.1);color:#fbbf24;font-size:.8rem;font-weight:600}
+
+/* Callout */
+.callout{background:linear-gradient(145deg,#1a1c2e,#0f172a);border:1px solid rgba(245,158,11,.2);border-left:4px solid #f59e0b;border-radius:14px;padding:32px 36px}
+.callout h3{font-size:1.15rem;font-weight:700;margin-bottom:10px}
+.callout p{color:#94a3b8;font-size:.95rem}
+.callout p+p{margin-top:10px}
+
+/* Outcome cards */
+.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px}
+.card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:14px;padding:28px;transition:transform .25s,box-shadow .25s;border-top:3px solid #f59e0b}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(0,0,0,.4)}
+.card-icon{font-size:28px;margin-bottom:12px}
+.card h3{font-size:1.05rem;font-weight:600;margin-bottom:8px;color:#e2e8f0}
+.card p{color:#94a3b8;font-size:.9rem}
+
+.cta{text-align:center;padding:60px 0 80px}
+.cta-btn{display:inline-block;padding:16px 40px;border-radius:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#0a0e1a;font-weight:700;font-size:1.05rem;text-decoration:none;box-shadow:0 8px 24px rgba(245,158,11,.3);transition:transform .2s,box-shadow .2s}
+.cta-btn:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(245,158,11,.4)}
+
+footer{text-align:center;padding:24px 0;color:#475569;font-size:.8rem;border-top:1px solid #1e293b}
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:100;background:rgba(10,14,26,.95);backdrop-filter:blur(14px);border-bottom:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;">
+    <a href="/welcome.html" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;color:#fff;text-decoration:none;">
+      <img src="/logo-white.png" alt="KnockIQ" style="height:36px;width:auto;" />
+    </a>
+    <div style="display:flex;align-items:center;gap:24px;">
+      <a href="/blog.html" style="color:#94a3b8;font-size:14px;font-weight:500;text-decoration:none;">&larr; Back to Blog</a>
+      <a href="/signup" style="background:linear-gradient(135deg,#2E6BFF,#1B4FCC);color:#fff;font-weight:600;font-size:13px;padding:8px 18px;border-radius:10px;text-decoration:none;">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<div class="hero">
+<div class="container">
+<div class="badge">The Real Math</div>
+<h1>The <span>Hidden Cost</span> of a Whiteboard:<br>Why Manual Tracking Is Quietly Killing Your Numbers</h1>
+<p>The whiteboard isn't free. It's just hiding what it costs you.</p>
+</div>
+</div>
+
+<section>
+<div class="container">
+<div class="section-label">The Damage</div>
+<div class="section-title">5 Hidden Costs</div>
+<div class="countdown">
+<div class="cost-card">
+<div class="cost-num">1</div>
+<div class="cost-content">
+<h3>Leads Never Followed Up</h3>
+<p>Interested homeowners slip through when follow-ups live in a rep's memory. Even a 10% miss rate adds up fast across a full team.</p>
+<span class="cost-stat">~50 lost opportunities per rep per year</span>
+</div>
+</div>
+<div class="cost-card">
+<div class="cost-num">2</div>
+<div class="cost-content">
+<h3>Doors Knocked Twice / Doors Never Knocked</h3>
+<p>Without a map, reps overlap on easy streets and skip harder ones. You're paying for coverage you're not getting.</p>
+<span class="cost-stat">Invisible until mapped</span>
+</div>
+</div>
+<div class="cost-card">
+<div class="cost-num">3</div>
+<div class="cost-content">
+<h3>The Monday Morning Blind Spot</h3>
+<p>When the whiteboard is your reporting tool, you can't answer the basic questions: what's our contact rate? Booking rate? Coverage?</p>
+<span class="cost-stat">No contact rate, booking rate, or coverage data</span>
+</div>
+</div>
+<div class="cost-card">
+<div class="cost-num">4</div>
+<div class="cost-content">
+<h3>Reps Who Quit Because Nobody Saw the Work</h3>
+<p>A rep knocks 80 doors, books zero. On a whiteboard, that looks like nothing. In a system, it's a coaching opportunity — and proof of effort.</p>
+<span class="cost-stat">80 doors of effort looks like zero on closes</span>
+</div>
+</div>
+<div class="cost-card">
+<div class="cost-num">5</div>
+<div class="cost-content">
+<h3>Patterns You're Not Seeing</h3>
+<p>Which neighborhoods convert? What time of day works? The whiteboard gets erased every week, and next season starts from scratch.</p>
+<span class="cost-stat">Whiteboard gets erased — next season starts from zero</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="container">
+<div class="section-label">The Balance</div>
+<div class="section-title">The Honest Counter</div>
+<div class="callout">
+<h3>Yes, software costs money. A whiteboard doesn't.</h3>
+<p>That's a fair point. But the whiteboard isn't really free — it just hides its costs in missed follow-ups, repeated doors, blind coaching, and attrition. The real question isn't "should I pay for software?" It's "can I afford the leakage I can't see?"</p>
+<p>The fix isn't a complex platform with a six-week rollout. It's a system where capturing a door outcome is a single tap — fast enough that tired reps will actually do it.</p>
+</div>
+</div>
+</section>
+
+<section>
+<div class="container">
+<div class="section-label">The Upside</div>
+<div class="section-title">What Changes in 90 Days</div>
+<div class="grid-3">
+<div class="card">
+<div class="card-icon">📋</div>
+<h3>Follow-Ups Stop Slipping</h3>
+<p>Interested leads get automatic follow-up queues. No more relying on memory or sticky notes.</p>
+</div>
+<div class="card">
+<div class="card-icon">🗺️</div>
+<h3>Coverage Tightens</h3>
+<p>Managers see gaps in real time. Territories get worked evenly. No more cherry-picking easy streets.</p>
+</div>
+<div class="card">
+<div class="card-icon">🤫</div>
+<h3>Management Gets Quieter</h3>
+<p>When the data speaks for itself, you spend less time chasing updates and more time on strategy.</p>
+</div>
+</div>
+</div>
+</section>
+
+<div class="cta">
+<div class="container">
+<a href="#" class="cta-btn">See KnockIQ in Action</a>
+</div>
+</div>
+
+<footer style="background:#0f172a;padding:40px 0;text-align:center;border-top:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;">
+    <div style="margin-bottom:12px;"><img src="/logo-white.png" alt="KnockIQ" style="height:42px;width:auto;display:inline-block;" /></div>
+    <div style="color:#94a3b8;">
+      <a href="/login" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Sign in</a> &middot;
+      <a href="/signup" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Start trial</a> &middot;
+      <a href="mailto:hello@knockiq.com" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Contact</a> &middot;
+      <a href="/blog.html" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Blog</a> &middot;
+      <a href="/welcome.html#pricing" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Pricing</a>
+    </div>
+    <div style="margin-top:16px;opacity:.6;color:#94a3b8;">&copy; 2026 KnockIQ &middot; Built for the field.</div>
+  </div>
+</footer>
+</body>
+</html>

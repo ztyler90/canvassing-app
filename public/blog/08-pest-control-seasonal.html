@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Door-to-Door Pest Control Sales: Turning a Summer Blitz Into Year-Round Accounts</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e1a;color:#e2e8f0;font-family:'Inter',sans-serif;line-height:1.6;overflow-x:hidden}
+.container{max-width:1100px;margin:0 auto;padding:0 24px}
+
+/* Hero */
+.hero{padding:100px 0 80px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-40%;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(circle,rgba(34,197,94,.12) 0%,transparent 70%);pointer-events:none}
+.badge{display:inline-block;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#22c55e;padding:8px 20px;border-radius:100px;font-size:13px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:24px}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;line-height:1.15;max-width:800px;margin:0 auto 20px}
+.hero h1 .accent{background:linear-gradient(135deg,#22c55e,#4ade80);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#94a3b8;font-size:clamp(1rem,2vw,1.15rem);max-width:600px;margin:0 auto}
+
+/* Section Labels */
+.section{padding:60px 0}
+.section-label{font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#22c55e;margin-bottom:12px}
+.section-title{font-size:clamp(1.4rem,3vw,2rem);font-weight:700;margin-bottom:32px}
+
+/* Cards */
+.card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:16px;padding:32px;transition:transform .25s,box-shadow .25s}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.card-accent{border-top:3px solid #22c55e}
+.card .icon{font-size:28px;margin-bottom:12px}
+.card h3{font-size:1.1rem;font-weight:700;margin-bottom:8px;color:#e2e8f0}
+.card p{color:#94a3b8;font-size:.95rem}
+
+/* Insight Card */
+.insight-card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-left:4px solid #22c55e;border-radius:16px;padding:40px;text-align:center;margin-bottom:40px}
+.insight-card .big{font-size:clamp(1.2rem,3vw,1.6rem);font-weight:700;color:#e2e8f0;line-height:1.4}
+.insight-card .big .green{color:#22c55e}
+
+/* Grid */
+.grid-5{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px}
+.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px}
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+
+/* Split Card */
+.split-card{display:grid;grid-template-columns:1fr 1fr;gap:0;border-radius:16px;overflow:hidden;border:1px solid #1e293b}
+.split-card .side{padding:36px;background:linear-gradient(145deg,#111827,#0f172a)}
+.split-card .side:first-child{border-right:1px solid #1e293b}
+.split-card .side h3{font-size:1.05rem;font-weight:700;margin-bottom:8px;color:#e2e8f0}
+.split-card .side p{color:#94a3b8;font-size:.93rem}
+.split-card .side .icon{font-size:28px;margin-bottom:12px}
+@media(max-width:640px){.split-card{grid-template-columns:1fr}.split-card .side:first-child{border-right:none;border-bottom:1px solid #1e293b}}
+
+/* Checklist */
+.checklist{list-style:none;display:grid;gap:14px}
+.checklist li{display:flex;align-items:center;gap:14px;background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:12px;padding:18px 24px;color:#cbd5e1;font-size:.97rem;font-weight:500;transition:transform .2s}
+.checklist li:hover{transform:translateX(6px)}
+.checklist li .check{color:#22c55e;font-size:20px;flex-shrink:0}
+
+/* CTA */
+.cta-section{text-align:center;padding:80px 0 100px}
+.cta-btn{display:inline-block;padding:18px 48px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-size:1.05rem;font-weight:700;border-radius:14px;text-decoration:none;box-shadow:0 8px 30px rgba(34,197,94,.3);transition:transform .2s,box-shadow .2s}
+.cta-btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(34,197,94,.45)}
+
+/* Divider */
+.divider{height:1px;background:linear-gradient(90deg,transparent,#1e293b,transparent);margin:20px 0}
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:100;background:rgba(10,14,26,.95);backdrop-filter:blur(14px);border-bottom:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;">
+    <a href="/welcome.html" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;color:#fff;text-decoration:none;">
+      <img src="/logo-white.png" alt="KnockIQ" style="height:36px;width:auto;" />
+    </a>
+    <div style="display:flex;align-items:center;gap:24px;">
+      <a href="/blog.html" style="color:#94a3b8;font-size:14px;font-weight:500;text-decoration:none;">&larr; Back to Blog</a>
+      <a href="/signup" style="background:linear-gradient(135deg,#2E6BFF,#1B4FCC);color:#fff;font-weight:600;font-size:13px;padding:8px 18px;border-radius:10px;text-decoration:none;">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="badge">🐛 Pest Control Playbook</div>
+    <h1>Door-to-Door Pest Control Sales: Turning a <span class="accent">Summer Blitz</span> Into <span class="accent">Year-Round Accounts</span></h1>
+    <p>The playbook for building a pest control book of business that lasts well past the summer rush.</p>
+  </section>
+
+  <!-- Section 1: Quality Over Count -->
+  <section class="section">
+    <div class="section-label">Key Insight</div>
+    <div class="section-title">Quality Over Count</div>
+    <div class="insight-card">
+      <div class="big"><span class="green">1,400 accounts</span> that stick for 3 years &nbsp;&gt;&nbsp; <span style="color:#94a3b8">2,000 accounts</span> that cancel by month 4</div>
+    </div>
+  </section>
+
+  <!-- Section 2: Qualifying Conversation -->
+  <section class="section">
+    <div class="section-label">Sales Quality</div>
+    <div class="section-title">The Right Qualifying Conversation</div>
+    <div class="grid-5">
+      <div class="card card-accent">
+        <div class="icon">🗺️</div>
+        <h3>Clear Walkthrough</h3>
+        <p>Walk the homeowner through exactly what the service covers — no ambiguity.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">💲</div>
+        <h3>Honest Pricing</h3>
+        <p>Answer pricing questions directly, including what happens after any intro period.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">📋</div>
+        <h3>Agreement Explanation</h3>
+        <p>Explain the agreement clearly — term, cancellation policy, and what they're signing.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">✅</div>
+        <h3>Informed Decision Check</h3>
+        <p>Confirm the homeowner understands the commitment before signing.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">⏳</div>
+        <h3>Time for Questions</h3>
+        <p>Leave space for questions. Rushing kills retention and invites chargebacks.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3: Track Every Door -->
+  <section class="section">
+    <div class="section-label">Data Capture</div>
+    <div class="section-title">Track Every Door</div>
+    <div class="split-card">
+      <div class="side">
+        <div class="icon">🔥</div>
+        <h3>Doors That Almost Signed</h3>
+        <p>These are follow-up gold. Track the interest level, objection, and best time to return. A warm lead this summer is your first close next summer.</p>
+      </div>
+      <div class="side">
+        <div class="icon">📊</div>
+        <h3>Doors That Said No</h3>
+        <p>Intel for next summer. Know which streets are saturated, which objections repeat, and where the competition already closed.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 4: Follow-Up Engine -->
+  <section class="section">
+    <div class="section-label">Retention</div>
+    <div class="section-title">The Follow-Up Engine</div>
+    <div class="grid-4">
+      <div class="card card-accent">
+        <div class="icon">📞</div>
+        <h3>Post-Treatment Check-In</h3>
+        <p>Touch base after the first service. Set expectations and catch issues early.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">💳</div>
+        <h3>Billing Change Comms</h3>
+        <p>Communicate any billing changes proactively — surprises cause cancellations.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">🔄</div>
+        <h3>Pre-Renewal Conversation</h3>
+        <p>Reach out before the renewal date. Remind them of value, not just the charge.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">🏆</div>
+        <h3>Win-Back for Cancellations</h3>
+        <p>Have a defined outreach for cancelled accounts. Some just need a better offer or timing.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 5: Blitz Coverage -->
+  <section class="section">
+    <div class="section-label">Operations</div>
+    <div class="section-title">Blitz Coverage Discipline</div>
+    <div class="grid-4">
+      <div class="card card-accent">
+        <div class="icon">🗂️</div>
+        <h3>Clean Daily Territories</h3>
+        <p>Every rep knows their assigned area before the day starts. No overlap, no confusion.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">👁️</div>
+        <h3>Real-Time Visibility</h3>
+        <p>Managers can see activity as it happens — not 12 hours later on a spreadsheet.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">📍</div>
+        <h3>Tracked in the Moment</h3>
+        <p>Doors logged as they're knocked. No end-of-day memory exercises.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">🗺️</div>
+        <h3>15-Min Morning Map Review</h3>
+        <p>Quick daily standup with the map. Where did we hit? Where do we go? What's warm?</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 6: Off-Season Work -->
+  <section class="section">
+    <div class="section-label">Off-Season</div>
+    <div class="section-title">Off-Season Work</div>
+    <ul class="checklist">
+      <li><span class="check">✓</span> Review summer data — what areas performed, what didn't, and why</li>
+      <li><span class="check">✓</span> Plan next summer's coverage using this year's door-level intel</li>
+      <li><span class="check">✓</span> Refine training based on the objections and patterns you actually saw</li>
+      <li><span class="check">✓</span> Tighten CX — fix the handoff gaps between sales and service</li>
+      <li><span class="check">✓</span> Run a light canvass in shoulder months to keep reps sharp</li>
+    </ul>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="divider"></div>
+    <br><br>
+    <a href="#" class="cta-btn">See How Pest Control Teams Use KnockIQ →</a>
+  </section>
+
+</div>
+
+<footer style="background:#0f172a;padding:40px 0;text-align:center;border-top:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;">
+    <div style="margin-bottom:12px;"><img src="/logo-white.png" alt="KnockIQ" style="height:42px;width:auto;display:inline-block;" /></div>
+    <div style="color:#94a3b8;">
+      <a href="/login" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Sign in</a> &middot;
+      <a href="/signup" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Start trial</a> &middot;
+      <a href="mailto:hello@knockiq.com" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Contact</a> &middot;
+      <a href="/blog.html" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Blog</a> &middot;
+      <a href="/welcome.html#pricing" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Pricing</a>
+    </div>
+    <div style="margin-top:16px;opacity:.6;color:#94a3b8;">&copy; 2026 KnockIQ &middot; Built for the field.</div>
+  </div>
+</footer>
+</body>
+</html>

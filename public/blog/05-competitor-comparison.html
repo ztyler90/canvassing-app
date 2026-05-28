@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KnockIQ vs SalesRabbit vs Spotio — 2026 Comparison</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #0a0e1a;
+    color: #e2e8f0;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    position: relative;
+    min-height: 85vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 60px 24px;
+    background: radial-gradient(ellipse at 50% 0%, #1a2744 0%, #0a0e1a 70%);
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 900px;
+    height: 900px;
+    background: radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(16,185,129,0.12);
+    border: 1px solid rgba(16,185,129,0.3);
+    color: #34d399;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 8px 20px;
+    border-radius: 100px;
+    margin-bottom: 28px;
+  }
+  .hero h1 {
+    font-size: clamp(2.2rem, 5.5vw, 4rem);
+    font-weight: 900;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    max-width: 850px;
+    margin: 0 auto 28px;
+  }
+  .hero h1 .green { color: #34d399; }
+  .hero h1 .blue { color: #60a5fa; }
+  .hero h1 .purple { color: #a78bfa; }
+  .hero p.sub {
+    font-size: 1.1rem;
+    color: #94a3b8;
+    max-width: 600px;
+    margin: 0 auto 0;
+    line-height: 1.7;
+  }
+  .hero .fair-note {
+    margin-top: 28px;
+    display: inline-block;
+    background: rgba(250,204,21,0.08);
+    border: 1px solid rgba(250,204,21,0.2);
+    color: #fbbf24;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 10px 22px;
+    border-radius: 10px;
+    max-width: 500px;
+  }
+
+  /* ── Section helpers ── */
+  .section-label {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #34d399;
+    margin-bottom: 12px;
+  }
+  .section-title {
+    text-align: center;
+    font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+    font-weight: 800;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+  }
+  .section-subtitle {
+    text-align: center;
+    color: #94a3b8;
+    max-width: 550px;
+    margin: 0 auto 50px;
+    font-size: 1.05rem;
+  }
+
+  /* ── Quick-take cards ── */
+  .quick-take {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 80px 24px 40px;
+  }
+  .quick-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-top: 50px;
+  }
+  .qcard {
+    background: linear-gradient(145deg, #111827, #0f172a);
+    border: 1px solid #1e293b;
+    border-radius: 20px;
+    padding: 36px 28px;
+    text-align: center;
+    transition: transform 0.25s, border-color 0.25s;
+    position: relative;
+    overflow: hidden;
+  }
+  .qcard:hover { transform: translateY(-4px); border-color: #334155; }
+  .qcard::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .qcard:nth-child(1)::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .qcard:nth-child(2)::before { background: linear-gradient(90deg, #6366f1, #818cf8); }
+  .qcard:nth-child(3)::before { background: linear-gradient(90deg, #10b981, #34d399); }
+
+  .qcard-logo {
+    font-size: 1.5rem;
+    font-weight: 900;
+    margin-bottom: 6px;
+  }
+  .qcard:nth-child(1) .qcard-logo { color: #fbbf24; }
+  .qcard:nth-child(2) .qcard-logo { color: #818cf8; }
+  .qcard:nth-child(3) .qcard-logo { color: #34d399; }
+  .qcard-tagline {
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 500;
+    margin-bottom: 18px;
+  }
+  .qcard-desc {
+    font-size: 0.92rem;
+    color: #cbd5e1;
+    line-height: 1.65;
+  }
+  .qcard-best {
+    margin-top: 18px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .qcard:nth-child(1) .qcard-best { background: rgba(245,158,11,0.1); color: #fbbf24; }
+  .qcard:nth-child(2) .qcard-best { background: rgba(99,102,241,0.1); color: #818cf8; }
+  .qcard:nth-child(3) .qcard-best { background: rgba(16,185,129,0.1); color: #34d399; }
+
+  /* ── Comparison table ── */
+  .table-section {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 60px 24px 80px;
+  }
+  .comp-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #111827;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #1e293b;
+  }
+  .comp-table th {
+    padding: 20px 24px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    text-align: left;
+    border-bottom: 1px solid #1e293b;
+    background: #0f172a;
+  }
+  .comp-table th:nth-child(2) { color: #fbbf24; }
+  .comp-table th:nth-child(3) { color: #818cf8; }
+  .comp-table th:nth-child(4) { color: #34d399; }
+  .comp-table td {
+    padding: 18px 24px;
+    font-size: 0.9rem;
+    color: #cbd5e1;
+    border-bottom: 1px solid rgba(30,41,59,0.5);
+    vertical-align: top;
+  }
+  .comp-table tr:last-child td { border-bottom: none; }
+  .comp-table td:first-child {
+    font-weight: 700;
+    color: #e2e8f0;
+    white-space: nowrap;
+  }
+  .comp-table .highlight-cell {
+    background: rgba(16,185,129,0.06);
+  }
+  .check { color: #34d399; font-weight: 700; }
+  .warn { color: #f59e0b; }
+  .muted { color: #64748b; }
+
+  /* ── Friction / pain points ── */
+  .friction-section {
+    padding: 60px 24px 80px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .friction-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-top: 50px;
+  }
+  .friction-card {
+    background: linear-gradient(145deg, #111827, #0f172a);
+    border: 1px solid #1e293b;
+    border-radius: 20px;
+    padding: 32px 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .friction-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+  }
+  .friction-card:nth-child(1)::before { background: #fbbf24; }
+  .friction-card:nth-child(2)::before { background: #818cf8; }
+  .friction-card:nth-child(3)::before { background: #34d399; }
+  .friction-card h4 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 14px;
+  }
+  .friction-card:nth-child(1) h4 { color: #fbbf24; }
+  .friction-card:nth-child(2) h4 { color: #818cf8; }
+  .friction-card:nth-child(3) h4 { color: #34d399; }
+
+  .friction-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+    font-size: 0.88rem;
+    color: #94a3b8;
+    line-height: 1.55;
+  }
+  .friction-item .icon {
+    flex-shrink: 0;
+    font-size: 14px;
+    margin-top: 3px;
+  }
+
+  /* ── Decision guide ── */
+  .decision-section {
+    padding: 60px 24px 80px;
+    background: linear-gradient(180deg, #0a0e1a 0%, #111827 50%, #0a0e1a 100%);
+  }
+  .decision-cards {
+    max-width: 1100px;
+    margin: 50px auto 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .dcard {
+    border-radius: 20px;
+    padding: 36px 28px;
+    text-align: center;
+    transition: transform 0.2s;
+  }
+  .dcard:hover { transform: translateY(-3px); }
+  .dcard:nth-child(1) {
+    background: rgba(245,158,11,0.06);
+    border: 1px solid rgba(245,158,11,0.2);
+  }
+  .dcard:nth-child(2) {
+    background: rgba(99,102,241,0.06);
+    border: 1px solid rgba(99,102,241,0.2);
+  }
+  .dcard:nth-child(3) {
+    background: rgba(16,185,129,0.08);
+    border: 2px solid rgba(16,185,129,0.35);
+    box-shadow: 0 0 40px rgba(16,185,129,0.08);
+  }
+  .dcard .pick-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 10px;
+  }
+  .dcard:nth-child(1) .pick-label { color: #fbbf24; }
+  .dcard:nth-child(2) .pick-label { color: #818cf8; }
+  .dcard:nth-child(3) .pick-label { color: #34d399; }
+  .dcard h4 {
+    font-size: 1.15rem;
+    font-weight: 800;
+    margin-bottom: 14px;
+  }
+  .dcard p {
+    font-size: 0.9rem;
+    color: #94a3b8;
+    line-height: 1.65;
+  }
+
+  /* ── CTA ── */
+  .cta-section {
+    padding: 80px 24px 120px;
+    text-align: center;
+  }
+  .cta-section h2 {
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 900;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+  }
+  .cta-section p {
+    color: #94a3b8;
+    margin-bottom: 32px;
+    font-size: 1.05rem;
+  }
+  .cta-btn {
+    display: inline-block;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 16px 40px;
+    border-radius: 12px;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 24px rgba(16,185,129,0.3);
+    margin: 0 8px;
+  }
+  .cta-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(16,185,129,0.4);
+  }
+  .cta-btn.secondary {
+    background: transparent;
+    border: 2px solid #334155;
+    box-shadow: none;
+    color: #e2e8f0;
+  }
+  .cta-btn.secondary:hover {
+    border-color: #475569;
+    box-shadow: none;
+  }
+
+  .footnote {
+    text-align: center;
+    padding: 0 24px 60px;
+    font-size: 0.78rem;
+    color: #475569;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 800px) {
+    .quick-cards, .friction-grid, .decision-cards {
+      grid-template-columns: 1fr;
+    }
+    .comp-table { font-size: 0.8rem; }
+    .comp-table th, .comp-table td { padding: 12px 14px; }
+    .hero { min-height: 70vh; padding: 40px 20px; }
+  }
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:100;background:rgba(10,14,26,.95);backdrop-filter:blur(14px);border-bottom:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;">
+    <a href="/welcome.html" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;color:#fff;text-decoration:none;">
+      <img src="/logo-white.png" alt="KnockIQ" style="height:36px;width:auto;" />
+    </a>
+    <div style="display:flex;align-items:center;gap:24px;">
+      <a href="/blog.html" style="color:#94a3b8;font-size:14px;font-weight:500;text-decoration:none;">&larr; Back to Blog</a>
+      <a href="/signup" style="background:linear-gradient(135deg,#2E6BFF,#1B4FCC);color:#fff;font-weight:600;font-size:13px;padding:8px 18px;border-radius:10px;text-decoration:none;">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div>
+    <div class="hero-badge">2026 Comparison Guide</div>
+    <h1><span class="green">KnockIQ</span> vs <span style="color:#fbbf24;">SalesRabbit</span> vs <span class="purple">Spotio</span></h1>
+    <p class="sub">An honest comparison for door-to-door teams in solar, roofing, and pest control — so you can pick the tool that matches your team.</p>
+    <div class="fair-note">This isn't a hit piece. SalesRabbit and Spotio are established, capable products. This is a straight look at where each tool fits.</div>
+  </div>
+</section>
+
+<!-- QUICK TAKE -->
+<section class="quick-take">
+  <div class="section-label">At a Glance</div>
+  <div class="section-title">The Short Version</div>
+  <div class="quick-cards">
+    <div class="qcard">
+      <div class="qcard-logo">SalesRabbit</div>
+      <div class="qcard-tagline">Established &amp; Feature-Broad</div>
+      <p class="qcard-desc">Biggest install base in D2D. Territory management, lead lists, training content, gamified leaderboards. The most well-known name in the category.</p>
+      <div class="qcard-best">Best if you want brand familiarity</div>
+    </div>
+    <div class="qcard">
+      <div class="qcard-logo">Spotio</div>
+      <div class="qcard-tagline">Analytics &amp; Routing Powerhouse</div>
+      <p class="qcard-desc">Heat maps, optimized walking paths, detailed performance dashboards. Genuinely powerful for large, mature sales orgs with dedicated ops people.</p>
+      <div class="qcard-best">Best for large teams with budget</div>
+    </div>
+    <div class="qcard">
+      <div class="qcard-logo">KnockIQ</div>
+      <div class="qcard-tagline">Simple, Affordable, Business-Specific</div>
+      <p class="qcard-desc">Automatic door tracking, setup tailored to your workflow, priced so smaller and mid-sized teams aren't subsidizing enterprise features they'll never use.</p>
+      <div class="qcard-best">Best for teams that want simplicity</div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARISON TABLE -->
+<section class="table-section">
+  <div class="section-label">Side by Side</div>
+  <div class="section-title">How They Compare</div>
+  <p class="section-subtitle">The key differences across pricing, contracts, and approach.</p>
+  <table class="comp-table">
+    <thead>
+      <tr>
+        <th></th>
+        <th>SalesRabbit</th>
+        <th>Spotio</th>
+        <th>KnockIQ</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Pricing</td>
+        <td>Per-rep/month, <span class="warn">contact for quote</span></td>
+        <td>Higher-end, <span class="warn">enterprise pricing</span></td>
+        <td class="highlight-cell"><span class="check">Transparent monthly pricing</span></td>
+      </tr>
+      <tr>
+        <td>Contracts</td>
+        <td><span class="warn">Annual commitment typical</span></td>
+        <td><span class="warn">Annual contracts standard</span></td>
+        <td class="highlight-cell"><span class="check">No year-long lock-in</span></td>
+      </tr>
+      <tr>
+        <td>Best For</td>
+        <td>Teams wanting brand familiarity</td>
+        <td>Large orgs with ops capacity</td>
+        <td class="highlight-cell">Scaling teams (&lt;25 reps)</td>
+      </tr>
+      <tr>
+        <td>Setup</td>
+        <td>Generic template</td>
+        <td>Powerful but steep learning curve</td>
+        <td class="highlight-cell"><span class="check">Configured for your vertical</span></td>
+      </tr>
+      <tr>
+        <td>Door Tracking</td>
+        <td>Manual entry</td>
+        <td>Manual entry</td>
+        <td class="highlight-cell"><span class="check">Automatic — one tap per outcome</span></td>
+      </tr>
+      <tr>
+        <td>Feature Depth</td>
+        <td><span class="check">Wide feature set</span></td>
+        <td><span class="check">Deep analytics &amp; routing</span></td>
+        <td>Focused on what reps actually use</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- FRICTION POINTS -->
+<section class="friction-section">
+  <div class="section-label">The Part Most Pages Skip</div>
+  <div class="section-title">Where Buyers Run Into Friction</div>
+  <p class="section-subtitle">Drawing on publicly available customer reviews.</p>
+  <div class="friction-grid">
+
+    <div class="friction-card">
+      <h4>SalesRabbit</h4>
+      <div class="friction-item">
+        <span class="icon">&#x26A0;&#xFE0F;</span>
+        <span>App stability complaints — glitches and outages reported, often worst during busy summer season</span>
+      </div>
+      <div class="friction-item">
+        <span class="icon">&#x1F4DD;</span>
+        <span>Contract concerns — reviewers describe expecting a short commitment and finding themselves locked into a full year</span>
+      </div>
+      <div class="friction-item">
+        <span class="icon">&#x1F4DE;</span>
+        <span>Support praised during onboarding, but described as slower for existing customers</span>
+      </div>
+    </div>
+
+    <div class="friction-card">
+      <h4>Spotio</h4>
+      <div class="friction-item">
+        <span class="icon">&#x1F4B0;</span>
+        <span>Pricing steep for smaller teams and startups</span>
+      </div>
+      <div class="friction-item">
+        <span class="icon">&#x1F4DA;</span>
+        <span>Feature depth means a real learning curve before a team is fully productive</span>
+      </div>
+      <div class="friction-item">
+        <span class="icon">&#x23F3;</span>
+        <span>Longer onboarding time to get full value from the platform</span>
+      </div>
+    </div>
+
+    <div class="friction-card">
+      <h4>KnockIQ</h4>
+      <div class="friction-item">
+        <span class="icon">&#x1F195;</span>
+        <span>Newest of the three — doesn't yet have years-long track record</span>
+      </div>
+      <div class="friction-item">
+        <span class="icon">&#x1F4E6;</span>
+        <span>Doesn't have the feature sprawl of the incumbents</span>
+      </div>
+      <div class="friction-item">
+        <span class="icon">&#x1F3AF;</span>
+        <span>The bet: most teams don't want the longest feature list — they want tracking that's automatic, software that's simple, and fair pricing</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- DECISION GUIDE -->
+<section class="decision-section">
+  <div class="section-label">How to Choose</div>
+  <div class="section-title">Pick the Right Fit for Your Team</div>
+  <div class="decision-cards">
+    <div class="dcard">
+      <div class="pick-label">Pick SalesRabbit if…</div>
+      <h4>Brand Familiarity Matters Most</h4>
+      <p>You want the most well-known name in D2D and a year-long contract isn't a dealbreaker for your team.</p>
+    </div>
+    <div class="dcard">
+      <div class="pick-label">Pick Spotio if…</div>
+      <h4>You're a Larger Team</h4>
+      <p>You have the budget and operations capacity to get full value from deep analytics and routing tools.</p>
+    </div>
+    <div class="dcard">
+      <div class="pick-label">Pick KnockIQ if…</div>
+      <h4>You Want Day-One Adoption</h4>
+      <p>A tool reps will actually use, automatic door-status tracking, a setup tailored to your vertical, and pricing that makes sense while you're still scaling.</p>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2>The Best Way to Know Is to See It</h2>
+  <p>No universally "best" door-knocking software — just the one that fits your team.</p>
+  <a href="#" class="cta-btn">Book a Demo &rarr;</a>
+  <a href="#" class="cta-btn secondary">Start a Free Trial</a>
+</section>
+
+<p class="footnote">Comparison based on publicly available customer reviews and product information as of 2026. Competitor products evolve — verify current features and pricing directly before deciding.</p>
+
+<footer style="background:#0f172a;padding:40px 0;text-align:center;border-top:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;">
+    <div style="margin-bottom:12px;"><img src="/logo-white.png" alt="KnockIQ" style="height:42px;width:auto;display:inline-block;" /></div>
+    <div style="color:#94a3b8;">
+      <a href="/login" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Sign in</a> &middot;
+      <a href="/signup" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Start trial</a> &middot;
+      <a href="mailto:hello@knockiq.com" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Contact</a> &middot;
+      <a href="/blog.html" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Blog</a> &middot;
+      <a href="/welcome.html#pricing" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Pricing</a>
+    </div>
+    <div style="margin-top:16px;opacity:.6;color:#94a3b8;">&copy; 2026 KnockIQ &middot; Built for the field.</div>
+  </div>
+</footer>
+</body>
+</html>

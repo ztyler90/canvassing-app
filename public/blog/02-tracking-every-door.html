@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why Tracking Every Door Changes Everything | KnockIQ</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e1a;color:#e2e8f0;font-family:'Inter',sans-serif;line-height:1.6;overflow-x:hidden}
+.container{max-width:1100px;margin:0 auto;padding:0 24px}
+
+.hero{padding:80px 0 60px;text-align:center;background:radial-gradient(ellipse at 50% 0%,rgba(16,185,129,.15),transparent 70%)}
+.badge{display:inline-block;padding:6px 18px;border-radius:100px;font-size:13px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;background:rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.25);margin-bottom:20px}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;line-height:1.15;margin-bottom:16px}
+.hero h1 span{background:linear-gradient(135deg,#10b981,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#94a3b8;font-size:clamp(1rem,2vw,1.15rem);max-width:640px;margin:0 auto}
+
+section{padding:60px 0}
+.section-label{text-transform:uppercase;letter-spacing:3px;font-size:12px;font-weight:600;color:#10b981;margin-bottom:10px}
+.section-title{font-size:clamp(1.4rem,3vw,2rem);font-weight:700;margin-bottom:32px}
+
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px}
+.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:24px}
+
+.card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:14px;padding:28px;transition:transform .25s,box-shadow .25s;border-top:3px solid #10b981}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(0,0,0,.4)}
+.card-icon{font-size:28px;margin-bottom:12px}
+.card h3{font-size:1.05rem;font-weight:600;margin-bottom:8px;color:#e2e8f0}
+.card p{color:#94a3b8;font-size:.9rem}
+
+/* Status cards with unique colors */
+.status-noanswer{border-top-color:#f59e0b}
+.status-noanswer .status-dot{background:#f59e0b}
+.status-notinterested{border-top-color:#ef4444}
+.status-notinterested .status-dot{background:#ef4444}
+.status-interested{border-top-color:#3b82f6}
+.status-interested .status-dot{background:#3b82f6}
+.status-booked{border-top-color:#10b981}
+.status-booked .status-dot{background:#10b981}
+.status-dot{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:8px;vertical-align:middle}
+.card .status-label{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center}
+
+/* Callout */
+.callout{background:linear-gradient(145deg,#1a1c2e,#0f172a);border:1px solid rgba(16,185,129,.2);border-left:4px solid #10b981;border-radius:14px;padding:32px 36px;margin-top:8px}
+.callout h3{font-size:1.15rem;font-weight:700;margin-bottom:10px}
+.callout p{color:#94a3b8;font-size:.95rem}
+
+/* Timeline */
+.timeline{display:flex;flex-direction:column;gap:0;position:relative;padding-left:40px}
+.timeline::before{content:'';position:absolute;left:18px;top:8px;bottom:8px;width:3px;background:linear-gradient(to bottom,#10b981,#059669);border-radius:3px}
+.tl-item{position:relative;padding:24px 0}
+.tl-dot{position:absolute;left:-30px;top:28px;width:14px;height:14px;border-radius:50%;background:#10b981;border:3px solid #0a0e1a;box-shadow:0 0 0 2px #10b981}
+.tl-label{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:#10b981;margin-bottom:6px}
+.tl-item h3{font-size:1.1rem;font-weight:600;margin-bottom:4px}
+.tl-item p{color:#94a3b8;font-size:.9rem}
+
+.cta{text-align:center;padding:60px 0 80px}
+.cta-btn{display:inline-block;padding:16px 40px;border-radius:12px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-weight:700;font-size:1.05rem;text-decoration:none;box-shadow:0 8px 24px rgba(16,185,129,.3);transition:transform .2s,box-shadow .2s}
+.cta-btn:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(16,185,129,.4)}
+
+footer{text-align:center;padding:24px 0;color:#475569;font-size:.8rem;border-top:1px solid #1e293b}
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:100;background:rgba(10,14,26,.95);backdrop-filter:blur(14px);border-bottom:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;">
+    <a href="/welcome.html" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;color:#fff;text-decoration:none;">
+      <img src="/logo-white.png" alt="KnockIQ" style="height:36px;width:auto;" />
+    </a>
+    <div style="display:flex;align-items:center;gap:24px;">
+      <a href="/blog.html" style="color:#94a3b8;font-size:14px;font-weight:500;text-decoration:none;">&larr; Back to Blog</a>
+      <a href="/signup" style="background:linear-gradient(135deg,#2E6BFF,#1B4FCC);color:#fff;font-weight:600;font-size:13px;padding:8px 18px;border-radius:10px;text-decoration:none;">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<div class="hero">
+<div class="container">
+<div class="badge">The Case for Tracking</div>
+<h1>Knocked, No Answer, or Booked?<br>Why Tracking <span>Every Door</span> Changes Everything</h1>
+<p>The difference between good teams and great teams isn't talent. It's what they do with the data behind every single knock.</p>
+</div>
+</div>
+
+<section>
+<div class="container">
+<div class="section-label">The Basics</div>
+<div class="section-title">Every Door Has a Status</div>
+<div class="grid-4">
+<div class="card status-noanswer">
+<div class="status-label"><span class="status-dot"></span>No Answer</div>
+<div class="card-icon">🚪</div>
+<h3>Worth a Second Pass</h3>
+<p>Not home doesn't mean not interested. The gold is in the callback.</p>
+</div>
+<div class="card status-notinterested">
+<div class="status-label"><span class="status-dot"></span>Not Interested</div>
+<div class="card-icon">✋</div>
+<h3>Real No — Skip It</h3>
+<p>Respect the answer. Save your reps from wasting a second visit.</p>
+</div>
+<div class="card status-interested">
+<div class="status-label"><span class="status-dot"></span>Interested</div>
+<div class="card-icon">🔥</div>
+<h3>Follow Up NOW</h3>
+<p>This lead has a half-life. Every hour you wait, conversion drops.</p>
+</div>
+<div class="card status-booked">
+<div class="status-label"><span class="status-dot"></span>Booked</div>
+<div class="card-icon">🎯</div>
+<h3>The Win</h3>
+<p>Appointment set. Now make sure it doesn't fall through the cracks.</p>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="container">
+<div class="section-label">The Cost</div>
+<div class="section-title">What You Lose When Data Disappears</div>
+<div class="grid-2">
+<div class="card"><div class="card-icon">🔄</div><h3>Re-Knock Wrong Doors</h3><p>Without status data, reps knock doors that already said no — wasting time and annoying homeowners.</p></div>
+<div class="card"><div class="card-icon">❄️</div><h3>Hot Leads Go Cold</h3><p>An interested homeowner who doesn't get a follow-up within 24 hours is probably gone.</p></div>
+<div class="card"><div class="card-icon">👁️</div><h3>Can't Coach What You Can't See</h3><p>If you don't know a rep's contact rate, you can't tell them what to fix.</p></div>
+<div class="card"><div class="card-icon">🔍</div><h3>Can't Spot What's Working</h3><p>Which neighborhoods convert? Which times of day hit? Without data, it's all guessing.</p></div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="container">
+<div class="section-label">The Hard Truth</div>
+<div class="section-title">Why Spreadsheets Don't Hold Up</div>
+<div class="callout">
+<h3>Tired reps won't do data entry.</h3>
+<p>After 6 hours in the sun, nobody is going back to the office to type door outcomes into a spreadsheet. And even if they did, the data is stale by the time it's entered. The only system that works is one that captures data in the moment — with a single tap, while the rep is still standing on the porch.</p>
+</div>
+</div>
+</section>
+
+<section>
+<div class="container">
+<div class="section-label">The Standard</div>
+<div class="section-title">What Good Tracking Looks Like</div>
+<div class="grid-2">
+<div class="card"><div class="card-icon">🗺️</div><h3>A Map of Yesterday</h3><p>Every manager should be able to open a map and see exactly what happened across every territory.</p></div>
+<div class="card"><div class="card-icon">📋</div><h3>Auto Follow-Up List</h3><p>Interested doors and no-answers automatically queued for the next pass. No manual sorting.</p></div>
+<div class="card"><div class="card-icon">👤</div><h3>A Clear Rep Picture</h3><p>Doors knocked, contacts made, bookings set. Per rep, per day, no ambiguity.</p></div>
+<div class="card"><div class="card-icon">💡</div><h3>Patterns Worth Acting On</h3><p>Time-of-day trends, neighborhood conversion rates, seasonality signals you can actually use.</p></div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="container">
+<div class="section-label">The Payoff</div>
+<div class="section-title">The Compounding Effect</div>
+<div class="timeline">
+<div class="tl-item">
+<div class="tl-dot"></div>
+<div class="tl-label">After 1 Month</div>
+<h3>Neighborhood Data</h3>
+<p>You know which streets convert and which ones to skip. Follow-ups are automatic, not forgotten.</p>
+</div>
+<div class="tl-item">
+<div class="tl-dot"></div>
+<div class="tl-label">After 1 Quarter</div>
+<h3>Time-of-Day Patterns</h3>
+<p>You've found the windows that work. Reps knock smarter, not just harder. Coaching is data-driven.</p>
+</div>
+<div class="tl-item">
+<div class="tl-dot"></div>
+<div class="tl-label">After 1 Year</div>
+<h3>Full Territory Intelligence</h3>
+<p>You own a map of your entire market. New reps ramp faster. Expansion decisions are backed by real data.</p>
+</div>
+</div>
+</div>
+</section>
+
+<div class="cta">
+<div class="container">
+<a href="#" class="cta-btn">See What Your Knocking Data Could Look Like</a>
+</div>
+</div>
+
+<footer style="background:#0f172a;padding:40px 0;text-align:center;border-top:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;">
+    <div style="margin-bottom:12px;"><img src="/logo-white.png" alt="KnockIQ" style="height:42px;width:auto;display:inline-block;" /></div>
+    <div style="color:#94a3b8;">
+      <a href="/login" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Sign in</a> &middot;
+      <a href="/signup" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Start trial</a> &middot;
+      <a href="mailto:hello@knockiq.com" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Contact</a> &middot;
+      <a href="/blog.html" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Blog</a> &middot;
+      <a href="/welcome.html#pricing" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Pricing</a>
+    </div>
+    <div style="margin-top:16px;opacity:.6;color:#94a3b8;">&copy; 2026 KnockIQ &middot; Built for the field.</div>
+  </div>
+</footer>
+</body>
+</html>

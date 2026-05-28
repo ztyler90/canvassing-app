@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why Your Reps Quit (And How Better Data Helps You Keep Them)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e1a;color:#e2e8f0;font-family:'Inter',sans-serif;line-height:1.6;overflow-x:hidden}
+.container{max-width:1100px;margin:0 auto;padding:0 24px}
+
+.hero{padding:100px 0 80px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-40%;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(circle,rgba(244,63,94,.12) 0%,transparent 70%);pointer-events:none}
+.badge{display:inline-block;background:rgba(244,63,94,.12);border:1px solid rgba(244,63,94,.3);color:#f43f5e;padding:8px 20px;border-radius:100px;font-size:13px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:24px}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;line-height:1.15;max-width:800px;margin:0 auto 20px}
+.hero h1 .accent{background:linear-gradient(135deg,#f43f5e,#fb7185);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#94a3b8;font-size:clamp(1rem,2vw,1.15rem);max-width:600px;margin:0 auto}
+
+.section{padding:60px 0}
+.section-label{font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#f43f5e;margin-bottom:12px}
+.section-title{font-size:clamp(1.4rem,3vw,2rem);font-weight:700;margin-bottom:32px}
+
+.card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:16px;padding:32px;transition:transform .25s,box-shadow .25s}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.card-accent{border-top:3px solid #f43f5e}
+.card .icon{font-size:28px;margin-bottom:12px}
+.card h3{font-size:1.1rem;font-weight:700;margin-bottom:8px;color:#e2e8f0}
+.card p{color:#94a3b8;font-size:.95rem}
+
+.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px}
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+
+/* Scenario Card */
+.scenario{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:16px;overflow:hidden}
+.scenario-header{padding:32px 36px 20px;border-bottom:1px solid #1e293b}
+.scenario-header .label{font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#f43f5e;margin-bottom:8px}
+.scenario-header .scenario-text{font-size:clamp(1.1rem,2.5vw,1.4rem);font-weight:700;color:#e2e8f0;line-height:1.4}
+.scenario-header .scenario-text .num{color:#f43f5e}
+.scenario-body{display:grid;grid-template-columns:1fr 1fr;gap:0}
+@media(max-width:640px){.scenario-body{grid-template-columns:1fr}}
+.scenario-view{padding:28px 36px}
+.scenario-view:first-child{border-right:1px solid #1e293b}
+@media(max-width:640px){.scenario-view:first-child{border-right:none;border-bottom:1px solid #1e293b}}
+.scenario-view .view-label{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px}
+.scenario-view.old .view-label{color:#f87171}
+.scenario-view.new .view-label{color:#4ade80}
+.scenario-view .view-content{color:#94a3b8;font-size:.93rem}
+.scenario-view .view-content .highlight{font-weight:600}
+.scenario-view.old .view-content .highlight{color:#f87171}
+.scenario-view.new .view-content .highlight{color:#4ade80}
+
+/* Callout */
+.callout{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid rgba(244,63,94,.2);border-left:4px solid #f43f5e;border-radius:16px;padding:36px}
+.callout .quote{font-size:clamp(1.05rem,2vw,1.25rem);font-weight:600;color:#e2e8f0;line-height:1.5}
+.callout .quote .accent{color:#f43f5e}
+
+/* Comparison */
+.comparison{display:grid;grid-template-columns:1fr 1fr;gap:0;border-radius:16px;overflow:hidden;border:1px solid #1e293b}
+.comparison .side{padding:36px;background:linear-gradient(145deg,#111827,#0f172a)}
+.comparison .side:first-child{border-right:1px solid #1e293b}
+@media(max-width:640px){.comparison{grid-template-columns:1fr}.comparison .side:first-child{border-right:none;border-bottom:1px solid #1e293b}}
+.comparison .side h3{font-size:1.05rem;font-weight:700;margin-bottom:12px}
+.comparison .side p{font-size:.93rem;line-height:1.6}
+.comparison .side.old{opacity:.85}
+.comparison .side.old h3{color:#f87171}
+.comparison .side.old p{color:#64748b}
+.comparison .side.data h3{color:#4ade80}
+.comparison .side.data p{color:#cbd5e1}
+
+/* Disclaimer */
+.disclaimer{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid rgba(244,63,94,.15);border-radius:16px;padding:40px;text-align:center}
+.disclaimer .icon{font-size:36px;margin-bottom:16px}
+.disclaimer h3{font-size:1.15rem;font-weight:700;color:#e2e8f0;margin-bottom:12px}
+.disclaimer p{color:#94a3b8;font-size:1rem;max-width:600px;margin:0 auto}
+
+/* Signature */
+.signature{text-align:center;padding:40px 0 0;color:#94a3b8;font-size:1rem;font-style:italic}
+.signature .name{color:#f43f5e;font-weight:600;font-style:normal}
+
+/* CTA */
+.cta-section{text-align:center;padding:60px 0 100px}
+.cta-btn{display:inline-block;padding:18px 48px;background:linear-gradient(135deg,#f43f5e,#e11d48);color:#fff;font-size:1.05rem;font-weight:700;border-radius:14px;text-decoration:none;box-shadow:0 8px 30px rgba(244,63,94,.3);transition:transform .2s,box-shadow .2s}
+.cta-btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(244,63,94,.45)}
+.divider{height:1px;background:linear-gradient(90deg,transparent,#1e293b,transparent);margin:20px 0}
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:100;background:rgba(10,14,26,.95);backdrop-filter:blur(14px);border-bottom:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;">
+    <a href="/welcome.html" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;color:#fff;text-decoration:none;">
+      <img src="/logo-white.png" alt="KnockIQ" style="height:36px;width:auto;" />
+    </a>
+    <div style="display:flex;align-items:center;gap:24px;">
+      <a href="/blog.html" style="color:#94a3b8;font-size:14px;font-weight:500;text-decoration:none;">&larr; Back to Blog</a>
+      <a href="/signup" style="background:linear-gradient(135deg,#2E6BFF,#1B4FCC);color:#fff;font-weight:600;font-size:13px;padding:8px 18px;border-radius:10px;text-decoration:none;">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="badge">💬 From the Founder</div>
+    <h1><span class="accent">Why Your Reps Quit</span> (And How Better Data Helps You Keep Them)</h1>
+    <p>The real reason reps leave isn't the grind — it's feeling invisible.</p>
+  </section>
+
+  <!-- Section 1: What Invisibility Looks Like -->
+  <section class="section">
+    <div class="section-label">The Problem</div>
+    <div class="section-title">What Invisibility Looks Like</div>
+    <div class="scenario">
+      <div class="scenario-header">
+        <div class="label">A Typical Day</div>
+        <div class="scenario-text"><span class="num">70</span> doors, <span class="num">9</span> conversations, <span class="num">3</span> strong leads — the whiteboard says <span class="num">ZERO</span></div>
+      </div>
+      <div class="scenario-body">
+        <div class="scenario-view old">
+          <div class="view-label">Closes-Only View</div>
+          <div class="view-content">The whiteboard shows <span class="highlight">0 sales</span>. The rep looks like they did nothing. Manager has no context. Rep feels invisible. This is the view that kills retention.</div>
+        </div>
+        <div class="scenario-view new">
+          <div class="view-label">Full-Funnel View</div>
+          <div class="view-content"><span class="highlight">70 doors knocked</span>, 9 real conversations, 3 leads worth following up. That's a productive day. That's a rep who's working the process.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 2: Why "Just Track Better" Fails -->
+  <section class="section">
+    <div class="section-label">The Real Fix</div>
+    <div class="section-title">Why "Just Track Better" Fails</div>
+    <div class="callout">
+      <div class="quote">The fix isn't more discipline. It's a system where capturing takes <span class="accent">one tap</span>. Paperwork-based systems always fail — not because reps are lazy, but because friction wins every time at the end of an exhausting day.</div>
+    </div>
+  </section>
+
+  <!-- Section 3: The Conversation That Retains -->
+  <section class="section">
+    <div class="section-label">Coaching</div>
+    <div class="section-title">The Conversation That Retains a Rep</div>
+    <div class="comparison">
+      <div class="side old">
+        <h3>❌ The Old Way</h3>
+        <p>"Tough day, huh? Get 'em tomorrow."<br><br>No data. No specifics. No actionable coaching. The rep walks away feeling like their effort was invisible and the advice was hollow.</p>
+      </div>
+      <div class="side data">
+        <h3>✅ The Data-Informed Way</h3>
+        <p>"You knocked 70 doors and had 9 conversations — that's solid activity. Your conversation rate was above average. Let's look at why those 3 leads didn't convert and adjust your close approach."<br><br>Specific, based on what actually happened, and actionable.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 4: What Changes in 60-90 Days -->
+  <section class="section">
+    <div class="section-label">Outcomes</div>
+    <div class="section-title">What Changes in 60–90 Days</div>
+    <div class="grid-4">
+      <div class="card card-accent">
+        <div class="icon">🙋</div>
+        <h3>Reps Stay Longer</h3>
+        <p>"I feel seen." When effort is visible, reps feel valued — even on days without closes.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">🎯</div>
+        <h3>Coaching Gets Specific</h3>
+        <p>Conversations shift from vague encouragement to targeted, data-backed guidance.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">⚖️</div>
+        <h3>Top Performers Less Resentful</h3>
+        <p>When everyone's effort is measured the same way, top reps don't feel punished for others coasting.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">🔍</div>
+        <h3>Bad Hires Identified Faster</h3>
+        <p>Data shows who's actually working and who isn't — no more guessing for 90 days.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 5: What This Isn't -->
+  <section class="section">
+    <div class="section-label">Important</div>
+    <div class="section-title">What This Isn't</div>
+    <div class="disclaimer">
+      <div class="icon">🛡️</div>
+      <h3>Not Surveillance. Not Dashboard-Staring.</h3>
+      <p>This is about seeing work clearly enough to coach well. It's about giving managers the context they need to have real conversations — and giving reps the confidence that their effort is recognized.</p>
+    </div>
+  </section>
+
+  <!-- Signature -->
+  <div class="signature">
+    — <span class="name">Founder of KnockIQ</span>
+  </div>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="divider"></div>
+    <br><br>
+    <a href="#" class="cta-btn">See How KnockIQ Makes Rep Effort Visible →</a>
+  </section>
+
+</div>
+
+<footer style="background:#0f172a;padding:40px 0;text-align:center;border-top:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;">
+    <div style="margin-bottom:12px;"><img src="/logo-white.png" alt="KnockIQ" style="height:42px;width:auto;display:inline-block;" /></div>
+    <div style="color:#94a3b8;">
+      <a href="/login" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Sign in</a> &middot;
+      <a href="/signup" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Start trial</a> &middot;
+      <a href="mailto:hello@knockiq.com" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Contact</a> &middot;
+      <a href="/blog.html" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Blog</a> &middot;
+      <a href="/welcome.html#pricing" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Pricing</a>
+    </div>
+    <div style="margin-top:16px;opacity:.6;color:#94a3b8;">&copy; 2026 KnockIQ &middot; Built for the field.</div>
+  </div>
+</footer>
+</body>
+</html>
