@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { Component } from 'react'
+import { Component, useEffect, useState } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'
 import { SessionProvider } from './contexts/SessionContext.jsx'
 import Login             from './screens/Login.jsx'
@@ -106,6 +106,32 @@ function AppRoutes() {
 }
 
 function LoadingScreen() {
+  // After 6s, surface a self-recovery option. The AuthContext failsafe
+  // already force-unsticks loading at 8s, but on a flaky connection (or if
+  // a service-worker / cached-bundle issue caused the JS to load in a weird
+  // state) a reload from the user is still the cleanest reset. Showing this
+  // means reps don't need to know about "hard refresh" — they can just tap.
+  const [showRecovery, setShowRecovery] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setShowRecovery(true), 6000)
+    return () => clearTimeout(t)
+  }, [])
+
+  // Force a clean reload: bypass the SPA router AND nudge the service worker
+  // to drop its cached HTML by appending a cache-busting query string.
+  const handleReload = () => {
+    try {
+      // Best-effort: tell any registered SW to skip waiting / re-fetch.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          regs.forEach((r) => r.update())
+        }).catch(() => {})
+      }
+    } finally {
+      window.location.href = `/?_r=${Date.now()}`
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="flex flex-col items-center gap-3">
@@ -116,6 +142,17 @@ function LoadingScreen() {
           </svg>
         </div>
         <p className="text-gray-500 text-sm">Loading…</p>
+        {showRecovery && (
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <p className="text-gray-400 text-xs">Taking longer than usual</p>
+            <button
+              onClick={handleReload}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300"
+            >
+              Tap to reload
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
