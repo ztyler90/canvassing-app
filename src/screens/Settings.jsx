@@ -517,173 +517,13 @@ export default function Settings() {
 
       <div className="flex-1 px-4 py-5 space-y-6 pb-10 max-w-lg mx-auto w-full">
 
-        {/* ── Pricing Plans ──────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-gray-700 font-semibold text-base mb-3">Plans</h2>
-          <div className="space-y-3">
-
-            {/* Standard Plan */}
-            <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${!isPro ? 'border-blue-500' : 'border-gray-100'}`}>
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="font-bold text-gray-800 text-base">Standard</p>
-                  <p className="text-gray-500 text-xs">For growing canvassing teams</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-gray-800 text-xl">$20<span className="text-sm font-normal text-gray-500">/seat/mo</span></p>
-                  <p className="text-gray-400 text-xs">Billed monthly</p>
-                </div>
-              </div>
-              <ul className="space-y-1.5 mt-3">
-                {['Unlimited reps', 'Session tracking', 'GPS mapping', 'Territory management', 'Leaderboard & analytics'].map(f => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
-                    <Check className="w-4 h-4 flex-shrink-0" style={{ color: BRAND_LIME }} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              {!isPro && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <span className="inline-flex items-center gap-1.5 text-blue-600 text-xs font-semibold bg-blue-50 px-3 py-1 rounded-full">
-                    <CheckCircle className="w-3.5 h-3.5" /> Current Plan
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Pro Plan */}
-            <div className={`rounded-2xl p-4 shadow-sm border-2 ${isPro ? 'border-blue-500 bg-white' : 'bg-white border-gray-100'}`}
-              style={isPro ? {} : {}}>
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-gray-800 text-base">Pro</p>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: BRAND_LIME }}>
-                      + CRM
-                    </span>
-                  </div>
-                  <p className="text-gray-500 text-xs">Standard + CRM integration add-on</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-gray-800 text-xl">$50<span className="text-sm font-normal text-gray-500">/seat/mo</span></p>
-                  <p className="text-gray-400 text-xs">Replaces Standard price</p>
-                </div>
-              </div>
-              <ul className="space-y-1.5 mt-3">
-                {['Everything in Standard', 'Zapier webhook integration', 'Auto-push session data to any CRM', 'Custom field mapping (coming soon)', 'Priority support'].map(f => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
-                    <Check className="w-4 h-4 flex-shrink-0" style={{ color: BRAND_LIME }} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              {isPro ? (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <span className="inline-flex items-center gap-1.5 text-blue-600 text-xs font-semibold bg-blue-50 px-3 py-1 rounded-full">
-                    <CheckCircle className="w-3.5 h-3.5" /> Current Plan
-                  </span>
-                </div>
-              ) : (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <a
-                    href="mailto:hello@knockiq.com?subject=Upgrade to Pro&body=Hi, I'd like to upgrade my account to the Pro plan."
-                    className="btn-brand block w-full py-2.5 rounded-xl text-center text-sm font-bold">
-                    Contact to Upgrade → Pro
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {/* ── CRM Integration ────────────────────────────────────────── */}
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Zap className="w-4 h-4" style={{ color: BRAND_BLUE }} />
-            <h2 className="text-gray-700 font-semibold text-base">CRM Integration</h2>
-            {!isPro && <Lock className="w-3.5 h-3.5 text-gray-400" />}
-          </div>
-
-          {/* Zapier */}
-          <div className={`bg-white rounded-2xl p-4 shadow-sm border ${isPro ? 'border-gray-100' : 'border-gray-100 opacity-60'}`}>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
-                <span className="text-xl">⚡</span>
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-800 text-sm">Zapier Webhook</p>
-                <p className="text-gray-400 text-xs">Connect to 6,000+ apps via Zapier</p>
-              </div>
-              <a
-                href="https://zapier.com/apps/webhooks"
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 text-xs text-blue-500 hover:underline">
-                Docs <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-
-            {isPro ? (
-              <div className="space-y-3">
-                <div>
-                  <label className="text-gray-500 text-xs block mb-1.5">Webhook URL</label>
-                  <input
-                    type="url"
-                    value={webhookUrl}
-                    onChange={e => setWebhookUrl(e.target.value)}
-                    placeholder="https://hooks.zapier.com/hooks/catch/…"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                  <p className="text-gray-400 text-xs mt-1.5">
-                    Fires when a rep ends a session — sends the full session summary.
-                  </p>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleTestWebhook}
-                    disabled={testing || !savedUrl}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium disabled:opacity-40">
-                    {testing
-                      ? <><Loader className="w-4 h-4 animate-spin" /> Testing…</>
-                      : testResult === 'success'
-                        ? <><CheckCircle className="w-4 h-4 text-green-500" /> Sent!</>
-                        : testResult === 'error'
-                          ? <><XCircle className="w-4 h-4 text-red-500" /> Failed</>
-                          : 'Test'}
-                  </button>
-                  <button
-                    onClick={handleSaveWebhook}
-                    disabled={saving || webhookUrl === savedUrl}
-                    className="btn-brand flex-1 py-2 rounded-xl text-sm font-bold">
-                    {saving ? 'Saving…' : 'Save URL'}
-                  </button>
-                </div>
-
-                <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
-                  <p className="font-semibold text-gray-600 mb-1">Payload sent on session end:</p>
-                  <pre className="overflow-x-auto text-gray-400">{`{
-  "event": "session_ended",
-  "rep_name": "…",
-  "rep_email": "…",
-  "started_at": "…",
-  "ended_at": "…",
-  "doors_knocked": 0,
-  "conversations": 0,
-  "estimates": 0,
-  "bookings": 0,
-  "revenue_booked": 0.00
-}`}</pre>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5">
-                <Lock className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                <p className="text-gray-500 text-sm">Upgrade to Pro to configure Zapier webhooks.</p>
-              </div>
-            )}
-          </div>
-        </section>
+        {/* Section order rationale: the owner's daily flow lives at the
+            top of the page — invite link, team, daily goal, services,
+            then the org snapshot. Plans + CRM Integration sit BELOW
+            Organization because they're rarely touched after initial
+            setup; surfacing them above the day-to-day controls created
+            unnecessary scrolling past pricing every time someone wanted
+            to tweak a service or check on pending reps. */}
 
         {/* ── Team Invite Link ────────────────────────────────────────
             Lets the owner share ONE URL that any number of reps can
@@ -1372,6 +1212,174 @@ export default function Settings() {
             <p className="text-gray-400 text-xs pt-1">
               ${seatPrice}/seat × {reps.length + 1} seats · {isPro ? 'Pro tier' : 'Standard tier'}
             </p>
+          </div>
+        </section>
+
+        {/* ── Pricing Plans ──────────────────────────────────────────── */}
+        <section>
+          <h2 className="text-gray-700 font-semibold text-base mb-3">Plans</h2>
+          <div className="space-y-3">
+
+            {/* Standard Plan */}
+            <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${!isPro ? 'border-blue-500' : 'border-gray-100'}`}>
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="font-bold text-gray-800 text-base">Standard</p>
+                  <p className="text-gray-500 text-xs">For growing canvassing teams</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-gray-800 text-xl">$20<span className="text-sm font-normal text-gray-500">/seat/mo</span></p>
+                  <p className="text-gray-400 text-xs">Billed monthly</p>
+                </div>
+              </div>
+              <ul className="space-y-1.5 mt-3">
+                {['Unlimited reps', 'Session tracking', 'GPS mapping', 'Territory management', 'Leaderboard & analytics'].map(f => (
+                  <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
+                    <Check className="w-4 h-4 flex-shrink-0" style={{ color: BRAND_LIME }} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              {!isPro && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <span className="inline-flex items-center gap-1.5 text-blue-600 text-xs font-semibold bg-blue-50 px-3 py-1 rounded-full">
+                    <CheckCircle className="w-3.5 h-3.5" /> Current Plan
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Pro Plan */}
+            <div className={`rounded-2xl p-4 shadow-sm border-2 ${isPro ? 'border-blue-500 bg-white' : 'bg-white border-gray-100'}`}
+              style={isPro ? {} : {}}>
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-gray-800 text-base">Pro</p>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: BRAND_LIME }}>
+                      + CRM
+                    </span>
+                  </div>
+                  <p className="text-gray-500 text-xs">Standard + CRM integration add-on</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-gray-800 text-xl">$50<span className="text-sm font-normal text-gray-500">/seat/mo</span></p>
+                  <p className="text-gray-400 text-xs">Replaces Standard price</p>
+                </div>
+              </div>
+              <ul className="space-y-1.5 mt-3">
+                {['Everything in Standard', 'Zapier webhook integration', 'Auto-push session data to any CRM', 'Custom field mapping (coming soon)', 'Priority support'].map(f => (
+                  <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
+                    <Check className="w-4 h-4 flex-shrink-0" style={{ color: BRAND_LIME }} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              {isPro ? (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <span className="inline-flex items-center gap-1.5 text-blue-600 text-xs font-semibold bg-blue-50 px-3 py-1 rounded-full">
+                    <CheckCircle className="w-3.5 h-3.5" /> Current Plan
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <a
+                    href="mailto:hello@knockiq.com?subject=Upgrade to Pro&body=Hi, I'd like to upgrade my account to the Pro plan."
+                    className="btn-brand block w-full py-2.5 rounded-xl text-center text-sm font-bold">
+                    Contact to Upgrade → Pro
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ── CRM Integration ────────────────────────────────────────── */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+            <h2 className="text-gray-700 font-semibold text-base">CRM Integration</h2>
+            {!isPro && <Lock className="w-3.5 h-3.5 text-gray-400" />}
+          </div>
+
+          {/* Zapier */}
+          <div className={`bg-white rounded-2xl p-4 shadow-sm border ${isPro ? 'border-gray-100' : 'border-gray-100 opacity-60'}`}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                <span className="text-xl">⚡</span>
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-gray-800 text-sm">Zapier Webhook</p>
+                <p className="text-gray-400 text-xs">Connect to 6,000+ apps via Zapier</p>
+              </div>
+              <a
+                href="https://zapier.com/apps/webhooks"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 text-xs text-blue-500 hover:underline">
+                Docs <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            {isPro ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-gray-500 text-xs block mb-1.5">Webhook URL</label>
+                  <input
+                    type="url"
+                    value={webhookUrl}
+                    onChange={e => setWebhookUrl(e.target.value)}
+                    placeholder="https://hooks.zapier.com/hooks/catch/…"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  />
+                  <p className="text-gray-400 text-xs mt-1.5">
+                    Fires when a rep ends a session — sends the full session summary.
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleTestWebhook}
+                    disabled={testing || !savedUrl}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium disabled:opacity-40">
+                    {testing
+                      ? <><Loader className="w-4 h-4 animate-spin" /> Testing…</>
+                      : testResult === 'success'
+                        ? <><CheckCircle className="w-4 h-4 text-green-500" /> Sent!</>
+                        : testResult === 'error'
+                          ? <><XCircle className="w-4 h-4 text-red-500" /> Failed</>
+                          : 'Test'}
+                  </button>
+                  <button
+                    onClick={handleSaveWebhook}
+                    disabled={saving || webhookUrl === savedUrl}
+                    className="btn-brand flex-1 py-2 rounded-xl text-sm font-bold">
+                    {saving ? 'Saving…' : 'Save URL'}
+                  </button>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
+                  <p className="font-semibold text-gray-600 mb-1">Payload sent on session end:</p>
+                  <pre className="overflow-x-auto text-gray-400">{`{
+  "event": "session_ended",
+  "rep_name": "…",
+  "rep_email": "…",
+  "started_at": "…",
+  "ended_at": "…",
+  "doors_knocked": 0,
+  "conversations": 0,
+  "estimates": 0,
+  "bookings": 0,
+  "revenue_booked": 0.00
+}`}</pre>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5">
+                <Lock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <p className="text-gray-500 text-sm">Upgrade to Pro to configure Zapier webhooks.</p>
+              </div>
+            )}
           </div>
         </section>
 

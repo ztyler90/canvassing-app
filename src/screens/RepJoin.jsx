@@ -37,12 +37,19 @@ import {
 
 const BRAND_BLUE = '#1B4FCC'
 
+// Plain <a href="/"> (not React Router <Link>) so the click does a real
+// browser nav to "/", which Vercel rewrites to /welcome.html. Gives a rep
+// who tapped the join link by mistake a clear way back to the homepage.
 function KnockIQLogo({ subtitle }) {
   return (
-    <div className="mb-6 flex flex-col items-center">
+    <a
+      href="/"
+      className="mb-6 flex flex-col items-center cursor-pointer"
+      aria-label="KnockIQ — back to homepage"
+    >
       <img src="/logo.png" alt="KnockIQ" className="h-20 w-auto object-contain" />
       <p className="text-gray-400 text-sm mt-2">{subtitle}</p>
-    </div>
+    </a>
   )
 }
 

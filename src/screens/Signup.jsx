@@ -6,16 +6,25 @@ const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
 
 // ─── Logo ─────────────────────────────────────────────────────────────────────
+// Plain <a href="/"> (not React Router <Link>) — clicking it forces a real
+// browser navigation back to the homepage, which Vercel rewrites to
+// /welcome.html. This is the visitor's escape hatch from the signup page
+// if they landed here by mistake. Using a SPA Link would route through
+// WelcomeRedirect which works but adds a render cycle.
 function KnockIQLogo() {
   return (
-    <div className="mb-8 flex flex-col items-center">
+    <a
+      href="/"
+      className="mb-8 flex flex-col items-center cursor-pointer"
+      aria-label="KnockIQ — back to homepage"
+    >
       <img
         src="/logo.png"
         alt="KnockIQ"
         className="h-24 w-auto object-contain"
       />
       <p className="text-gray-400 text-sm mt-2">Start your 30-day free trial</p>
-    </div>
+    </a>
   )
 }
 

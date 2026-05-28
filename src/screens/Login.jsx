@@ -25,16 +25,27 @@ const CARD_ELEMENT_OPTIONS = {
 }
 
 // ─── Logo ─────────────────────────────────────────────────────────────────────
+// Wrapped in a plain <a href="/"> (NOT a React Router <Link>) so the click
+// triggers a real browser navigation. Vercel's `{ src: "/", dest: "/welcome.html" }`
+// rewrite then serves the marketing page. Using Link would bounce through
+// the SPA router and WelcomeRedirect, which is one render cycle longer for
+// no benefit — and would silently break if a future router change ever
+// added a `/` route to the unauth tree. The plain anchor is the escape
+// hatch a visitor needs to get back to the homepage from login/signup.
 function KnockIQLogo() {
   return (
-    <div className="mb-8 flex flex-col items-center">
+    <a
+      href="/"
+      className="mb-8 flex flex-col items-center cursor-pointer"
+      aria-label="KnockIQ — back to homepage"
+    >
       <img
         src="/logo.png"
         alt="KnockIQ"
         className="h-24 w-auto object-contain"
       />
       <p className="text-gray-400 text-sm mt-2">Smart Door-to-Door Canvassing</p>
-    </div>
+    </a>
   )
 }
 
