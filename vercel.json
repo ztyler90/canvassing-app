@@ -1,6 +1,7 @@
 {
   "routes": [
     { "src": "/", "dest": "/welcome.html" },
+    { "src": "/blog", "dest": "/blog.html" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]

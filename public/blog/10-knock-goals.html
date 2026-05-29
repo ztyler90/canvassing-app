@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Setting Realistic Knock Goals: A Manager's Guide to Daily and Weekly Targets</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e1a;color:#e2e8f0;font-family:'Inter',sans-serif;line-height:1.6;overflow-x:hidden}
+.container{max-width:1100px;margin:0 auto;padding:0 24px}
+
+.hero{padding:100px 0 80px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-40%;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(circle,rgba(139,92,246,.12) 0%,transparent 70%);pointer-events:none}
+.badge{display:inline-block;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);color:#8b5cf6;padding:8px 20px;border-radius:100px;font-size:13px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:24px}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;line-height:1.15;max-width:800px;margin:0 auto 20px}
+.hero h1 .accent{background:linear-gradient(135deg,#8b5cf6,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#94a3b8;font-size:clamp(1rem,2vw,1.15rem);max-width:600px;margin:0 auto}
+
+.section{padding:60px 0}
+.section-label{font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#8b5cf6;margin-bottom:12px}
+.section-title{font-size:clamp(1.4rem,3vw,2rem);font-weight:700;margin-bottom:32px}
+
+.card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:16px;padding:32px;transition:transform .25s,box-shadow .25s}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.card-accent{border-top:3px solid #8b5cf6}
+.card .icon{font-size:28px;margin-bottom:12px}
+.card h3{font-size:1.1rem;font-weight:700;margin-bottom:8px;color:#e2e8f0}
+.card p{color:#94a3b8;font-size:.95rem}
+
+.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px}
+.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+
+/* Funnel */
+.funnel{display:flex;flex-direction:column;align-items:center;gap:0;margin-bottom:32px}
+.funnel-step{display:flex;align-items:center;justify-content:center;gap:16px;padding:20px 32px;width:100%;max-width:700px;position:relative;border-radius:12px;margin-bottom:4px;transition:transform .2s}
+.funnel-step:hover{transform:scale(1.02)}
+.funnel-step:nth-child(1){background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3)}
+.funnel-step:nth-child(2){background:rgba(139,92,246,.11);border:1px solid rgba(139,92,246,.22);max-width:600px}
+.funnel-step:nth-child(3){background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.16);max-width:500px}
+.funnel-step:nth-child(4){background:rgba(139,92,246,.05);border:1px solid rgba(139,92,246,.1);max-width:400px}
+.funnel-step .ratio{font-size:1.1rem;font-weight:800;color:#a78bfa;min-width:60px;text-align:center}
+.funnel-step .label{font-size:.95rem;color:#cbd5e1;font-weight:500}
+.funnel-arrow{color:#8b5cf6;font-size:1.2rem;margin:4px 0}
+.funnel-result{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid rgba(139,92,246,.3);border-radius:16px;padding:32px;text-align:center;margin-top:16px;max-width:700px;width:100%}
+.funnel-result .big{font-size:clamp(1rem,2.5vw,1.3rem);font-weight:700;color:#e2e8f0}
+.funnel-result .big .v{color:#8b5cf6}
+
+/* Tier Cards */
+.tier-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}
+.tier-card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-top:3px solid #8b5cf6;border-radius:16px;padding:28px;text-align:center;transition:transform .25s}
+.tier-card:hover{transform:translateY(-4px)}
+.tier-card .tier-label{font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8b5cf6;margin-bottom:8px}
+.tier-card .tier-range{font-size:1.6rem;font-weight:800;color:#e2e8f0;margin-bottom:6px}
+.tier-card .tier-desc{color:#94a3b8;font-size:.9rem}
+
+/* Warning */
+.warning{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid rgba(251,191,36,.25);border-left:4px solid #f59e0b;border-radius:16px;padding:36px;margin-bottom:20px}
+.warning h3{color:#fbbf24;font-size:1.1rem;font-weight:700;margin-bottom:8px}
+.warning p{color:#94a3b8;font-size:.95rem}
+
+/* Columns */
+.col-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+@media(max-width:768px){.col-3{grid-template-columns:1fr}}
+.col-card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:16px;padding:28px;text-align:center}
+.col-card .col-title{font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8b5cf6;margin-bottom:12px}
+.col-card .col-period{font-size:1.3rem;font-weight:800;color:#e2e8f0;margin-bottom:8px}
+.col-card ul{list-style:none;text-align:left}
+.col-card ul li{color:#94a3b8;font-size:.9rem;padding:6px 0;border-bottom:1px solid #1e293b}
+.col-card ul li:last-child{border-bottom:none}
+
+/* Contrast */
+.contrast{display:grid;grid-template-columns:1fr 1fr;gap:0;border-radius:16px;overflow:hidden;border:1px solid #1e293b}
+.contrast .side{padding:36px;background:linear-gradient(145deg,#111827,#0f172a)}
+.contrast .side:first-child{border-right:1px solid #1e293b}
+.contrast .side h3{font-size:1.05rem;font-weight:700;margin-bottom:8px}
+.contrast .side p{font-size:.93rem}
+.contrast .side.bad h3{color:#f87171}
+.contrast .side.bad p{color:#94a3b8}
+.contrast .side.good h3{color:#a78bfa}
+.contrast .side.good p{color:#cbd5e1}
+@media(max-width:640px){.contrast{grid-template-columns:1fr}.contrast .side:first-child{border-right:none;border-bottom:1px solid #1e293b}}
+
+/* CTA */
+.cta-section{text-align:center;padding:80px 0 100px}
+.cta-btn{display:inline-block;padding:18px 48px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;font-size:1.05rem;font-weight:700;border-radius:14px;text-decoration:none;box-shadow:0 8px 30px rgba(139,92,246,.3);transition:transform .2s,box-shadow .2s}
+.cta-btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(139,92,246,.45)}
+.divider{height:1px;background:linear-gradient(90deg,transparent,#1e293b,transparent);margin:20px 0}
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:100;background:rgba(10,14,26,.95);backdrop-filter:blur(14px);border-bottom:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;">
+    <a href="/welcome.html" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;color:#fff;text-decoration:none;">
+      <img src="/logo-white.png" alt="KnockIQ" style="height:36px;width:auto;" />
+    </a>
+    <div style="display:flex;align-items:center;gap:24px;">
+      <a href="/blog.html" style="color:#94a3b8;font-size:14px;font-weight:500;text-decoration:none;">&larr; Back to Blog</a>
+      <a href="/signup" style="background:linear-gradient(135deg,#2E6BFF,#1B4FCC);color:#fff;font-weight:600;font-size:13px;padding:8px 18px;border-radius:10px;text-decoration:none;">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="badge">📊 Manager's Guide</div>
+    <h1>Setting <span class="accent">Realistic Knock Goals</span>: A Manager's Guide to Daily &amp; Weekly Targets</h1>
+    <p>How to set targets that push performance without burning out your team.</p>
+  </section>
+
+  <!-- Section 1: Start With the Math -->
+  <section class="section">
+    <div class="section-label">The Numbers</div>
+    <div class="section-title">Start With the Math</div>
+    <div class="funnel">
+      <div class="funnel-step">
+        <span class="ratio">1 in 4</span>
+        <span class="label">Knocks turn into a conversation</span>
+      </div>
+      <div class="funnel-arrow">↓</div>
+      <div class="funnel-step">
+        <span class="ratio">1 in 5</span>
+        <span class="label">Conversations turn into a booking</span>
+      </div>
+      <div class="funnel-arrow">↓</div>
+      <div class="funnel-step">
+        <span class="ratio">1 in 2</span>
+        <span class="label">Bookings turn into a sit</span>
+      </div>
+      <div class="funnel-arrow">↓</div>
+      <div class="funnel-step">
+        <span class="ratio">1 in 3</span>
+        <span class="label">Sits turn into a sale</span>
+      </div>
+    </div>
+    <div class="funnel-result">
+      <div class="big">For <span class="v">10 sales/month</span> → ~1,200 doors → <span class="v">~60 doors/day</span></div>
+    </div>
+  </section>
+
+  <!-- Section 2: Scale by Tenure -->
+  <section class="section">
+    <div class="section-label">Scaling</div>
+    <div class="section-title">Scale Goals by Tenure</div>
+    <div class="tier-cards">
+      <div class="tier-card">
+        <div class="tier-label">Week 1 Rep</div>
+        <div class="tier-range">25–40</div>
+        <div class="tier-desc">doors/day — learning the craft, building confidence</div>
+      </div>
+      <div class="tier-card">
+        <div class="tier-label">Weeks 2–4</div>
+        <div class="tier-range">Ramp</div>
+        <div class="tier-desc">Gradually increase to full target over the first month</div>
+      </div>
+      <div class="tier-card">
+        <div class="tier-label">Established</div>
+        <div class="tier-range">Full</div>
+        <div class="tier-desc">Full daily target based on your funnel math</div>
+      </div>
+      <div class="tier-card">
+        <div class="tier-label">Top Producers</div>
+        <div class="tier-range">Weekly</div>
+        <div class="tier-desc">Shift to weekly/monthly output — trust their rhythm</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3: Knock Count Warning -->
+  <section class="section">
+    <div class="section-label">Quality Check</div>
+    <div class="section-title">Knock Count Isn't Enough</div>
+    <div class="warning">
+      <h3>⚠️ Watch for Speed-Knocking</h3>
+      <p>A rep who hits 80 doors but has 2 conversations isn't outperforming — they're skimming. Pair knock goals with quality metrics: conversations per knock, bookings per conversation, and sit rates. The number of doors only matters if the conversations are real.</p>
+    </div>
+  </section>
+
+  <!-- Section 4: Daily vs Weekly vs Monthly -->
+  <section class="section">
+    <div class="section-label">Time Horizons</div>
+    <div class="section-title">Daily vs Weekly vs Monthly</div>
+    <div class="col-3">
+      <div class="col-card">
+        <div class="col-title">Daily</div>
+        <div class="col-period">Activity</div>
+        <ul>
+          <li>🚪 Doors knocked</li>
+          <li>💬 Conversations started</li>
+          <li>📝 Leads captured</li>
+        </ul>
+      </div>
+      <div class="col-card">
+        <div class="col-title">Weekly</div>
+        <div class="col-period">Pipeline</div>
+        <ul>
+          <li>📅 Bookings set</li>
+          <li>🪑 Sits completed</li>
+          <li>📊 Conversion rates</li>
+        </ul>
+      </div>
+      <div class="col-card">
+        <div class="col-title">Monthly</div>
+        <div class="col-period">Output</div>
+        <ul>
+          <li>✅ Deals closed</li>
+          <li>💰 Revenue generated</li>
+          <li>📈 Trend vs prior month</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 5: Until Dark -->
+  <section class="section">
+    <div class="section-label">The Trap</div>
+    <div class="section-title">What "Until Dark" Costs You</div>
+    <div class="contrast">
+      <div class="side bad">
+        <h3>⏰ Time-Based Goals</h3>
+        <p>Rewards presence. Reps learn to look busy until the clock runs out. Slow-knockers survive. Top performers get frustrated watching others coast.</p>
+      </div>
+      <div class="side good">
+        <h3>🎯 Number-Based Goals</h3>
+        <p>Rewards productivity. Reps who hit their number earn their evening back. Efficient reps thrive. Accountability is clear and measurable.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 6: Territory + Recovery -->
+  <section class="section">
+    <div class="section-label">Adjustments</div>
+    <div class="section-title">Territory Adjustment + Recovery Rhythm</div>
+    <div class="grid-2">
+      <div class="card card-accent">
+        <div class="icon">🗺️</div>
+        <h3>Territory Adjustment</h3>
+        <p>Not all turf is equal. Adjust daily targets based on density, drive time, and territory quality. A rural area with spread-out homes needs a different number than a dense suburban block.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">🔄</div>
+        <h3>Recovery Rhythm</h3>
+        <p>Bad days happen. Build in a weekly recovery mechanism — if a rep misses Monday's target, what does the rest of the week look like? Define a plan, not just pressure.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 7: Make Goals Visible -->
+  <section class="section">
+    <div class="section-label">Habits</div>
+    <div class="section-title">Make Goals Visible</div>
+    <div class="grid-4">
+      <div class="card card-accent">
+        <div class="icon">🌅</div>
+        <h3>State Every Morning</h3>
+        <p>Say the number out loud. Every rep should know their target before they leave the office.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">📱</div>
+        <h3>Progress Visible All Day</h3>
+        <p>Reps should be able to see where they stand at any moment — not guess.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">🌙</div>
+        <h3>End-of-Day Check-Ins</h3>
+        <p>Quick daily review: did we hit it? What got in the way? Keep it short and constructive.</p>
+      </div>
+      <div class="card card-accent">
+        <div class="icon">📅</div>
+        <h3>Weekly Number Review</h3>
+        <p>Zoom out once a week. Patterns show up in weekly data that daily noise hides.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="divider"></div>
+    <br><br>
+    <a href="/signup" class="cta-btn">Start free trial &rarr;</a>
+  </section>
+
+</div>
+
+<footer style="background:#0f172a;padding:40px 0;text-align:center;border-top:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;">
+    <div style="margin-bottom:12px;"><img src="/logo-white.png" alt="KnockIQ" style="height:42px;width:auto;display:inline-block;" /></div>
+    <div style="color:#94a3b8;">
+      <a href="/login" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Sign in</a> &middot;
+      <a href="/signup" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Start trial</a> &middot;
+      <a href="mailto:hello@knockiq.com" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Contact</a> &middot;
+      <a href="/blog.html" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Blog</a> &middot;
+      <a href="/welcome.html#pricing" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Pricing</a>
+    </div>
+    <div style="margin-top:16px;opacity:.6;color:#94a3b8;">&copy; 2026 KnockIQ &middot; Built for the field.</div>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>7 Metrics Every D2D Sales Manager Should Watch Daily</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #0a0e1a;
+    color: #e2e8f0;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    position: relative;
+    min-height: 90vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 60px 24px;
+    background: radial-gradient(ellipse at 50% 0%, #1a2744 0%, #0a0e1a 70%);
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 800px;
+    background: radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(59,130,246,0.15);
+    border: 1px solid rgba(59,130,246,0.3);
+    color: #60a5fa;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 8px 20px;
+    border-radius: 100px;
+    margin-bottom: 28px;
+  }
+  .hero h1 {
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 900;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    max-width: 800px;
+    margin: 0 auto 28px;
+  }
+  .hero h1 .accent { color: #60a5fa; }
+  .hero p {
+    font-size: 1.15rem;
+    color: #94a3b8;
+    max-width: 580px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  /* ── Funnel visual ── */
+  .funnel-section {
+    padding: 80px 24px 60px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .section-label {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #60a5fa;
+    margin-bottom: 12px;
+  }
+  .section-title {
+    text-align: center;
+    font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+    font-weight: 800;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+  }
+  .section-subtitle {
+    text-align: center;
+    color: #94a3b8;
+    max-width: 550px;
+    margin: 0 auto 50px;
+    font-size: 1.05rem;
+  }
+
+  .funnel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  .funnel-step {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 56px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    color: #fff;
+    transition: transform 0.2s;
+  }
+  .funnel-step:hover { transform: scale(1.03); }
+  .funnel-step:nth-child(1) { width: 100%; background: linear-gradient(135deg, #3b82f6, #2563eb); }
+  .funnel-step:nth-child(2) { width: 86%; background: linear-gradient(135deg, #6366f1, #4f46e5); }
+  .funnel-step:nth-child(3) { width: 72%; background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+  .funnel-step:nth-child(4) { width: 58%; background: linear-gradient(135deg, #a855f7, #9333ea); }
+  .funnel-step:nth-child(5) { width: 44%; background: linear-gradient(135deg, #d946ef, #c026d3); }
+  .funnel-arrow {
+    color: #475569;
+    font-size: 20px;
+    line-height: 1;
+  }
+  .funnel-plus {
+    margin-top: 16px;
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .funnel-plus span {
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.25);
+    color: #93c5fd;
+    padding: 8px 18px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* ── Metric cards ── */
+  .metrics {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 28px;
+  }
+  .metric-card {
+    background: linear-gradient(145deg, #111827, #0f172a);
+    border: 1px solid #1e293b;
+    border-radius: 20px;
+    padding: 36px 32px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.25s, border-color 0.25s;
+  }
+  .metric-card:hover {
+    transform: translateY(-4px);
+    border-color: #334155;
+  }
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+  }
+  .metric-card:nth-child(1)::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+  .metric-card:nth-child(2)::before { background: linear-gradient(90deg, #6366f1, #818cf8); }
+  .metric-card:nth-child(3)::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+  .metric-card:nth-child(4)::before { background: linear-gradient(90deg, #a855f7, #c084fc); }
+  .metric-card:nth-child(5)::before { background: linear-gradient(90deg, #d946ef, #e879f9); }
+  .metric-card:nth-child(6)::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .metric-card:nth-child(7)::before { background: linear-gradient(90deg, #10b981, #34d399); }
+
+  .metric-number {
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    font-size: 64px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.04);
+    line-height: 1;
+  }
+  .metric-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    margin-bottom: 18px;
+  }
+  .metric-card:nth-child(1) .metric-icon { background: rgba(59,130,246,0.15); }
+  .metric-card:nth-child(2) .metric-icon { background: rgba(99,102,241,0.15); }
+  .metric-card:nth-child(3) .metric-icon { background: rgba(139,92,246,0.15); }
+  .metric-card:nth-child(4) .metric-icon { background: rgba(168,85,247,0.15); }
+  .metric-card:nth-child(5) .metric-icon { background: rgba(217,70,239,0.15); }
+  .metric-card:nth-child(6) .metric-icon { background: rgba(245,158,11,0.15); }
+  .metric-card:nth-child(7) .metric-icon { background: rgba(16,185,129,0.15); }
+
+  .metric-card h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  .metric-card p {
+    color: #94a3b8;
+    font-size: 0.92rem;
+    line-height: 1.65;
+  }
+  .metric-card .insight {
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: rgba(59,130,246,0.06);
+    border-left: 3px solid;
+    border-radius: 0 10px 10px 0;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+    line-height: 1.6;
+  }
+  .metric-card:nth-child(1) .insight { border-color: #3b82f6; }
+  .metric-card:nth-child(2) .insight { border-color: #6366f1; }
+  .metric-card:nth-child(3) .insight { border-color: #8b5cf6; }
+  .metric-card:nth-child(4) .insight { border-color: #a855f7; }
+  .metric-card:nth-child(5) .insight { border-color: #d946ef; }
+  .metric-card:nth-child(6) .insight { border-color: #f59e0b; }
+  .metric-card:nth-child(7) .insight { border-color: #10b981; }
+
+  /* ── Full-width callout ── */
+  .callout-section {
+    padding: 80px 24px;
+    background: linear-gradient(180deg, #0a0e1a 0%, #111827 50%, #0a0e1a 100%);
+  }
+  .callout-box {
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: center;
+    background: linear-gradient(145deg, rgba(59,130,246,0.08), rgba(139,92,246,0.08));
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 24px;
+    padding: 56px 40px;
+  }
+  .callout-box h2 {
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 800;
+    margin-bottom: 18px;
+    letter-spacing: -0.02em;
+  }
+  .callout-box p {
+    color: #94a3b8;
+    font-size: 1.05rem;
+    max-width: 560px;
+    margin: 0 auto 0;
+    line-height: 1.7;
+  }
+
+  /* ── Bottom CTA ── */
+  .cta-section {
+    padding: 60px 24px 100px;
+    text-align: center;
+  }
+  .cta-section h2 {
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 900;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+  }
+  .cta-section p {
+    color: #94a3b8;
+    margin-bottom: 32px;
+    font-size: 1.05rem;
+  }
+  .cta-btn {
+    display: inline-block;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    color: #fff;
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 16px 40px;
+    border-radius: 12px;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 24px rgba(59,130,246,0.3);
+  }
+  .cta-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(59,130,246,0.4);
+  }
+
+  /* ── Span full row for 7th card ── */
+  .metrics .metric-card:nth-child(7) {
+    grid-column: 1 / -1;
+    max-width: 600px;
+    justify-self: center;
+    width: 100%;
+  }
+
+  @media (max-width: 700px) {
+    .metrics { grid-template-columns: 1fr; }
+    .hero { min-height: 70vh; padding: 40px 20px; }
+    .metric-card { padding: 28px 24px; }
+    .callout-box { padding: 40px 24px; }
+  }
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:100;background:rgba(10,14,26,.95);backdrop-filter:blur(14px);border-bottom:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;">
+    <a href="/welcome.html" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;color:#fff;text-decoration:none;">
+      <img src="/logo-white.png" alt="KnockIQ" style="height:36px;width:auto;" />
+    </a>
+    <div style="display:flex;align-items:center;gap:24px;">
+      <a href="/blog.html" style="color:#94a3b8;font-size:14px;font-weight:500;text-decoration:none;">&larr; Back to Blog</a>
+      <a href="/signup" style="background:linear-gradient(135deg,#2E6BFF,#1B4FCC);color:#fff;font-weight:600;font-size:13px;padding:8px 18px;border-radius:10px;text-decoration:none;">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div>
+    <div class="hero-badge">KnockIQ Field Guide</div>
+    <h1><span class="accent">7 Metrics</span> Every D2D Sales Manager Should Watch Daily</h1>
+    <p>Effort without measurement is a treadmill. The managers who consistently grow their teams watch a small number of metrics every day and use those numbers to coach, redeploy, and prioritize.</p>
+  </div>
+</section>
+
+<!-- FUNNEL -->
+<section class="funnel-section">
+  <div class="section-label">The Full Picture</div>
+  <div class="section-title">Your Sales Funnel at a Glance</div>
+  <p class="section-subtitle">A weak number anywhere in this chain is a coaching opportunity. Scan them every morning in 60 seconds.</p>
+  <div class="funnel">
+    <div class="funnel-step">Doors Knocked</div>
+    <div class="funnel-step">Conversations (Contact Rate)</div>
+    <div class="funnel-step">Appointments (Booking Rate)</div>
+    <div class="funnel-step">Sits (Sit Rate)</div>
+    <div class="funnel-step">Sales (Close Rate)</div>
+  </div>
+  <div class="funnel-plus">
+    <span>+ Follow-up Coverage</span>
+    <span>+ Territory Coverage</span>
+  </div>
+</section>
+
+<!-- METRIC CARDS -->
+<section class="metrics">
+
+  <!-- 1 -->
+  <div class="metric-card">
+    <span class="metric-number">1</span>
+    <div class="metric-icon">&#x1F6AA;</div>
+    <h3>Doors Knocked per Rep, per Day</h3>
+    <p>The most basic activity metric and the foundation of everything else. If you don't know how many doors each rep is putting in, every other number is impossible to interpret.</p>
+    <div class="insight"><strong>Look for consistency.</strong> A rep who knocks 80 doors Monday and 25 on Thursday has a focus problem you can fix. Daily counts also reveal coverage gaps.</div>
+  </div>
+
+  <!-- 2 -->
+  <div class="metric-card">
+    <span class="metric-number">2</span>
+    <div class="metric-icon">&#x1F4AC;</div>
+    <h3>Contact Rate</h3>
+    <p>The percentage of knocks that turn into a real conversation. Doors knocked is the input; contact rate is the first quality metric.</p>
+    <div class="insight"><strong>High knocks + low contact?</strong> Wrong times or wrong areas. <strong>High contact + low knocks?</strong> They have the people skills — they just need more reps at the door.</div>
+  </div>
+
+  <!-- 3 -->
+  <div class="metric-card">
+    <span class="metric-number">3</span>
+    <div class="metric-icon">&#x1F4C5;</div>
+    <h3>Booking Rate</h3>
+    <p>Of conversations had, what percentage end with an appointment booked? This is where pitch quality lives.</p>
+    <div class="insight"><strong>The most coachable metric.</strong> The difference between high and low booking rates is almost always the pitch, the close, or the way they handle the first objection.</div>
+  </div>
+
+  <!-- 4 -->
+  <div class="metric-card">
+    <span class="metric-number">4</span>
+    <div class="metric-icon">&#x1F3E0;</div>
+    <h3>Sit Rate</h3>
+    <p>A booked appointment is not a kept appointment. Sit rate measures the percentage of bookings that turn into a real meeting at the home.</p>
+    <div class="insight"><strong>Gets ignored more than it should.</strong> Common causes of low sits: appointments booked too far out, weak confirmations, or reps booking soft appointments to hit a number.</div>
+  </div>
+
+  <!-- 5 -->
+  <div class="metric-card">
+    <span class="metric-number">5</span>
+    <div class="metric-icon">&#x1F3AF;</div>
+    <h3>Close Rate</h3>
+    <p>The most-talked-about metric in sales is usually the last one you should look at — because by the time it's low, the problem is upstream.</p>
+    <div class="insight"><strong>Low close + high bookings?</strong> Reps are over-promising or under-qualifying at the door. Fix the front of the funnel and close rate often follows.</div>
+  </div>
+
+  <!-- 6 -->
+  <div class="metric-card">
+    <span class="metric-number">6</span>
+    <div class="metric-icon">&#x1F504;</div>
+    <h3>Follow-up Coverage</h3>
+    <p>How many of yesterday's "interested but not yet" doors actually got followed up on? The leakiest part of most D2D operations — and almost nobody measures it.</p>
+    <div class="insight"><strong>The hidden revenue leak.</strong> If your team generates 30 warm leads a week and only 10 get touched again, you're losing 20 deals weekly. That's bigger than any coaching gain on close rate.</div>
+  </div>
+
+  <!-- 7 -->
+  <div class="metric-card">
+    <span class="metric-number">7</span>
+    <div class="metric-icon">&#x1F5FA;</div>
+    <h3>Territory Coverage</h3>
+    <p>What percentage of your assigned territory got worked this week? Two problems hide here: overlap (reps working the same streets) and cherry-picking (gravitating to easy neighborhoods).</p>
+    <div class="insight"><strong>Both are invisible without a map view</strong> of where the team actually went — and both kill efficiency in ways that don't show up in any single rep's numbers.</div>
+  </div>
+
+</section>
+
+<!-- CALLOUT -->
+<section class="callout-section">
+  <div class="callout-box">
+    <h2>Why This Is Hard Without Software</h2>
+    <p>Most D2D teams don't track these numbers because manually capturing them at the door is impossible and capturing them after the fact is unreliable. By Friday, nobody remembers their Tuesday contact rate. The case for tracking software isn't features or dashboards — it's that without it, these seven numbers are guesses. With it, they're a system you can manage by.</p>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2>See Your Team's Seven Numbers</h2>
+  <p>KnockIQ automatically tracks every door — one tap per outcome — and turns those taps into the metrics above.</p>
+  <a href="/signup" class="cta-btn">Start free trial &rarr;</a>
+</section>
+
+<footer style="background:#0f172a;padding:40px 0;text-align:center;border-top:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;">
+    <div style="margin-bottom:12px;"><img src="/logo-white.png" alt="KnockIQ" style="height:42px;width:auto;display:inline-block;" /></div>
+    <div style="color:#94a3b8;">
+      <a href="/login" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Sign in</a> &middot;
+      <a href="/signup" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Start trial</a> &middot;
+      <a href="mailto:hello@knockiq.com" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Contact</a> &middot;
+      <a href="/blog.html" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Blog</a> &middot;
+      <a href="/welcome.html#pricing" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Pricing</a>
+    </div>
+    <div style="margin-top:16px;opacity:.6;color:#94a3b8;">&copy; 2026 KnockIQ &middot; Built for the field.</div>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How to Onboard a New Door-Knocking Rep in Their First Week</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e1a;color:#e2e8f0;font-family:'Inter',sans-serif;line-height:1.6;overflow-x:hidden}
+.container{max-width:1100px;margin:0 auto;padding:0 24px}
+
+.hero{padding:100px 0 80px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-40%;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(circle,rgba(6,182,212,.12) 0%,transparent 70%);pointer-events:none}
+.badge{display:inline-block;background:rgba(6,182,212,.12);border:1px solid rgba(6,182,212,.3);color:#06b6d4;padding:8px 20px;border-radius:100px;font-size:13px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:24px}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;line-height:1.15;max-width:800px;margin:0 auto 20px}
+.hero h1 .accent{background:linear-gradient(135deg,#06b6d4,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#94a3b8;font-size:clamp(1rem,2vw,1.15rem);max-width:600px;margin:0 auto}
+
+.section{padding:60px 0}
+.section-label{font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#06b6d4;margin-bottom:12px}
+.section-title{font-size:clamp(1.4rem,3vw,2rem);font-weight:700;margin-bottom:32px}
+
+.card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:16px;padding:32px;transition:transform .25s,box-shadow .25s}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.card-accent{border-top:3px solid #06b6d4}
+.card .icon{font-size:28px;margin-bottom:12px}
+.card h3{font-size:1.1rem;font-weight:700;margin-bottom:8px;color:#e2e8f0}
+.card p{color:#94a3b8;font-size:.95rem}
+
+/* Stat */
+.stat-card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-left:4px solid #06b6d4;border-radius:16px;padding:40px;text-align:center;margin-bottom:20px}
+.stat-card .big{font-size:clamp(1.8rem,4vw,2.6rem);font-weight:800;color:#06b6d4;margin-bottom:8px}
+.stat-card .desc{color:#94a3b8;font-size:1rem}
+
+/* Timeline */
+.timeline{display:flex;flex-direction:column;gap:24px;position:relative;padding-left:40px}
+.timeline::before{content:'';position:absolute;left:15px;top:0;bottom:0;width:2px;background:linear-gradient(to bottom,#06b6d4,rgba(6,182,212,.15))}
+.timeline-item{position:relative}
+.timeline-item::before{content:'';position:absolute;left:-33px;top:16px;width:16px;height:16px;border-radius:50%;background:#06b6d4;border:3px solid #0a0e1a;box-shadow:0 0 12px rgba(6,182,212,.4)}
+.timeline-card{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:16px;padding:28px 32px;transition:transform .25s}
+.timeline-card:hover{transform:translateX(6px)}
+.timeline-card .day{font-size:13px;font-weight:700;color:#06b6d4;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px}
+.timeline-card h3{font-size:1.1rem;font-weight:700;margin-bottom:8px;color:#e2e8f0}
+.timeline-card p{color:#94a3b8;font-size:.93rem}
+
+/* Progress Bar */
+.progress-visual{display:flex;align-items:center;gap:0;margin:20px 0;flex-wrap:wrap}
+.progress-step{flex:1;min-width:140px;text-align:center;padding:20px 12px;position:relative}
+.progress-step .step-label{font-size:.85rem;font-weight:600;color:#cbd5e1;margin-bottom:8px}
+.progress-step .step-bar{height:6px;border-radius:3px;margin:0 4px}
+.progress-step:nth-child(1) .step-bar{background:linear-gradient(90deg,#06b6d4 0%,#0891b2 100%)}
+.progress-step:nth-child(2) .step-bar{background:linear-gradient(90deg,#0891b2 0%,#0e7490 100%)}
+.progress-step:nth-child(3) .step-bar{background:linear-gradient(90deg,#0e7490 0%,#155e75 100%)}
+.progress-step:nth-child(4) .step-bar{background:linear-gradient(90deg,#155e75 0%,#164e63 100%)}
+.progress-step:nth-child(5) .step-bar{background:linear-gradient(90deg,#164e63 0%,#22d3ee 100%)}
+.progress-arrow{color:#06b6d4;font-size:1.2rem;margin:0 -4px;flex-shrink:0}
+.progress-wrapper{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid #1e293b;border-radius:16px;padding:40px 32px;overflow-x:auto}
+
+/* Callout */
+.callout{background:linear-gradient(145deg,#111827,#0f172a);border:1px solid rgba(6,182,212,.25);border-radius:16px;padding:48px;text-align:center}
+.callout .quote{font-size:clamp(1.15rem,2.5vw,1.5rem);font-weight:600;color:#e2e8f0;font-style:italic;line-height:1.5}
+.callout .quote .accent{color:#06b6d4;font-style:normal}
+
+/* CTA */
+.cta-section{text-align:center;padding:80px 0 100px}
+.cta-btn{display:inline-block;padding:18px 48px;background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;font-size:1.05rem;font-weight:700;border-radius:14px;text-decoration:none;box-shadow:0 8px 30px rgba(6,182,212,.3);transition:transform .2s,box-shadow .2s}
+.cta-btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(6,182,212,.45)}
+.divider{height:1px;background:linear-gradient(90deg,transparent,#1e293b,transparent);margin:20px 0}
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:100;background:rgba(10,14,26,.95);backdrop-filter:blur(14px);border-bottom:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;">
+    <a href="/welcome.html" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;color:#fff;text-decoration:none;">
+      <img src="/logo-white.png" alt="KnockIQ" style="height:36px;width:auto;" />
+    </a>
+    <div style="display:flex;align-items:center;gap:24px;">
+      <a href="/blog.html" style="color:#94a3b8;font-size:14px;font-weight:500;text-decoration:none;">&larr; Back to Blog</a>
+      <a href="/signup" style="background:linear-gradient(135deg,#2E6BFF,#1B4FCC);color:#fff;font-weight:600;font-size:13px;padding:8px 18px;border-radius:10px;text-decoration:none;">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="badge">📋 Onboarding Playbook</div>
+    <h1>How to Onboard a New Door-Knocking Rep in Their <span class="accent">First Week</span></h1>
+    <p>A structured 5-day plan that turns nervous new hires into confident door-knockers.</p>
+  </section>
+
+  <!-- Stat -->
+  <section class="section" style="padding-top:0">
+    <div class="stat-card">
+      <div class="big">40–60%</div>
+      <div class="desc">of new reps quit in the first 90 days — most quit in week 1 or 2</div>
+    </div>
+  </section>
+
+  <!-- Before Day 1 -->
+  <section class="section">
+    <div class="section-label">Pre-Start</div>
+    <div class="section-title">Before Day 1</div>
+    <div class="card card-accent">
+      <div class="icon">✉️</div>
+      <h3>Set Realistic Expectations Early</h3>
+      <p>Send a pre-start message that's honest about what the week looks like. Don't oversell. Tell them: "The first week is hard. You'll feel awkward. That's normal. We have a plan for you." This one message reduces no-shows and sets the tone that this team takes onboarding seriously.</p>
+    </div>
+  </section>
+
+  <!-- 5-Day Plan -->
+  <section class="section">
+    <div class="section-label">The Framework</div>
+    <div class="section-title">The 5-Day Plan</div>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-card">
+          <div class="day">Day 1 — Foundation, Not Field</div>
+          <h3>Learn the Why, Product, Pitch & Tools</h3>
+          <p>No doors on day one. Teach them why the product matters, how it works, the core pitch framework, and the tools they'll use every day. End with role-play, not a territory.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-card">
+          <div class="day">Day 2 — Ride Along</div>
+          <h3>Watch a Strong Rep Work</h3>
+          <p>Pair them with one of your best. Their job: watch, listen, take notes. Debrief after every 5-10 doors. They should see what "good" looks like before they attempt it.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-card">
+          <div class="day">Day 3 — First Knocks With Support</div>
+          <h3>Manager Present, 30-Second Debriefs</h3>
+          <p>They knock, you watch. After each door, a quick 30-second debrief: what went well, one thing to adjust. Keep it positive and specific.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-card">
+          <div class="day">Day 4 — Slightly Longer Leash</div>
+          <h3>Check-Ins Every Hour or Two</h3>
+          <p>Let them work a small area on their own with scheduled check-ins. They start to feel the rhythm of independent work with a safety net.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-card">
+          <div class="day">Day 5 — First Solo Block</div>
+          <h3>Small Territory, Few Hours Alone</h3>
+          <p>A defined, manageable area. A few hours on their own. End the day with a real conversation about how they feel — not just their numbers.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- The Pattern -->
+  <section class="section">
+    <div class="section-label">The Pattern</div>
+    <div class="section-title">Progressive Independence</div>
+    <div class="progress-wrapper">
+      <div class="progress-visual">
+        <div class="progress-step">
+          <div class="step-label">📖 Learn</div>
+          <div class="step-bar"></div>
+        </div>
+        <div class="progress-step">
+          <div class="step-label">👀 Watch</div>
+          <div class="step-bar"></div>
+        </div>
+        <div class="progress-step">
+          <div class="step-label">🤝 Do with Support</div>
+          <div class="step-bar"></div>
+        </div>
+        <div class="progress-step">
+          <div class="step-label">🔗 Light Support</div>
+          <div class="step-bar"></div>
+        </div>
+        <div class="progress-step">
+          <div class="step-label">🚀 Do Alone</div>
+          <div class="step-bar"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- End of Week 1 -->
+  <section class="section">
+    <div class="section-label">End of Week 1</div>
+    <div class="section-title">The Feeling That Matters</div>
+    <div class="callout">
+      <div class="quote">"Tired, and a little <span class="accent">proud</span>. The week was hard, and they did it."</div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="divider"></div>
+    <br><br>
+    <a href="/signup" class="cta-btn">Start free trial &rarr;</a>
+  </section>
+
+</div>
+
+<footer style="background:#0f172a;padding:40px 0;text-align:center;border-top:1px solid #1e293b;">
+  <div style="max-width:1200px;margin:0 auto;padding:0 28px;">
+    <div style="margin-bottom:12px;"><img src="/logo-white.png" alt="KnockIQ" style="height:42px;width:auto;display:inline-block;" /></div>
+    <div style="color:#94a3b8;">
+      <a href="/login" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Sign in</a> &middot;
+      <a href="/signup" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Start trial</a> &middot;
+      <a href="mailto:hello@knockiq.com" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Contact</a> &middot;
+      <a href="/blog.html" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Blog</a> &middot;
+      <a href="/welcome.html#pricing" style="color:#CBD5E1;margin:0 12px;text-decoration:none;">Pricing</a>
+    </div>
+    <div style="margin-top:16px;opacity:.6;color:#94a3b8;">&copy; 2026 KnockIQ &middot; Built for the field.</div>
+  </div>
+</footer>
+</body>
+</html>
