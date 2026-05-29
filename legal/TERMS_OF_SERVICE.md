@@ -93,7 +93,7 @@ Because the Service is used to record information about individuals (Visited Per
 
 **(c) Solicitor licensing.** You are responsible for obtaining and maintaining any solicitor, peddler, canvasser, or door-to-door sales license required in the localities where your Reps operate. The Service does not verify license status.
 
-**(d) Recording-consent compliance — voice notes.** The Service includes a voice-note feature that captures audio for transcription. **You must train your Reps to use this feature only as a Rep-side dictation tool, and only after stepping away from any Visited Person or out of earshot of the conversation**, except where the Rep has obtained explicit verbal consent from all parties to a recording. The following states currently require consent of all parties to a recording: **California, Connecticut, Delaware, Florida, Illinois, Maryland, Massachusetts, Montana, Nevada, New Hampshire, Pennsylvania, and Washington.** You are responsible for compliance with all applicable wiretapping and recording-consent statutes. **KnockIQ does not warrant the legality of any recording made through the Service in any jurisdiction.**
+**(d) No audio capture.** KnockIQ does not collect audio recordings, voiceprints, or other voice-derived data. If KnockIQ ever reintroduces a feature that captures audio, you will receive at least 30 days' notice and may opt your Customer Account out of that feature; in the meantime, you must not attempt to circumvent this restriction by integrating third-party recording tools through the Service or by directing Reps to record Visited Persons by other means. You are independently responsible for any audio recording your Reps make using devices or apps outside the Service, including compliance with state wiretapping and all-party-consent laws (currently including California, Connecticut, Delaware, Florida, Illinois, Maryland, Massachusetts, Montana, Nevada, New Hampshire, Pennsylvania, and Washington).
 
 **(e) Photo capture restrictions.** You must instruct your Reps to use the photo-upload feature only to photograph **building exteriors visible from a publicly accessible location** that are directly relevant to the service being quoted (e.g., roof, siding, gutters, driveway). Reps are prohibited from photographing:
 - Interior spaces of any building.
@@ -124,7 +124,7 @@ You may invite individuals you employ or engage as Reps to access the Service un
 
 - The Rep has a current employment or independent-contractor relationship with you and is acting within the scope of that engagement.
 - The Rep is at least 18 years old.
-- You have provided the Rep with notice of and obtained any consent required for the data collection KnockIQ performs through the Rep's device (including continuous geolocation, voice capture, and device motion).
+- You have provided the Rep with notice of and obtained any consent required for the data collection KnockIQ performs through the Rep's device (including continuous geolocation and device motion).
 - You will deactivate the Rep's access promptly upon termination of the engagement.
 
 You are responsible for all activity that occurs under each Rep's credentials, including any breach of these Terms or applicable law by the Rep.
@@ -142,13 +142,13 @@ You grant KnockIQ a non-exclusive, worldwide, royalty-free license to host, stor
 ### 7.3 Aggregated and de-identified data
 KnockIQ may create aggregated and de-identified data from Customer Data and may use that aggregated data for internal analytics, benchmarking, and product improvement. Aggregated data must not contain any information that could reasonably be used to identify you, any Rep, or any Visited Person.
 
-> **[ATTORNEY REVIEW: this aggregated-data clause is standard but conflicts with MODPA's strict-necessity rule for sensitive data. If KnockIQ wants to use geolocation- or voice-derived data in aggregated analytics, that must be (a) limited to truly de-identified data per CCPA § 1798.140(m) and equivalent state definitions, and (b) disclosed in the Privacy Policy. Confirm scope.]**
+> **[ATTORNEY REVIEW: this aggregated-data clause is standard but conflicts with MODPA's strict-necessity rule for sensitive data. If KnockIQ wants to use geolocation-derived data in aggregated analytics, that must be (a) limited to truly de-identified data per CCPA § 1798.140(m) and equivalent state definitions, and (b) disclosed in the Privacy Policy. Confirm scope.]**
 
 ### 7.4 Responsibility for accuracy
 You are responsible for the accuracy and lawfulness of Customer Data, including data your Reps enter about Visited Persons. KnockIQ does not validate the accuracy of doorstep entries.
 
 ### 7.5 Export and deletion
-You may export Customer Data through the Service at any time during the term. Within [INSERT — e.g., "30 days"] of termination, you may request a final export. After that period, KnockIQ will delete Customer Data from active systems within [INSERT — e.g., "60 days"], subject to any retention required by law or any legal hold notified to you.
+You may export Customer Data through the Service at any time during the term. Within 30 days of termination, you may request a final export. After that period, KnockIQ will delete Customer Data from active systems within 60 days (total: 90 days from termination), subject to any retention required by law or any legal hold notified to you. Operational retention windows for live-account data (interactions, photos, GPS, etc.) are described in our Privacy Policy.
 
 ---
 
@@ -185,7 +185,7 @@ If you provide suggestions, ideas, or feedback about the Service, you grant Knoc
 
 ## 11. Third-Party Services
 
-The Service integrates with third-party services that we use to operate the platform (e.g., Supabase, OpenAI, Stripe, OpenStreetMap, Resend) and that you may optionally enable (e.g., webhook integrations). KnockIQ does not control third-party services, and your use of them is governed by their respective terms and privacy policies. KnockIQ is not responsible for the acts, omissions, or content of third-party services.
+The Service integrates with third-party services that we use to operate the platform (e.g., Supabase, Stripe, OpenStreetMap, Resend) and that you may optionally enable (e.g., webhook integrations). KnockIQ does not control third-party services, and your use of them is governed by their respective terms and privacy policies. KnockIQ is not responsible for the acts, omissions, or content of third-party services.
 
 The current list of sub-processors is maintained at [URL — sub-processor page]. We will provide notice of material changes to the sub-processor list as described in the DPA.
 
@@ -209,7 +209,7 @@ WITHOUT LIMITING THE GENERALITY OF THE FOREGOING, KNOCKIQ MAKES **NO WARRANTY** 
 
 - THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR SECURE;
 - DATA STORED OR PROCESSED BY THE SERVICE WILL BE FREE OF LOSS OR CORRUPTION;
-- ANY VOICE NOTE, PHOTOGRAPH, OR OTHER DATA CAPTURED THROUGH THE SERVICE COMPLIES WITH ANY APPLICABLE RECORDING, WIRETAPPING, PHOTOGRAPHY, OR PRIVACY LAW IN ANY JURISDICTION;
+- ANY PHOTOGRAPH OR OTHER DATA CAPTURED THROUGH THE SERVICE COMPLIES WITH ANY APPLICABLE PHOTOGRAPHY OR PRIVACY LAW IN ANY JURISDICTION;
 - ANY DO-NOT-KNOCK ENTRY OR LIST AVAILABLE THROUGH THE SERVICE IS COMPLETE OR CURRENT;
 - THE SERVICE WILL PREVENT A REP FROM IGNORING A DO-NOT-KNOCK ENTRY OR FROM ENGAGING IN ANY UNLAWFUL CANVASSING ACTIVITY;
 - ADDRESS, GEOCODING, OR TERRITORY DATA IS ACCURATE;

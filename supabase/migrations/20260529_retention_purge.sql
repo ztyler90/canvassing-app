@@ -13,8 +13,16 @@
 --   interactions                — 24 months
 --     photo_urls (storage objs) — purged with their parent row
 --   interactions where
---     outcome = 'no_answer'     — 30 days   (data-minimized; see #18)
---   gps_points                  — 90 days
+--     outcome = 'no_answer'     — 180 days  (data-minimized to lat/lng
+--                                  + timestamp only — see #18 — so the
+--                                  row is essentially anonymized canvas-
+--                                  sing coverage. Keeping ~2 cycles is
+--                                  what actually reduces homeowner data
+--                                  churn: shorter retention means reps
+--                                  re-knock and we log a *new* row.)
+--   gps_points                  — 12 months (covers HR/dispute review
+--                                  windows; ~1MB/rep/month storage cost
+--                                  for the breadcrumb stream.)
 --   rep_locations               — purged when the parent session ends
 --                                  (handled by clearRepLocation), but
 --                                  this job also sweeps any orphans
@@ -49,8 +57,8 @@ AS $$
 DECLARE
   -- Retention windows. Edit here, then update PRIVACY_POLICY.md §12.
   v_interactions_retention      interval := interval '24 months';
-  v_no_answer_retention         interval := interval '30 days';
-  v_gps_retention               interval := interval '90 days';
+  v_no_answer_retention         interval := interval '180 days';
+  v_gps_retention               interval := interval '12 months';
   v_rep_locations_orphan_age    interval := interval '24 hours';
 
   v_deleted bigint;

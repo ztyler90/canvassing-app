@@ -31,9 +31,9 @@ Under US state privacy laws (California CCPA/CPRA, Virginia VCDPA, Colorado CPA,
 
 | Data category | Our role | Controller (decides why and how) |
 |---|---|---|
-| Rep account, location, voice notes, performance | **Processor / Service Provider** | The Customer (canvassing company) |
+| Rep account, location, performance metrics | **Processor / Service Provider** | The Customer (canvassing company) |
 | Customer account, billing, configuration | **Controller** | KnockIQ |
-| Visited Person address, lat/lng, contact info, notes, photos, voice transcripts | **Controller** (jointly with the Customer in most cases) | KnockIQ and the Customer |
+| Visited Person address, lat/lng, contact info, notes, photos | **Controller** (jointly with the Customer in most cases) | KnockIQ and the Customer |
 
 > **[ATTORNEY REVIEW: confirm controller posture for Visited Person data. The "processor only" model is not defensible — no contract authorizes KnockIQ to capture that data through the homeowner, so KnockIQ inherits direct controller obligations. Confirm whether joint-controller framing is preferable to sole-controller framing for indemnification purposes.]**
 
@@ -51,7 +51,6 @@ When you use KnockIQ as a Rep, we collect:
   - Continuously, every approximately 30 seconds, while a canvassing session is active on your device, using your browser's geolocation interface.
   - As individual coordinates each time you log a door interaction.
   - Continuously, broadcast to your manager's dashboard in real time while a session is active.
-- **Voice recordings**, when you tap the voice-note button. Audio is transmitted to a third-party speech-to-text service (OpenAI Whisper) and converted to text. We do not retain the raw audio on KnockIQ servers; the resulting text is saved to the interaction record only if you save the modal.
 - **Device motion data** (accelerometer readings) captured locally by your browser to classify whether you are walking, in a vehicle, or stationary. This data is processed only in your device memory and is not transmitted to or stored by KnockIQ.
 - **Performance data** derived from your activity: doors knocked, conversations, estimates, bookings, revenue booked, hour-of-day patterns, and similar metrics.
 - **Device and connection information**, including IP address, browser type and version, operating system, and approximate location from IP (collected automatically by our hosting provider and any embedded map or font services).
@@ -74,8 +73,7 @@ When a Rep logs a door interaction, KnockIQ stores:
 - **Outcome** of the visit (no answer, not interested, estimate requested, booked).
 - **Contact information** if the Visited Person provided it, including name, phone number, and email address.
 - **Service interest and estimated value** for any quoted job.
-- **Free-text notes** entered by the Rep, which may include direct quotes from the conversation, descriptions of the residence or its occupants, and follow-up instructions.
-- **Voice-note transcripts** when the Rep dictates a note instead of typing it. The transcript text is stored; the audio is not retained on KnockIQ servers but is transmitted to OpenAI in the United States during transcription.
+- **Free-text notes** entered by the Rep, which may include descriptions of the conversation, the residence, and follow-up instructions. Reps type these notes — we do not collect audio.
 - **Photographs** uploaded by the Rep, typically of structures relevant to the quoted service (roof, siding, gutters, driveway). Reps are contractually prohibited from photographing interiors, identifiable people, license plates, or minors.
 - **Do-not-knock entries**: if you have requested not to be solicited, your address (and optionally a reason) may be recorded in a do-not-knock list maintained by the Customer.
 
@@ -90,7 +88,7 @@ When a Rep logs a door interaction, KnockIQ stores:
 | Category | Source |
 |---|---|
 | Rep account info | The Rep directly, or the Rep's Customer (when a manager invites the Rep) |
-| Rep geolocation, voice, performance | The Rep's device while the application is in use |
+| Rep geolocation, performance metrics | The Rep's device while the application is in use |
 | Customer info | The Customer directly during signup or in account settings |
 | Visited Person info | A Rep entering the data during a canvassing visit; reverse-geocoding services (OpenStreetMap Overpass / Nominatim, and Google Maps Geocoding if the Customer has enabled it) translating coordinates into addresses |
 | Billing info | The Customer directly; Stripe via its webhook |
@@ -104,7 +102,6 @@ We use information for the following purposes:
 **To provide the KnockIQ service to Customers and Reps:**
 - Authenticate users and maintain accounts.
 - Log canvassing activity, render maps, calculate territories, attribute leads to Reps.
-- Provide voice-to-text dictation so Reps can take notes hands-free.
 - Surface real-time Rep locations to managers for safety, coordination, and oversight.
 - Generate performance reports, leaderboards, and analytics for the Customer.
 - Process payments and manage subscriptions.
@@ -130,7 +127,7 @@ We use information for the following purposes:
 Where applicable Canadian law requires us to identify a legal basis:
 
 - **Performance of a contract** for processing necessary to provide services Reps and Customers signed up for.
-- **Meaningful consent** for collection of geolocation, voice, and other personal information from Reps. Reps consent to this collection by accepting their employer's directive to use KnockIQ and by granting the relevant device permissions.
+- **Meaningful consent** for collection of geolocation and other personal information from Reps. Reps consent to this collection by accepting their employer's directive to use KnockIQ and by granting the relevant device permissions.
 - **Legitimate business interest** for security, fraud prevention, and product analytics.
 - **Legal obligation** for tax, accounting, and law-enforcement responses.
 
@@ -147,7 +144,6 @@ We rely on the following service providers to operate KnockIQ. Each one receives
 | Sub-processor | Function | Location | Information transmitted |
 |---|---|---|---|
 | **Supabase, Inc.** | Hosted database, authentication, file storage, edge compute | United States | All KnockIQ-stored data |
-| **OpenAI** (Whisper API) | Audio-to-text transcription for voice notes | United States | Raw audio at the moment of transcription (not persisted by KnockIQ) |
 | **Stripe, Inc.** | Subscription billing | United States | Customer billing identifiers, payment events |
 | **Resend** | Email delivery (Rep invitations and account emails) | United States / EU | Rep email address, name, organization name |
 | **OpenStreetMap Foundation** (tile servers, Overpass, Nominatim) | Map rendering and reverse geocoding | Germany / EU | IP address and viewport coordinates of the requesting device; door coordinates during reverse geocoding |
@@ -157,9 +153,7 @@ We rely on the following service providers to operate KnockIQ. Each one receives
 
 We do not **sell** personal information for monetary consideration, and we do not **share** personal information for cross-context behavioral advertising. We do not currently engage in profiling that produces legal or similarly significant effects.
 
-**Visited Person information specifically:** we transmit address, latitude, longitude, photographs, and voice-derived transcripts to the sub-processors listed above as needed to operate the service. We do not sell Visited Person data, we do not use it for advertising, and (in compliance with Maryland law and Virginia law effective July 1, 2026) we **do not sell precise geolocation data**.
-
-> **[ATTORNEY REVIEW: confirm that the OpenAI account used by KnockIQ is on enterprise/API terms with zero-day retention and no use of submitted data for training. If the account is on default consumer terms, this section is materially inaccurate and OpenAI must be reconfigured before publication.]**
+**Visited Person information specifically:** we transmit address, latitude, longitude, and photographs to the sub-processors listed above as needed to operate the service. We do not sell Visited Person data, we do not use it for advertising, and (in compliance with Maryland law and Virginia law effective July 1, 2026) we **do not sell precise geolocation data**.
 
 > **[ATTORNEY REVIEW: confirm whether KnockIQ ever combines Customer-specific data for cross-Customer benchmarking, "industry insights," or product improvement. If yes, that must be disclosed here and is likely a sub-processor-restricted purpose under MODPA's strict-necessity rule.]**
 
@@ -170,7 +164,6 @@ We do not **sell** personal information for monetary consideration, and we do no
 We collect personal information that is treated as "sensitive" under one or more applicable laws:
 
 - **Precise geolocation** — both of Reps (continuously, during active sessions) and of Visited Persons (at the doorstep). Under California law, "precise" means within an 1,850-foot radius; under other state laws, within 1,750 feet. Every coordinate we collect falls within both thresholds.
-- **Voice recordings** of Reps (transient, transmitted to OpenAI for transcription, not retained by KnockIQ).
 - **Photographs** uploaded by Reps that may incidentally depict identifiable persons.
 
 We do not knowingly collect:
@@ -185,13 +178,11 @@ We do not knowingly collect:
 
 ## 9. Voice Recordings and Biometric Notice
 
-KnockIQ provides a voice-note feature that captures audio from a Rep's device microphone and transmits it to OpenAI for transcription into text. The text is saved as part of the Rep's interaction record; the audio itself is not stored on KnockIQ servers.
+**KnockIQ does not collect audio recordings.** The voice-note feature that previously allowed Reps to dictate notes through their device microphone has been removed from the product. We do not capture audio. We do not transmit audio to any third party. We do not generate voiceprints, run speaker identification or speaker diarization, or produce any "biometric identifier" within the meaning of the Illinois Biometric Information Privacy Act (740 ILCS 14), the Texas Capture or Use of Biometric Identifier Act (Tex. Bus. & Com. Code § 503.001 as amended by HB 149 / TRAIGA effective January 1, 2026), the Washington biometric statute (RCW 19.375), or the New York City biometric ordinance (NYC Admin. Code § 22-1201 et seq.).
 
-**We do not generate voiceprints.** We do not run speaker identification, speaker diarization, voice biometrics, or any other process that would produce a "biometric identifier" within the meaning of the Illinois Biometric Information Privacy Act (740 ILCS 14), the Texas Capture or Use of Biometric Identifier Act (Tex. Bus. & Com. Code § 503.001 as amended by HB 149 / TRAIGA effective January 1, 2026), the Washington biometric statute (RCW 19.375), or the New York City biometric ordinance (NYC Admin. Code § 22-1201 et seq.). The audio sent to OpenAI is processed only for the immediate purpose of speech-to-text conversion and then discarded by the request lifecycle.
+If KnockIQ ever reintroduces a voice or audio feature, this Policy will be amended before that feature ships and all of the disclosures and consent flows required by the laws above will be in place. We will also notify existing users by email and post a prominent in-app notice at least 30 days before any such feature is enabled.
 
-> **[ATTORNEY REVIEW: this statement is only true if the actual OpenAI pipeline is confirmed to do no speaker diarization and to discard audio after the request. The audit shows OpenAI Whisper as the endpoint, which is straight transcription — but enterprise contract terms and any future changes to the pipeline must preserve this. If KnockIQ ever adds a feature that generates voiceprints or speaker embeddings, this section must be replaced with a full BIPA-compliant notice (written notice + written release + public retention schedule) BEFORE the feature ships.]**
-
-**Recording-consent disclosure.** Many US states require all parties to a conversation to consent to its recording. These states currently include California, Connecticut, Delaware, Florida, Illinois, Maryland, Massachusetts, Montana, Nevada, New Hampshire, Pennsylvania, and Washington. The KnockIQ voice-note feature is intended for Rep-side dictation after the conversation has ended or out of earshot of the Visited Person. Our Terms of Service require Customers to train their Reps in compliance with all applicable recording laws. If you are a Visited Person and believe your voice was captured by a KnockIQ voice note without your consent, contact us at [privacy@knockiq.com] and we will work with the relevant Customer to delete the recording and any derived transcript.
+> **[ATTORNEY REVIEW: this section is the rewrite of the original voice-note disclosure, reflecting the removal of the voice-note feature from the product. If KnockIQ ever adds an audio capture or voice-AI feature, this section MUST be replaced with a full BIPA-compliant notice (written notice + written release + public retention schedule) BEFORE the feature ships.]**
 
 ---
 
@@ -221,20 +212,23 @@ For Canadian users, we rely on contractual protections in our agreements with ea
 
 ## 12. How Long We Keep Information (Retention)
 
-We retain personal information only as long as needed for the purposes described in this Policy or as required by law.
+We retain personal information only as long as needed for the purposes described in this Policy or as required by law. Retention is enforced automatically by a nightly database job.
 
 | Data | Retention period |
 |---|---|
-| Rep account records | Active while the account exists; deleted within [INSERT — e.g., 90 days] of account deletion, except records we are required to keep for tax, billing, or audit purposes |
-| Canvassing session records, interaction records, GPS breadcrumbs | Retained for [INSERT — e.g., 24 months] from creation; longer retention only on Customer instruction or where required by litigation hold |
-| Customer billing records | Retained for [INSERT — e.g., 7 years] for tax and accounting compliance |
-| Voice-note audio | Not retained by KnockIQ after transcription completes |
-| Voice-note transcripts | Stored with the interaction record they belong to; deleted on the same schedule |
-| Photographs uploaded by Reps | Stored with the interaction record they belong to; deleted on the same schedule |
+| Rep account records | Active while the account exists; deleted within 90 days of account deletion, except records we are required to keep for tax, billing, or audit purposes |
+| Canvassing session header + summary statistics | Retained as a business record while the Customer's account is active; deleted within 90 days of account deletion |
+| Interaction records (estimates, bookings, conversations) | 24 months from creation, then deleted automatically |
+| Interaction records with outcome "no answer" | 180 days from creation, then deleted automatically. These rows contain only the doorstep coordinate, timestamp, and outcome — no address, contact, or notes are stored for no-answer doors |
+| GPS breadcrumb data (the rep's path-walked points during a session) | 12 months from creation, then deleted automatically |
+| Live rep-location pin shown to managers during an active session | Cleared when the session ends; orphan rows older than 24 hours are deleted automatically by a sweep that runs every 10 minutes |
+| Voice recordings, audio, and transcripts | Not collected — the voice-note feature has been removed from the product |
+| Photographs uploaded by Reps | Stored with the interaction record they belong to; deleted on the same schedule (24 months general; 180 days if the parent interaction is "no answer" — but no-answer rows do not accept photo uploads) |
+| Customer billing records | Retained for 7 years for tax and accounting compliance |
 | Do-not-knock entries | Retained indefinitely while the Customer's account is active, because the purpose is precisely to remember the request not to be visited; you may request deletion at any time |
-| Logs and security records | Retained for [INSERT — e.g., 12 months] |
+| Logs and security records | 12 months |
 
-> **[ATTORNEY REVIEW: KnockIQ does not currently have retention/deletion lifecycles implemented in code for `interactions`, `gps_points`, `do_not_knock`, photos, or audio. Confirm that engineering will implement the lifecycles before this Policy is published, or rewrite the table to reflect what is actually in place. Publishing a retention schedule the product does not enforce creates direct regulatory and litigation exposure.]**
+> **[ATTORNEY REVIEW: confirm that the 7-year billing-record retention matches your tax counsel's advice for your governing-law state, and confirm that the 90-day post-deletion grace period for rep accounts and session headers is consistent with any commitments KnockIQ has made to canvassing-company customers about historical data access after off-boarding.]**
 
 ---
 
@@ -283,7 +277,7 @@ We will verify your identity before responding to a request. Verification method
 
 1. Email **[privacy@knockiq.com]** with the **street address** of the visited residence (so we can locate records) and your contact information for verification.
 2. We will acknowledge your request within 10 business days and complete the substantive response within 45 days.
-3. We will search all of the systems where Visited Person data is stored (interaction records, GPS breadcrumbs, do-not-knock lists, photographs, voice-note transcripts) and process your request as you direct.
+3. We will search all of the systems where Visited Person data is stored (interaction records, GPS breadcrumbs, do-not-knock lists, photographs) and process your request as you direct.
 4. We will notify our sub-processors to delete your data as well, where applicable.
 
 > **[ATTORNEY REVIEW: this commitment requires the platform to actually have an operational search-by-address workflow that touches every system. Confirm with engineering before publication. Also confirm whether the 10-business-day acknowledgment commitment is operationally achievable; if not, drop to "without undue delay."]**
@@ -343,7 +337,7 @@ Our service responds to Global Privacy Control (GPC) signals as an opt-out of sa
 
 ## 19. Third-Party Links and Integrations
 
-The KnockIQ application may link to or integrate with third-party services that the Customer has enabled (for example, a Zapier webhook configured by the Customer's account owner). When you interact with those services, their own privacy policies govern. We are not responsible for the privacy practices of third-party services, including but not limited to OpenStreetMap, Google Maps, Stripe, Resend, OpenAI, and Zapier.
+The KnockIQ application may link to or integrate with third-party services that the Customer has enabled (for example, a Zapier webhook configured by the Customer's account owner). When you interact with those services, their own privacy policies govern. We are not responsible for the privacy practices of third-party services, including but not limited to OpenStreetMap, Google Maps, Stripe, Resend, and Zapier.
 
 ---
 
@@ -379,7 +373,7 @@ For California-specific requests, you may also use our online intake form at [UR
 ## State-Specific Disclosures Appendix
 
 ### California (CCPA / CPRA)
-In the 12 months preceding the date of this Policy, KnockIQ has collected the following categories of personal information about California residents (including Reps and Visited Persons whose addresses are in California): identifiers (name, email, phone, address, IP), commercial information (subscription, transaction history), internet/network activity (logs, device info), **precise geolocation** (Rep and Visited Person), **audio data** (Rep voice notes), professional/employment information (Rep role, commission), and inferences drawn from the above (performance scoring). Sources, purposes, and recipients are described in Sections 3–7 above. We have **not sold or shared** personal information for cross-context behavioral advertising in this period. California residents have the rights described in Section 14. To exercise these rights or authorize an agent to act on your behalf, see Section 14.
+In the 12 months preceding the date of this Policy, KnockIQ has collected the following categories of personal information about California residents (including Reps and Visited Persons whose addresses are in California): identifiers (name, email, phone, address, IP), commercial information (subscription, transaction history), internet/network activity (logs, device info), **precise geolocation** (Rep and Visited Person), professional/employment information (Rep role, commission), and inferences drawn from the above (performance scoring). Sources, purposes, and recipients are described in Sections 3–7 above. We have **not sold or shared** personal information for cross-context behavioral advertising in this period. California residents have the rights described in Section 14. To exercise these rights or authorize an agent to act on your behalf, see Section 14.
 
 ### Virginia (VCDPA)
 Virginia residents have the rights to access, correct, delete, and obtain a copy of their personal data, and to opt out of targeted advertising, the sale of personal data, and profiling with legal or similarly significant effects. To appeal a denied request, reply to the denial within 45 days; we will respond to the appeal within 60 days. After completing the appeal process, you may contact the Virginia Attorney General if you remain dissatisfied. Effective July 1, 2026, we do not sell precise geolocation data.
