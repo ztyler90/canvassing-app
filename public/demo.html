@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Book a Demo — KnockIQ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue-600: #1B4FCC;
+      --blue-700: #1640A8;
+      --blue-50:  #EEF3FF;
+      --lime:     #7DC31E;
+      --ink:      #0F172A;
+      --ink-2:    #1E293B;
+      --text:     #334155;
+      --muted:    #64748B;
+      --line:     #E2E8F0;
+      --bg:       #F8FAFC;
+      --white:    #ffffff;
+      --r-btn:    12px;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text);
+      background: var(--white);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.55;
+    }
+
+    img { max-width: 100%; display: block; }
+    a   { color: inherit; text-decoration: none; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 28px; }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.85);
+      backdrop-filter: saturate(180%) blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-inner {
+      max-width: 1200px; margin: 0 auto;
+      padding: 0 28px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; letter-spacing: -0.01em; }
+    .nav-logo img { height: 52px; width: auto; display: block; }
+    .nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+    .nav-links a { font-size: 14px; color: var(--text); font-weight: 500; transition: color .15s; }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-actions { display: flex; align-items: center; gap: 16px; }
+    .nav-signin { font-size: 14px; color: var(--text); font-weight: 500; transition: color .15s; }
+    .nav-signin:hover { color: var(--ink); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: var(--r-btn);
+      font-weight: 600; font-size: 14px;
+      transition: transform .15s, box-shadow .15s, background .15s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-blue {
+      background: linear-gradient(135deg, #2E6BFF 0%, var(--blue-600) 100%);
+      color: white;
+      box-shadow: 0 10px 24px -8px rgba(27,79,204,.55);
+    }
+    .btn-blue:hover { filter: brightness(1.05); }
+
+    /* ── Demo Section ── */
+    .demo-section {
+      padding: 64px 0 80px;
+      text-align: center;
+    }
+    .demo-section h1 {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      margin-bottom: 12px;
+    }
+    .demo-section p {
+      font-size: 17px;
+      color: var(--muted);
+      max-width: 540px;
+      margin: 0 auto 40px;
+    }
+    .calendly-wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 14px rgba(15,23,42,.08);
+      background: var(--white);
+    }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--ink); color: #94A3B8;
+      padding: 40px 0; text-align: center; font-size: 13px;
+    }
+    footer a { color: #CBD5E1; margin: 0 12px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      .nav-links { display: none; }
+      .nav-inner { padding: 0 16px; }
+      .nav-actions { gap: 10px; }
+      .nav-signin { font-size: 13px; }
+      .nav-actions .btn { padding: 9px 14px; font-size: 13px; }
+      .demo-section h1 { font-size: 28px; }
+      .demo-section { padding: 40px 0 60px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="/welcome.html">
+      <img src="/logo.png" alt="KnockIQ" />
+    </a>
+    <ul class="nav-links">
+      <li><a href="/welcome.html#auto">Auto Knocking</a></li>
+      <li><a href="/welcome.html#for-managers">For Managers</a></li>
+      <li><a href="/welcome.html#for-reps">For Reps</a></li>
+      <li><a href="/welcome.html#pricing">Pricing</a></li>
+      <li><a href="/blog.html">Blog</a></li>
+    </ul>
+    <div class="nav-actions">
+      <a href="/login" class="nav-signin">Sign In</a>
+      <a href="/signup" class="btn btn-blue">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Demo Booking ── -->
+<section class="demo-section">
+  <div class="container">
+    <h1>Book a Demo</h1>
+    <p>See how KnockIQ gives you complete visibility into your door-to-door team. Pick a time that works for you.</p>
+    <div class="calendly-wrap">
+      <!-- Calendly inline widget begin -->
+      <div class="calendly-inline-widget" data-url="https://calendly.com/zach-getknockiq/30min" style="min-width:320px;height:700px;"></div>
+      <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js" async></script>
+      <!-- Calendly inline widget end -->
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+  <div class="container">
+    <div style="margin-bottom:12px;">
+      <img src="/logo-white.png" alt="KnockIQ" style="height: 42px; width: auto; display: inline-block;" />
+    </div>
+    <div>
+      <a href="/login">Sign in</a> &middot;
+      <a href="/signup">Start trial</a> &middot;
+      <a href="mailto:hello@knockiq.com">Contact</a> &middot;
+      <a href="/blog.html">Blog</a> &middot;
+      <a href="/welcome.html#pricing">Pricing</a>
+    </div>
+    <div style="margin-top:16px; opacity:.6;">&copy; 2026 KnockIQ &middot; Built for the field.</div>
+  </div>
+</footer>
+
+</body>
+</html>
