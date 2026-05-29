@@ -11,6 +11,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ChevronLeft, Edit2, Check, X, MapPin, Clock, DollarSign, Home, MessageSquare, Save } from 'lucide-react'
 import { getSessionWithInteractions, updateInteraction, updateSession } from '../lib/supabase.js'
+import { PhotoThumb } from '../lib/photos.js'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
@@ -407,13 +408,13 @@ function InteractionCard({ interaction, isEditing, draft, saving, onEdit, onCanc
       {photoUrls.length > 0 && (
         <div className="mt-2 ml-6 flex gap-1.5 flex-wrap">
           {photoUrls.map((url, i) => (
-            <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-              <img
-                src={url}
-                alt={`Photo ${i + 1}`}
-                className="w-14 h-14 rounded-lg object-cover border border-gray-200 active:opacity-75"
-              />
-            </a>
+            <PhotoThumb
+              key={i}
+              pathOrUrl={url}
+              bucket="interaction-photos"
+              alt={`Photo ${i + 1}`}
+              className="w-14 h-14 rounded-lg object-cover border border-gray-200 active:opacity-75"
+            />
           ))}
         </div>
       )}

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { getOrganizationDetail } from '../lib/supabase.js'
+import { StoragePhoto } from '../lib/photos.js'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
@@ -481,7 +482,7 @@ function SignalIcon({ severity }) {
 
 function RepAvatar({ rep }) {
   if (rep.avatar_url) {
-    return <img src={rep.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+    return <StoragePhoto pathOrUrl={rep.avatar_url} bucket="avatars" alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
   }
   const initials = (rep.full_name || '?')
     .split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()

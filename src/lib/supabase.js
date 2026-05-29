@@ -84,10 +84,14 @@ export async function updateUserProfile({ fullName, email, avatarUrl } = {}) {
 }
 
 /**
- * Upload a profile picture for the current user to the "avatars" bucket,
- * return its public URL (null on failure). Uses getSession() (local-storage
- * read, no network, no lock) instead of getUser() to avoid the Web Locks
- * deadlock that hangs the upload spinner forever.
+ * Upload a profile picture for the current user to the (now-private)
+ * "avatars" bucket and return the storage **path** (e.g. "<user-id>/123.jpg")
+ * to persist in users.avatar_url. Display sites resolve paths to signed
+ * URLs via lib/photos.js → usePhotoUrl(value, 'avatars').
+ *
+ * Returns null on failure. Uses getSession() (local-storage read, no
+ * network, no lock) instead of getUser() to avoid the Web Locks deadlock
+ * that hangs the upload spinner forever.
  */
 export async function uploadAvatar(file) {
   try {
@@ -103,10 +107,9 @@ export async function uploadAvatar(file) {
       console.warn('[Storage] Avatar upload failed:', error.message)
       return null
     }
-    const { data: { publicUrl } } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(path)
-    return publicUrl
+    // Return the storage path — the bucket is private, so a "public URL"
+    // wouldn't work anyway. usePhotoUrl() mints signed URLs on demand.
+    return path
   } catch (err) {
     console.warn('[Storage] Avatar upload threw:', err)
     return null
@@ -870,63 +873,13 @@ async function callManageTeam(body) {
   }
 }
 
-/**
- * Send a recorded audio blob to the transcribe-voice edge function and
- * return the text. Used for rep-side voice notes.
- *
- *   const { text, error } = await transcribeVoiceNote(blob)
- *
- * The edge function proxies to OpenAI Whisper; see
- * supabase/functions/transcribe-voice/index.ts. The caller must be an
- * authenticated rep — we forward the current access token.
- */
-export async function transcribeVoiceNote(audioBlob, { language, prompt } = {}) {
-  if (!audioBlob || !(audioBlob instanceof Blob)) {
-    return { error: new Error('Missing audio blob') }
-  }
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    if (!token) return { error: new Error('Not signed in') }
-
-    const form = new FormData()
-    // Hint the server/Whisper about the file type — MediaRecorder's default
-    // on iOS Safari is audio/mp4, on Chrome/desktop it's audio/webm. A
-    // matching extension lets Whisper detect the format.
-    const ext = audioBlob.type?.includes('mp4')
-      ? 'mp4'
-      : audioBlob.type?.includes('ogg')
-        ? 'ogg'
-        : audioBlob.type?.includes('wav')
-          ? 'wav'
-          : 'webm'
-    form.append('audio', audioBlob, `voice-note.${ext}`)
-    if (language) form.append('language', language)
-    if (prompt)   form.append('prompt',   prompt)
-
-    const url = `${supabaseUrl}/functions/v1/transcribe-voice`
-    const res = await fetch(url, {
-      method:  'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'apikey':        supabaseKey,
-      },
-      body: form,
-    })
-
-    let payload = null
-    try { payload = await res.json() } catch { /* non-JSON */ }
-
-    if (!res.ok) {
-      const msg = payload?.error || `Transcription failed (${res.status})`
-      return { error: new Error(msg) }
-    }
-    const text = (payload?.text || '').trim()
-    return { text, error: null }
-  } catch (err) {
-    return { error: err instanceof Error ? err : new Error(String(err)) }
-  }
-}
+// Voice-note transcription (transcribeVoiceNote / transcribe-voice edge fn /
+// VoiceNoteButton component) was removed for legal reasons: BIPA voiceprint
+// exposure in Illinois, all-party-consent recording risk in 12+ states, and
+// the OpenAI Whisper sub-processor it required. If voice dictation is ever
+// brought back, it must be post-doorstep only (no homeowner voice capture),
+// re-evaluated against the privacy policy, and the OpenAI relationship must
+// be on enterprise/zero-retention terms before any audio is transmitted.
 
 /**
  * Create a new rep under this manager. Two onboarding modes:
@@ -1620,9 +1573,13 @@ export async function getWebhookUrl() {
 // ── Photo helpers ─────────────────────────────────────────────────────────────
 
 /**
- * Upload a photo file for an interaction to Supabase Storage.
- * Requires a public bucket named "interaction-photos" (see migration notes).
- * Returns the public URL, or null on failure.
+ * Upload a photo file for an interaction to the (now-private)
+ * "interaction-photos" bucket. Returns the storage **path** (e.g.
+ * "<interaction-id>/<timestamp>_<rand>.jpg") to persist in
+ * interactions.photo_urls. Display sites resolve paths to signed URLs via
+ * lib/photos.js → usePhotoUrl(value, 'interaction-photos').
+ *
+ * Returns null on failure.
  */
 export async function uploadInteractionPhoto(interactionId, file) {
   const ext  = (file.name.split('.').pop() || 'jpg').toLowerCase()
@@ -1634,10 +1591,9 @@ export async function uploadInteractionPhoto(interactionId, file) {
     console.warn('[Storage] Photo upload failed:', error.message)
     return null
   }
-  const { data: { publicUrl } } = supabase.storage
-    .from('interaction-photos')
-    .getPublicUrl(path)
-  return publicUrl
+  // Return the storage path — the bucket is private, so a "public URL"
+  // wouldn't work anyway. usePhotoUrl() mints signed URLs on demand.
+  return path
 }
 
 /** Persist photo_urls array back to the interaction record */

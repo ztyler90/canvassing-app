@@ -14,6 +14,7 @@ import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   updateUserProfile, sendPasswordReset, uploadAvatar,
 } from '../lib/supabase.js'
+import { StoragePhoto } from '../lib/photos.js'
 import { usePrefs, setPref } from '../lib/prefs.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -171,8 +172,9 @@ export default function RepProfile() {
             aria-label="Change profile picture"
           >
             {avatarUrl ? (
-              <img
-                src={avatarUrl}
+              <StoragePhoto
+                pathOrUrl={avatarUrl}
+                bucket="avatars"
                 alt="Profile"
                 className="w-full h-full object-cover"
               />

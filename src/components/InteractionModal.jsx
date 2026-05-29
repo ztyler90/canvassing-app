@@ -17,7 +17,6 @@ import {
   getOrgServices,
 } from '../lib/supabase.js'
 import { reverseGeocodeCandidates } from '../lib/geocoding.js'
-import VoiceNoteButton from './VoiceNoteButton.jsx'
 
 const OUTCOMES = [
   { id: 'no_answer',          label: 'No Answer',       emoji: '🚪', color: '#9CA3AF', bg: '#F9FAFB' },
@@ -245,14 +244,37 @@ export default function InteractionModal({
     setError('')
     outcomeRef.current = outcome
 
+    // ── Data minimization for "no answer" rows ──────────────────────────
+    // A no-answer door means the homeowner never interacted with the rep.
+    // Storing their exact address (auto-filled by reverse geocoding) plus
+    // contact / notes / photos would create a database record ABOUT them
+    // without any consent surface — the highest-risk class of homeowner
+    // data we collect. We keep lat/lng so the gray pin still shows on the
+    // map (operational value for "we already tried this block"), and the
+    // retention job purges these rows after 30 days. Everything else is
+    // stripped out before the insert / update.
+    const isNoAnswer = outcome === 'no_answer'
+
     const payload = {
       session_id: sessionId,
       rep_id:     repId,
-      address:    address || null,
+      address:    isNoAnswer ? null : (address || null),
       lat:        knock?.lat || existingInteraction?.lat || null,
       lng:        knock?.lng || existingInteraction?.lng || null,
       outcome,
       ...extras,
+    }
+
+    if (isNoAnswer) {
+      // Force-null every identifiable / homeowner-derived field, even
+      // if `extras` tried to pass one through (defense in depth).
+      payload.address         = null
+      payload.contact_name    = null
+      payload.contact_phone   = null
+      payload.contact_email   = null
+      payload.service_types   = null
+      payload.estimated_value = null
+      payload.notes           = null
     }
 
     let interactionId = existingInteraction?.id || null
@@ -263,19 +285,23 @@ export default function InteractionModal({
       // session_id / rep_id / lat / lng alone.
       const editUpdates = {
         outcome,
-        address:         address || null,
-        contact_name:    extras.contact_name,
-        contact_phone:   extras.contact_phone,
-        contact_email:   extras.contact_email,
-        service_types:   extras.service_types,
-        estimated_value: extras.estimated_value,
-        notes:           extras.notes,
+        address:         isNoAnswer ? null : (address || null),
+        contact_name:    isNoAnswer ? null : extras.contact_name,
+        contact_phone:   isNoAnswer ? null : extras.contact_phone,
+        contact_email:   isNoAnswer ? null : extras.contact_email,
+        service_types:   isNoAnswer ? null : extras.service_types,
+        estimated_value: isNoAnswer ? null : extras.estimated_value,
+        notes:           isNoAnswer ? null : extras.notes,
       }
-      // Strip undefined so we don't clobber fields with nulls on the "no answer"
-      // / "not interested" branch (extras is {}).
-      Object.keys(editUpdates).forEach(
-        (k) => editUpdates[k] === undefined && delete editUpdates[k]
-      )
+      // For non-no_answer outcomes, strip undefined so we don't clobber
+      // fields the rep didn't touch. For no_answer we WANT the nulls to
+      // land so that changing an existing "estimate" → "no answer"
+      // actually wipes the previously-stored homeowner data.
+      if (!isNoAnswer) {
+        Object.keys(editUpdates).forEach(
+          (k) => editUpdates[k] === undefined && delete editUpdates[k]
+        )
+      }
       const { data, error: err } = await updateInteraction(interactionId, editUpdates)
       if (err) { setError(err.message); setSaving(false); return }
       savedData = data
@@ -288,8 +314,9 @@ export default function InteractionModal({
     }
 
     // Upload photos (best-effort — failure doesn't block saving). Skip in
-    // silent mode (auto-dismiss without rep input) since no photos are possible.
-    if (!silent && photos.length > 0 && interactionId) {
+    // silent mode (auto-dismiss without rep input) and skip entirely for
+    // no-answer rows (we don't keep homeowner-derived data on no-answer).
+    if (!silent && !isNoAnswer && photos.length > 0 && interactionId) {
       try {
         const urls = (
           await Promise.all(photos.map((f) => uploadInteractionPhoto(interactionId, f)))
@@ -724,26 +751,17 @@ export default function InteractionModal({
             </div>
 
             {/* Notes — free-form comments saved with the interaction record.
-                Voice-note dictation is temporarily disabled — the Whisper
-                transcription path isn't reliable yet. The <VoiceNoteButton>
-                import and component are intentionally left in place so the
-                mic can be re-enabled by uncommenting the button below once
-                the transcription flow is fixed. */}
+                Voice-note dictation was removed for legal reasons (BIPA
+                voiceprint exposure + all-party-consent recording risk in
+                12+ states). Reps type notes instead. If we ever bring back
+                dictation it must be post-doorstep only and re-evaluated
+                against the privacy policy. */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   <MessageSquare className="w-3.5 h-3.5" />
                   Notes <span className="text-gray-400 normal-case font-normal">(optional)</span>
                 </label>
-                {/* Voice note disabled for now — re-enable when transcription works.
-                <VoiceNoteButton
-                  disabled={saving}
-                  onTranscribed={(text) => {
-                    if (!text) return
-                    setNotes((prev) => prev ? `${prev.trimEnd()} ${text}` : text)
-                  }}
-                />
-                */}
               </div>
               <textarea
                 value={notes}

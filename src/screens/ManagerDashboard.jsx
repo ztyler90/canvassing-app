@@ -15,6 +15,7 @@ import { computeConversion } from '../lib/repStats.js'
 import { ConversionFunnel } from './RepHome.jsx'
 import MapView from '../components/MapView.jsx'
 import TerritoryMap from '../components/TerritoryMap.jsx'
+import { PhotoThumb } from '../lib/photos.js'
 import {
   RichStatCard, MiniSparkArea, MiniSparkBars, RadialGauge,
   formatCompact, computeTrend, groupSessionsByDay,
@@ -769,13 +770,13 @@ function BookingsTab({ bookings }) {
               {photos.length > 0 && (
                 <div className="px-4 pb-3 flex gap-1.5 flex-wrap">
                   {photos.map((url, i) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                      <img
-                        src={url}
-                        alt={`Photo ${i + 1}`}
-                        className="w-16 h-16 rounded-xl object-cover border border-gray-200 active:opacity-75"
-                      />
-                    </a>
+                    <PhotoThumb
+                      key={i}
+                      pathOrUrl={url}
+                      bucket="interaction-photos"
+                      alt={`Photo ${i + 1}`}
+                      className="w-16 h-16 rounded-xl object-cover border border-gray-200 active:opacity-75"
+                    />
                   ))}
                 </div>
               )}

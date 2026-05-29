@@ -29,6 +29,7 @@ import {
   computeCloseRateDiagnostic, computeLevelUpProximity, computeTeamPulse,
 } from '../lib/callouts.js'
 import RepCallouts from '../components/RepCallouts.jsx'
+import { StoragePhoto } from '../lib/photos.js'
 import {
   RichStatCard, MiniSparkArea, MiniSparkBars,
   formatCompact, computeTrend, groupSessionsByDay,
@@ -359,7 +360,7 @@ export default function RepHome() {
             aria-label="Open profile"
           >
             {user?.avatar_url ? (
-              <img src={user.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+              <StoragePhoto pathOrUrl={user.avatar_url} bucket="avatars" alt="Profile" className="w-full h-full object-cover" />
             ) : (
               <span className="text-sm font-bold" style={{ color: BRAND_BLUE }}>
                 {(user?.full_name || 'R')[0].toUpperCase()}

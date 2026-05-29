@@ -30,6 +30,17 @@ const UNDO_TOAST_MS = 10_000
 // fire it for auto-detected knocks — manual logs aren't surprises.
 const KNOCK_HAPTIC_MS = 80
 
+// ── Inactivity auto-end ─────────────────────────────────────────────────
+// Privacy guardrail: a session whose tab is open but seeing no GPS or
+// interactions is almost certainly a rep who has finished canvassing and
+// forgotten to tap "End Session". Without this, location tracking would
+// continue indefinitely and managers would see a stale live pin. We warn
+// at 50 minutes and auto-end at 60. Server-side belt-and-suspenders for
+// the closed-tab case lives in supabase/migrations/
+// 20260529_auto_close_idle_sessions.sql.
+const IDLE_WARN_MS = 50 * 60 * 1000
+const IDLE_STOP_MS = 60 * 60 * 1000
+
 const BRAND_GREEN = '#1B4FCC'  // KnockIQ blue
 
 export default function ActiveCanvassing() {
@@ -63,6 +74,15 @@ export default function ActiveCanvassing() {
   const locationBroadcastRef        = useRef(null)
   const currentPosRef               = useRef(null)
   const prefs                       = usePrefs()
+
+  // Inactivity auto-end state. See IDLE_WARN_MS / IDLE_STOP_MS above.
+  // lastActivityRef holds the last time a gps point or interaction landed;
+  // handleStopRef holds a stable reference to handleStop so the interval
+  // doesn't need to re-subscribe whenever handleStop's closure changes.
+  const [showIdleWarning, setShowIdleWarning] = useState(false)
+  const lastActivityRef             = useRef(Date.now())
+  const handleStopRef               = useRef(null)
+  const autoEndingRef               = useRef(false)
 
   // Rep history powering the in-header XP bar + revenue sparkline, and
   // the rep's commission config (used to show live commission earned).
@@ -303,7 +323,12 @@ export default function ActiveCanvassing() {
   const last7 = [...(pastSessions || [])].slice(0, 7).reverse()
 
   const handleStop = async () => {
+    // Idempotency guard — the inactivity timer can race the manual button;
+    // either one calls in here and the other is a no-op.
+    if (stopping || autoEndingRef.current) return
+    autoEndingRef.current = true
     setStopping(true)
+    setShowIdleWarning(false)
 
     // Stop GPS + door knock detector
     gpsTracker.stop()
@@ -343,6 +368,43 @@ export default function ActiveCanvassing() {
     }
 
     navigate('/summary', { replace: true })
+  }
+
+  // Keep a stable ref to handleStop so the inactivity interval doesn't
+  // re-subscribe on every render.
+  handleStopRef.current = handleStop
+
+  // Reset the activity stamp every time a new gps point or interaction
+  // lands. Either signal means the rep is still working.
+  useEffect(() => {
+    lastActivityRef.current = Date.now()
+    // If a previously-displayed warning was up, dismiss it — the rep is
+    // clearly active again.
+    if (showIdleWarning) setShowIdleWarning(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.gpsTrail.length, state.interactions.length])
+
+  // Poll every 30s while the session is running. At 50 min of inactivity
+  // we surface the "Are you still canvassing?" modal; at 60 min we auto-
+  // end via handleStop. The server-side sweep (auto_close_idle_sessions)
+  // catches the case where the rep closed the tab without responding.
+  useEffect(() => {
+    if (!state.isRunning) return
+    const id = setInterval(() => {
+      const idleMs = Date.now() - lastActivityRef.current
+      if (idleMs >= IDLE_STOP_MS) {
+        handleStopRef.current?.()
+      } else if (idleMs >= IDLE_WARN_MS) {
+        setShowIdleWarning(true)
+      }
+    }, 30_000)
+    return () => clearInterval(id)
+  }, [state.isRunning])
+
+  // "I'm still canvassing" — resets the activity clock without ending.
+  const handleStayActive = () => {
+    lastActivityRef.current = Date.now()
+    setShowIdleWarning(false)
   }
 
   // Auto-prompt when a door knock is detected
@@ -661,6 +723,38 @@ export default function ActiveCanvassing() {
           }}
           isAuto={false}
         />
+      )}
+
+      {/* Inactivity warning — surfaces at 50min of no GPS / interactions.
+          If the rep ignores it, the polling effect calls handleStop() at
+          60min. Server-side sweep catches the closed-tab case. */}
+      {showIdleWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900">Still canvassing?</h3>
+            <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+              We haven't seen any door logs or movement in a while. Your
+              session will auto-end in 10 minutes to keep your location
+              private once you've stopped working.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={handleStop}
+                disabled={stopping}
+                className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm disabled:opacity-60"
+              >
+                End now
+              </button>
+              <button
+                onClick={handleStayActive}
+                className="flex-1 py-2.5 rounded-xl text-white font-semibold text-sm"
+                style={{ backgroundColor: BRAND_GREEN }}
+              >
+                I'm still here
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

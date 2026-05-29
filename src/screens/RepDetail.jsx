@@ -18,6 +18,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { format } from 'date-fns'
+import { StoragePhoto } from '../lib/photos.js'
 import {
   ChevronLeft, MapPin, DollarSign, Trophy, TrendingUp, Target, Sparkles,
 } from 'lucide-react'
@@ -146,7 +147,7 @@ export default function RepDetail() {
 
           <div className="w-10 h-10 rounded-full overflow-hidden bg-white/20 shrink-0 flex items-center justify-center">
             {rep?.avatar_url ? (
-              <img src={rep.avatar_url} alt={rep.full_name} className="w-full h-full object-cover" />
+              <StoragePhoto pathOrUrl={rep.avatar_url} bucket="avatars" alt={rep.full_name} className="w-full h-full object-cover" />
             ) : (
               <span className="text-white text-sm font-bold">
                 {(rep?.full_name || 'R')[0].toUpperCase()}
