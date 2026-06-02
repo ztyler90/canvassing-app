@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { format, subDays, startOfDay, endOfDay, startOfWeek, startOfMonth, differenceInCalendarDays } from 'date-fns'
+import { format, subDays, startOfDay, endOfDay, differenceInCalendarDays } from 'date-fns'
 import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
@@ -50,25 +50,26 @@ const RANGE_OPTIONS = [
 ]
 
 // Resolve a period keyword to a concrete { dateFrom, dateTo } ISO pair.
-// "today" / "week" (Mon-start) / "month" are calendar-bounded — so at 9am
-// Wednesday "this week" covers Mon 0:00 → now, and "this month" covers
-// the 1st → now. "all" floors to the epoch so downstream queries don't
+// "today" covers the current day (start-of-day → now). "week" and "month"
+// are rolling windows — last 7 and last 30 days — so the dashboard isn't
+// awkwardly empty when the manager opens it on the 1st or 2nd of a
+// calendar month. "all" floors to the epoch so downstream queries don't
 // need a special-case null check.
 function resolvePeriod(range) {
   const now    = new Date()
   const dateTo = endOfDay(now).toISOString()
   if (range === 'today') return { dateFrom: startOfDay(now).toISOString(), dateTo }
-  if (range === 'week')  return { dateFrom: startOfWeek(now, { weekStartsOn: 1 }).toISOString(), dateTo }
-  if (range === 'month') return { dateFrom: startOfMonth(now).toISOString(), dateTo }
+  if (range === 'week')  return { dateFrom: startOfDay(subDays(now, 6)).toISOString(),  dateTo }
+  if (range === 'month') return { dateFrom: startOfDay(subDays(now, 29)).toISOString(), dateTo }
   if (range === 'all')   return { dateFrom: new Date(0).toISOString(), dateTo }
-  return { dateFrom: startOfWeek(now, { weekStartsOn: 1 }).toISOString(), dateTo }
+  return { dateFrom: startOfDay(subDays(now, 6)).toISOString(), dateTo }
 }
 
 // Pretty label for the banner on the Overview page.
 function periodLabel(range) {
   if (range === 'today') return 'Today'
-  if (range === 'week')  return 'This week'
-  if (range === 'month') return 'This month'
+  if (range === 'week')  return 'Last 7 days'
+  if (range === 'month') return 'Last 30 days'
   if (range === 'all')   return 'All time'
   return ''
 }
@@ -1952,14 +1953,14 @@ function RepLeaderboard({ repStats = [] }) {
 
 // ─── Overview helpers ────────────────────────────────────────────────────────
 // How many days of history the overview's bar chart + sparklines should
-// render for a given calendar-period filter. Today=1, week=Mon-to-today,
-// month=1st-to-today, all=derived from oldest session (capped so bars stay
-// legible). Falls back to 7 if nothing matches.
+// render for a given period filter. Today=1, week=7, month=30,
+// all=derived from oldest session (capped so bars stay legible).
+// Falls back to 7 if nothing matches.
 function daysForRange(range, sessions = []) {
   const now = new Date()
   if (range === 'today') return 1
-  if (range === 'week')  return Math.max(1, differenceInCalendarDays(now, startOfWeek(now, { weekStartsOn: 1 })) + 1)
-  if (range === 'month') return Math.max(1, now.getDate())
+  if (range === 'week')  return 7
+  if (range === 'month') return 30
   if (range === 'all') {
     const oldest = sessions.reduce((min, s) => {
       const t = s.started_at ? new Date(s.started_at).getTime() : Infinity

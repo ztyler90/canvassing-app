@@ -579,8 +579,10 @@ for s in session_values:
             lat, lng = last_it["lat"], last_it["lng"]
         else:
             lat = TERRITORIES[0][2]; lng = TERRITORIES[0][3]
-        w(f"insert into public.rep_locations (rep_id, session_id, lat, lng, organization_id, updated_at) "
-          f"values ('{s['rep_id']}', '{s['id']}', {lat:.6f}, {lng:.6f}, '{ORG_ID}', now() - interval '{random.randint(1,15)} minutes') "
+        # Live view filter is `updated_at >= now() - 5 minutes`, so keep
+    # all active-rep locations comfortably inside that window.
+    w(f"insert into public.rep_locations (rep_id, session_id, lat, lng, organization_id, updated_at) "
+          f"values ('{s['rep_id']}', '{s['id']}', {lat:.6f}, {lng:.6f}, '{ORG_ID}', now() - interval '{random.randint(15, 240)} seconds') "
           f"on conflict (rep_id) do update set session_id=excluded.session_id, lat=excluded.lat, lng=excluded.lng, "
           f"organization_id=excluded.organization_id, updated_at=excluded.updated_at;")
 
