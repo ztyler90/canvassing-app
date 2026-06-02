@@ -1984,6 +1984,290 @@ export async function flagInteractionFollowUp(interactionId, notes = null) {
  * and follow_up live under a nested `interactions` object so the view layer
  * doesn't need to change.
  */
+// ──────────────────────────────────────────────────────────────────────────────
+// PIPELINE (Phase 4) — replaces the legacy bookings list with a stage-aware
+// view that powers the manager's Pipeline tab. All helpers in this block
+// operate off interactions.stage rather than interactions.outcome.
+// ──────────────────────────────────────────────────────────────────────────────
+
+// The four "active pipeline" stages, in funnel order. Used as the default
+// filter for the kanban + most action-queue rules. Centralized so the new
+// Pipeline tab and the Closer Inbox use the same vocabulary.
+export const ACTIVE_PIPELINE_STAGES = [
+  'hot_lead', 'appt_scheduled', 'estimate_sent', 'booked',
+]
+export const CLOSED_PIPELINE_STAGES = [
+  'closed_stale', 'closed_lost', 'closed_not_interested',
+]
+
+/**
+ * Fetch every interaction in an active pipeline stage. Returns rows with
+ * the setter (rep) and closer joined in so the manager can render assignee
+ * names on each card without follow-up queries. RLS filters to the
+ * caller's org automatically.
+ *
+ *   filters.repId    — restrict to one rep (setter)
+ *   filters.closerId — restrict to one closer
+ *   filters.dateFrom / dateTo — restrict by created_at
+ */
+export async function getPipelineLeads(filters = {}) {
+  let query = supabase
+    .from('interactions')
+    .select(`
+      id, stage, outcome, address, contact_name, contact_phone, contact_email,
+      service_types, estimated_value, notes, follow_up,
+      appointment_at, estimate_sent_at, hot_lead_started_at,
+      closer_id, rep_id, created_at, lost_reason, lost_at,
+      setter:rep_id    ( id, full_name ),
+      closer:closer_id ( id, full_name )
+    `)
+    .in('stage', ACTIVE_PIPELINE_STAGES)
+    .order('created_at', { ascending: false })
+    .limit(500)
+
+  if (filters.repId)    query = query.eq('rep_id', filters.repId)
+  if (filters.closerId) query = query.eq('closer_id', filters.closerId)
+  if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom)
+  if (filters.dateTo)   query = query.lte('created_at', filters.dateTo)
+
+  const { data } = await query
+  return data || []
+}
+
+/**
+ * Surface at-risk leads for the action queue. Each helper rule returns
+ * `{ reason, urgency, lead }` tuples; we combine, dedupe by lead id (so a
+ * single lead doesn't appear twice with two reasons), and rank
+ * red-before-amber.
+ *
+ * The detection rules:
+ *   • Appt in next 4 hours      → red
+ *   • Unassigned appt scheduled previous day or older → red (per design)
+ *   • Estimate sent > 5 days ago, still in estimate_sent → red
+ *   • Hot Lead aging > 7 days   → amber
+ *   • Follow-up flag set + no activity 3d in active stage → amber
+ *   • High-$ lead aging > 5d (top 3 by estimated_value)  → amber
+ */
+export async function getActionQueue() {
+  const leads = await getPipelineLeads({})
+  const now = Date.now()
+  const queue = []
+  const seen  = new Set()
+
+  function add(reason, urgency, lead) {
+    if (seen.has(lead.id)) return
+    seen.add(lead.id)
+    queue.push({ reason, urgency, lead })
+  }
+
+  // Rule 1: appt in next 4 hours
+  for (const l of leads) {
+    if (l.stage !== 'appt_scheduled' || !l.appointment_at) continue
+    const t = new Date(l.appointment_at).getTime()
+    const hoursAway = (t - now) / 3_600_000
+    if (hoursAway >= 0 && hoursAway <= 4) {
+      add(`Appt in ${Math.max(1, Math.round(hoursAway))} hr${Math.round(hoursAway) === 1 ? '' : 's'}`, 'red', l)
+    }
+  }
+
+  // Rule 2: unassigned appt from previous day or older.
+  // Per design conversation: this is the deadline trigger for manager-
+  // dispatch routing — if a manager hasn't assigned a closer by end-of-
+  // day for an appt logged previously, it's at risk.
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+  for (const l of leads) {
+    if (l.closer_id) continue
+    if (l.stage !== 'appt_scheduled') continue
+    const created = new Date(l.created_at).getTime()
+    if (created < todayStart.getTime()) {
+      add('Unassigned · needs closer', 'red', l)
+    }
+  }
+
+  // Rule 3: estimate stale > 5 days
+  for (const l of leads) {
+    if (l.stage !== 'estimate_sent' || !l.estimate_sent_at) continue
+    const days = (now - new Date(l.estimate_sent_at).getTime()) / 86_400_000
+    if (days > 5) {
+      add(`Estimate stale ${Math.round(days)}d`, 'red', l)
+    }
+  }
+
+  // Rule 4: Hot Lead aging > 7 days
+  for (const l of leads) {
+    if (l.stage !== 'hot_lead') continue
+    const start = l.hot_lead_started_at || l.created_at
+    const days = (now - new Date(start).getTime()) / 86_400_000
+    if (days > 7) {
+      add(`Hot Lead aging ${Math.round(days)}d`, 'amber', l)
+    }
+  }
+
+  // Rule 5: follow-up flag set + no activity 3+ days
+  for (const l of leads) {
+    if (!l.follow_up) continue
+    const days = (now - new Date(l.created_at).getTime()) / 86_400_000
+    if (days > 3) {
+      add('Follow-up overdue', 'amber', l)
+    }
+  }
+
+  // Rule 6: high-value aging — top 3 by estimated_value in any active
+  // stage with >5d age. Pulled last so dedupe doesn't crowd out the
+  // explicit-urgency rules above.
+  const highValueCandidates = leads
+    .filter((l) => Number(l.estimated_value) > 0)
+    .filter((l) => (now - new Date(l.created_at).getTime()) / 86_400_000 > 5)
+    .sort((a, b) => Number(b.estimated_value) - Number(a.estimated_value))
+    .slice(0, 3)
+  for (const l of highValueCandidates) {
+    const days = Math.round((now - new Date(l.created_at).getTime()) / 86_400_000)
+    add(`High $ aging ${days}d`, 'amber', l)
+  }
+
+  // Red urgency floats to top; otherwise preserve insertion order.
+  queue.sort((a, b) => {
+    if (a.urgency === b.urgency) return 0
+    return a.urgency === 'red' ? -1 : 1
+  })
+  return queue
+}
+
+/**
+ * Appointments scheduled in the next N days, grouped by day. Used by the
+ * 10-day calendar strip at the top of the Pipeline tab. Returns an array
+ * of { date (Date), appts ([{id, time, customer, value, ...}]), totalValue }.
+ */
+export async function getUpcomingAppointments(daysAhead = 10) {
+  const start = new Date(); start.setHours(0, 0, 0, 0)
+  const end   = new Date(start); end.setDate(end.getDate() + daysAhead)
+  const { data } = await supabase
+    .from('interactions')
+    .select(`
+      id, stage, contact_name, address, estimated_value, closer_id,
+      appointment_at, rep_id, created_at,
+      setter:rep_id    ( id, full_name ),
+      closer:closer_id ( id, full_name )
+    `)
+    .gte('appointment_at', start.toISOString())
+    .lt('appointment_at',  end.toISOString())
+    .in('stage', ['appt_scheduled', 'estimate_sent', 'booked'])
+    .order('appointment_at', { ascending: true })
+
+  // Bucket per calendar day so the strip can render fixed-width columns.
+  const days = []
+  for (let i = 0; i < daysAhead; i++) {
+    const d = new Date(start); d.setDate(d.getDate() + i)
+    days.push({ date: d, appts: [], totalValue: 0 })
+  }
+  for (const a of data || []) {
+    const t = new Date(a.appointment_at)
+    const dayIdx = Math.floor((t.getTime() - start.getTime()) / 86_400_000)
+    if (dayIdx < 0 || dayIdx >= daysAhead) continue
+    days[dayIdx].appts.push(a)
+    days[dayIdx].totalValue += Number(a.estimated_value || 0)
+  }
+  return days
+}
+
+/**
+ * Pipeline health KPIs for the last N days. Returns:
+ *   avgTimeToBookDays    — booked leads, hot_lead_started_at → booked
+ *   estimateToBookRate   — % of estimate_sent that became booked
+ *   pipelineAtRisk       — $ sum of stale leads (>7d in any active stage)
+ *   forecast14d          — weighted $ forecast for next 14 days
+ *
+ * All numbers are computed client-side from a single interactions pull.
+ * Cheap for orgs <10k active leads; would warrant a DB view at scale.
+ */
+export async function getPipelineHealth(windowDays = 30) {
+  const windowStart = new Date(); windowStart.setDate(windowStart.getDate() - windowDays)
+  const { data } = await supabase
+    .from('interactions')
+    .select('id, stage, estimated_value, hot_lead_started_at, estimate_sent_at, created_at, appointment_at')
+    .gte('created_at', windowStart.toISOString())
+    .not('stage', 'is', null)
+
+  const rows = data || []
+  const now  = Date.now()
+
+  // Time-to-book: leads in 'booked' stage with a hot_lead_started_at
+  // anchor. We average days from first interest to booked.
+  const booked = rows.filter((r) => r.stage === 'booked' && r.hot_lead_started_at)
+  const avgTimeToBookDays = booked.length === 0 ? null :
+    booked.reduce((acc, r) => acc + (new Date(r.created_at).getTime() - new Date(r.hot_lead_started_at).getTime()), 0)
+    / booked.length / 86_400_000
+
+  // Conversion: estimate_sent → booked. Counts within the window.
+  const totalEstimates = rows.filter((r) => r.stage === 'estimate_sent' || r.stage === 'booked').length
+  const totalBooked    = rows.filter((r) => r.stage === 'booked').length
+  const estimateToBookRate = totalEstimates === 0 ? null : (totalBooked / totalEstimates) * 100
+
+  // At-risk $: active stages aged >7d (any anchor — fall back to created_at).
+  const pipelineAtRisk = rows
+    .filter((r) => ACTIVE_PIPELINE_STAGES.includes(r.stage))
+    .filter((r) => {
+      const anchor = r.estimate_sent_at || r.hot_lead_started_at || r.created_at
+      return (now - new Date(anchor).getTime()) / 86_400_000 > 7
+    })
+    .reduce((acc, r) => acc + Number(r.estimated_value || 0), 0)
+
+  // 14-day forecast: weighted by stage.
+  // booked × 1.0, estimate_sent × 0.5, appt_scheduled × 0.3, hot_lead × 0.1.
+  // Coarse but useful — managers care about direction, not 2-decimal accuracy.
+  const stageWeights = { booked: 1.0, estimate_sent: 0.5, appt_scheduled: 0.3, hot_lead: 0.1 }
+  const forecast14d = rows
+    .filter((r) => ACTIVE_PIPELINE_STAGES.includes(r.stage))
+    .reduce((acc, r) => acc + Number(r.estimated_value || 0) * (stageWeights[r.stage] || 0), 0)
+
+  return {
+    avgTimeToBookDays,
+    estimateToBookRate,
+    pipelineAtRisk,
+    forecast14d,
+    sampleSize: rows.length,
+  }
+}
+
+/**
+ * Closed/lost rollup for the collapsed section at the bottom of the
+ * Pipeline tab. Returns counts by stage + top 3 lost reasons across the
+ * window. Designed to give the manager just enough signal to decide
+ * whether to expand into a full closed-deals view (which we'll build
+ * when the data justifies it).
+ */
+export async function getClosedSummary(windowDays = 30) {
+  const windowStart = new Date(); windowStart.setDate(windowStart.getDate() - windowDays)
+  const { data } = await supabase
+    .from('interactions')
+    .select('stage, lost_reason')
+    .in('stage', CLOSED_PIPELINE_STAGES)
+    .gte('created_at', windowStart.toISOString())
+
+  const rows = data || []
+  const byStage  = {}
+  const byReason = {}
+  for (const r of rows) {
+    byStage[r.stage]   = (byStage[r.stage]   || 0) + 1
+    if (r.lost_reason) {
+      byReason[r.lost_reason] = (byReason[r.lost_reason] || 0) + 1
+    }
+  }
+  const topReasons = Object.entries(byReason)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([reason, count]) => ({ reason, count }))
+  return {
+    notInterested: byStage.closed_not_interested || 0,
+    lost:          byStage.closed_lost           || 0,
+    stale:         byStage.closed_stale          || 0,
+    topReasons,
+    total: rows.length,
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 export async function getAllBookings(filters = {}) {
   const outcome = filters.outcome || 'booked'
 
