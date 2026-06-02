@@ -15,6 +15,7 @@ import { computeConversion } from '../lib/repStats.js'
 import { ConversionFunnel } from './RepHome.jsx'
 import MapView from '../components/MapView.jsx'
 import TerritoryMap from '../components/TerritoryMap.jsx'
+import PipelineTab from '../components/PipelineTab.jsx'
 import { PhotoThumb } from '../lib/photos.jsx'
 import {
   RichStatCard, MiniSparkArea, MiniSparkBars, RadialGauge,
@@ -28,15 +29,17 @@ const TERRITORY_COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EC4899', '#10B981',
 const TABS = [
   { id: 'overview',    label: 'Overview',    icon: BarChart2 },
   { id: 'reps',        label: 'Reps',        icon: Users     },
-  { id: 'bookings',    label: 'Bookings',    icon: BookOpen  },
+  { id: 'pipeline',    label: 'Pipeline',    icon: BookOpen  },
   { id: 'leaderboard', label: 'Leaderboard', icon: Trophy    },
   { id: 'live',        label: 'Live',        icon: Radio     },
   { id: 'map',         label: 'Map',         icon: MapPin    },
   { id: 'territories', label: 'Territories', icon: Map       },
 ]
 
-// Tabs that suppress the date/rep filter bar
-const NO_FILTER_TABS = new Set(['territories', 'live', 'leaderboard'])
+// Tabs that suppress the date/rep filter bar.
+// Pipeline owns its own filtering (per-stage + per-closer), so its
+// global filter bar is hidden too.
+const NO_FILTER_TABS = new Set(['territories', 'live', 'leaderboard', 'pipeline'])
 
 // Period options used by the segmented-control filter bar that sits
 // just below the tab bar. Labels mirror the manager's mental model
@@ -375,7 +378,7 @@ export default function ManagerDashboard() {
             {tab === 'live'        && <LiveTab allReps={reps} />}
             {tab === 'leaderboard' && <LeaderboardTab territories={territoriesLite} />}
             {tab === 'reps'        && <RepsTab repStats={repStats} allReps={reps} sessions={sessions} dateRange={dateRange} />}
-            {tab === 'bookings'    && <BookingsTab bookings={bookings} />}
+            {tab === 'pipeline'    && <PipelineTab />}
             {tab === 'map'         && <MapTab interactions={mapData} />}
             {tab === 'territories' && <TerritoryTab allReps={reps} managerId={user?.id} />}
           </div>
