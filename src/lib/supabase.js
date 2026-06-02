@@ -31,8 +31,41 @@ export async function signUpWithEmail(email, password, fullName) {
   return { data, error }
 }
 
+/**
+ * Sign the current user out.
+ *
+ * Two failure modes used to make this button "do nothing":
+ *   1. Default scope is 'global', which makes a network call to revoke the
+ *      refresh token. Offline or on a flaky network, that call hangs
+ *      forever — the local session is never cleared, onAuthStateChange
+ *      never fires SIGNED_OUT, and the UI stays put.
+ *   2. supabase-js holds a Web Lock around auth operations (same lock
+ *      that wedged Save/Upload — see updateUserProfile docs). If a token
+ *      refresh or a queued onAuthStateChange handler is mid-flight,
+ *      signOut blocks waiting for the lock and the click looks dead.
+ *
+ * Fix: scope:'local' so we tear down the local session immediately with
+ * no network round-trip, swallow any error (we don't want the click to
+ * throw uncaught into React), and hard-redirect the page as a belt-and-
+ * suspenders fallback in case onAuthStateChange doesn't re-render us out.
+ * The hard redirect is gated on `window` so SSR-style callers don't crash.
+ *
+ * Accepts no args on purpose — callers used to wire this directly to an
+ * onClick, which passed a React SyntheticEvent in as the first argument.
+ * That's harmless today but we keep the signature explicit so a future
+ * supabase-js that interprets the first arg as options can't surprise us.
+ */
 export async function signOut() {
-  return supabase.auth.signOut()
+  try {
+    await supabase.auth.signOut({ scope: 'local' })
+  } catch (err) {
+    console.warn('[Auth] signOut failed (continuing):', err?.message || err)
+  }
+  if (typeof window !== 'undefined') {
+    // Use replace() so the back button can't bounce the user back into
+    // an authenticated route after they've signed out.
+    window.location.replace('/login')
+  }
 }
 
 /**
