@@ -362,7 +362,7 @@ export default function ManagerDashboard() {
             )}
             {tab === 'live'        && <LiveTab allReps={reps} />}
             {tab === 'leaderboard' && <LeaderboardTab />}
-            {tab === 'reps'        && <RepsTab repStats={repStats} allReps={reps} />}
+            {tab === 'reps'        && <RepsTab repStats={repStats} allReps={reps} sessions={sessions} />}
             {tab === 'bookings'    && <BookingsTab bookings={bookings} />}
             {tab === 'map'         && <MapTab interactions={mapData} />}
             {tab === 'territories' && <TerritoryTab allReps={reps} managerId={user?.id} />}
@@ -794,8 +794,32 @@ function BookingsTab({ bookings }) {
 // dim card for reps on the team who had no sessions in the period (so newly-
 // added reps don't disappear until they log their first door). An "Add Rep"
 // button at the bottom opens the full Team Management flow in Settings.
-function RepsTab({ repStats, allReps = [] }) {
+function RepsTab({ repStats, allReps = [], sessions = [] }) {
   const navigate = useNavigate()
+
+  // Per-rep hours worked, summed from session start/end timestamps. We
+  // derive this here (vs. baking it into repStats) so the broader dashboard
+  // computation stays a hot path: the Rankings card is the only consumer.
+  const hoursByRep = {}
+  sessions.forEach((s) => {
+    if (!s.started_at || !s.ended_at) return
+    const h = (new Date(s.ended_at) - new Date(s.started_at)) / 3600000
+    hoursByRep[s.rep_id] = (hoursByRep[s.rep_id] || 0) + h
+  })
+
+  // Enrich each rep with the derived metrics the Rankings card can sort by.
+  // Stays in repStats order (sorted by revenue) so the card list below
+  // doesn't reshuffle when a manager picks a different ranking metric.
+  const enriched = repStats.map((r) => {
+    const hours = hoursByRep[r.id] || 0
+    return {
+      ...r,
+      hours,
+      closeRate:      r.doors > 0 ? (r.bookings / r.doors) * 100 : 0,
+      revenuePerDoor: r.doors > 0 ? r.revenue / r.doors          : 0,
+      revenuePerHour: hours    > 0 ? r.revenue / hours           : 0,
+    }
+  })
 
   // Reps who are on the team but produced no sessions in the current window.
   const activeIds = new Set(repStats.map((r) => r.id))
@@ -806,6 +830,10 @@ function RepsTab({ repStats, allReps = [] }) {
 
   return (
     <div className="space-y-3">
+      {/* Performance rankings — toggleable metric, gradient-bar leaderboard.
+         Default metric mirrors the overview's Rep Leaderboard (revenue). */}
+      <RepRankings repStats={enriched} onOpenRep={handleOpenRep} />
+
       {/* Active reps with performance stats — tap to drill into full stats */}
       {repStats.map((rep, i) => {
         const cr = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0'
@@ -1921,6 +1949,143 @@ function DailyRevenueChart({ daily = [] }) {
           })}
         </g>
       </svg>
+    </section>
+  )
+}
+
+// ─── Rep Rankings (Reps tab) ──────────────────────────────────────────────────
+// Toggleable leaderboard that lives at the top of the Reps tab. Visually
+// matches the Overview's RepLeaderboard (rank chip → avatar → gradient bar
+// + sub-stat line) but the metric powering the sort/bar normalization is
+// switchable via the pill row below the title.
+//
+// Why a separate component instead of extending RepLeaderboard:
+//   • Overview's leaderboard is intentionally fixed-revenue (it's the
+//     "headline" card, not a comparison tool).
+//   • The Reps-tab card is the comparison tool — different concern, so
+//     keeping them decoupled makes future iteration (e.g. adding a 2nd
+//     metric for stack-rank vs. baseline) safer.
+//
+// All metrics show every active rep (not just top 5) since this card *is*
+// the comparison surface — managers expect to see the full bench when they
+// flip to "Close Rate" looking for a sleeper.
+const RANK_METRICS = [
+  { id: 'revenue',        label: 'Revenue',     hint: 'Total $ booked',  format: (v) => `$${formatCompact(v)}`, precision: 0 },
+  { id: 'doors',          label: 'Doors',       hint: 'Doors knocked',   format: (v) => v.toLocaleString(),     precision: 0 },
+  { id: 'bookings',       label: 'Jobs',        hint: 'Jobs booked',     format: (v) => v.toLocaleString(),     precision: 0 },
+  { id: 'estimates',      label: 'Estimates',   hint: 'Estimates req\'d',format: (v) => v.toLocaleString(),     precision: 0 },
+  { id: 'closeRate',      label: 'Close %',     hint: 'Bookings / doors',format: (v) => `${v.toFixed(1)}%`,     precision: 1 },
+  { id: 'revenuePerDoor', label: 'Rev / Door',  hint: 'Revenue per door',format: (v) => `$${v.toFixed(2)}`,     precision: 2 },
+  { id: 'revenuePerHour', label: 'Rev / Hour',  hint: 'Revenue per hour',format: (v) => `$${v.toFixed(0)}`,     precision: 0 },
+  { id: 'hours',          label: 'Hours',       hint: 'Hours canvassing',format: (v) => `${v.toFixed(1)}h`,     precision: 1 },
+  { id: 'sessions',       label: 'Sessions',    hint: 'Total sessions',  format: (v) => v.toLocaleString(),     precision: 0 },
+]
+
+function RepRankings({ repStats = [], onOpenRep }) {
+  const [metricId, setMetricId] = useState('revenue')
+  const metric = RANK_METRICS.find((m) => m.id === metricId) || RANK_METRICS[0]
+
+  if (!repStats.length) {
+    return (
+      <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
+        <p className="text-sm font-semibold text-gray-900 mb-1">Performance Rankings</p>
+        <p className="text-xs text-gray-500">No rep activity in this period yet — rankings will appear once reps log sessions.</p>
+      </section>
+    )
+  }
+
+  // Sort by the selected metric, descending. We work off a copy so the
+  // parent's repStats (sorted by revenue) doesn't get mutated when the
+  // manager flips between metrics.
+  const ranked = [...repStats].sort((a, b) => (b[metricId] || 0) - (a[metricId] || 0))
+  const max    = Math.max(1, ...ranked.map((r) => r[metricId] || 0))
+
+  const avatarColors = [
+    'bg-lime-200 text-lime-800',
+    'bg-blue-200 text-blue-800',
+    'bg-teal-200 text-teal-800',
+    'bg-violet-200 text-violet-800',
+    'bg-orange-200 text-orange-800',
+  ]
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
+      {/* Header: title + selected-metric caption (mirrors RepLeaderboard) */}
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="text-sm font-semibold text-gray-900">Performance Rankings</p>
+        <p className="text-[11px] text-gray-500">By {metric.label.toLowerCase()}</p>
+      </div>
+
+      {/* Metric toggle pills — horizontally scrollable on narrow screens so
+         all 9 fit without wrapping. Same slate-track / white-pill look as
+         the SegmentedControl up in the filter bar. */}
+      <div
+        role="tablist"
+        aria-label="Ranking metric"
+        className="inline-flex max-w-full overflow-x-auto whitespace-nowrap rounded-xl bg-slate-100 p-1 mb-4 [scrollbar-width:thin]"
+      >
+        {RANK_METRICS.map((m) => {
+          const active = m.id === metricId
+          return (
+            <button
+              key={m.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              title={m.hint}
+              onClick={() => setMetricId(m.id)}
+              className={
+                'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors shrink-0 ' +
+                (active
+                  ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                  : 'text-slate-600 hover:text-slate-900')
+              }
+            >
+              {m.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Ranking rows — full bench (not top 5) so this card is a real
+         comparison surface, not just a hero. */}
+      <ul className="space-y-3">
+        {ranked.map((r, i) => {
+          const val = r[metricId] || 0
+          const pct = (val / max) * 100
+          const close = r.doors > 0 ? ((r.bookings / r.doors) * 100).toFixed(1) : '0'
+          return (
+            <li key={r.id}>
+              <button
+                type="button"
+                onClick={() => onOpenRep?.(r.id)}
+                className="w-full text-left rounded-lg -mx-1 px-1 py-1 hover:bg-slate-50 transition-colors"
+                aria-label={`Open ${r.name} details`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="w-6 text-center text-sm font-extrabold text-gray-400">{i + 1}</span>
+                  <div className={`w-8 h-8 rounded-full font-bold text-xs grid place-items-center ${avatarColors[i % avatarColors.length]}`}>
+                    {repInitials(r.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-baseline">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{r.name}</p>
+                      <p className="text-sm font-extrabold text-gray-900">{metric.format(val)}</p>
+                    </div>
+                    <div className="relative h-2 mt-1.5 rounded-full bg-slate-100 overflow-hidden">
+                      <span className="absolute inset-y-0 left-0 rounded-full"
+                            style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#7ac943,#2757d7)' }} />
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      {r.doors} doors · {r.bookings} jobs · {close}% close · {r.sessions} sessions
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
     </section>
   )
 }
