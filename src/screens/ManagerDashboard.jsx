@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay, differenceInCalendarDays } from 'date-fns'
-import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight, Target } from 'lucide-react'
+import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight, Target, Flame, Share2, Copy, Eye, EyeOff, Award, Crown, Minus } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllSessions, getAllReps, getManagerMapData, signOut,
@@ -2747,18 +2747,20 @@ function TopAreasCard({ sessions = [], onJumpToTerritories }) {
   )
 }
 
-// Conversion Bottleneck — finds the funnel stage with the weakest
-// pass-through rate and names it, with a coaching nudge. We surface the
-// CONVERSION rate (passed ÷ entered) rather than the drop rate so the
-// number aligns with the Conversion Funnel above ("21% of doors" in the
-// funnel ⇄ "21% advance" here). The label still calls this a drop-off
-// because the *stage* with the lowest conversion rate is, by definition,
-// where the funnel leaks the most — but the figure the manager reads
-// matches the figure they just saw two cards up.
+// Funnel Drop-Off — togglable view of all three funnel stages, with the
+// auto-identified "biggest leak" called out but not the only thing the
+// manager can act on. When drop-rates are close (e.g. 78% vs 75% vs 73%),
+// naming one stage "the bottleneck" is misleading — the leak is everywhere.
+// The toggle lets a manager browse coaching recommendations for each
+// stage, and a "tight margins" disclaimer appears when the top two stages
+// are within 10 pts of each other, so the framing is honest about
+// ambiguity.
 //
-// Tie-break favors earlier stages: a leak at "Doors → Conversations" is
-// a bigger lever than the same percentage leak at "Estimates → Bookings"
-// because upstream losses compound downstream.
+// We surface the CONVERSION rate (passed ÷ entered) rather than the drop
+// rate so the number aligns with the Conversion Funnel above ("21% of
+// doors" in the funnel ⇄ "21% advance" here). The drop is called out
+// alongside so both framings are visible without dressing the headline
+// in a misleading metric.
 //
 // `countLabel` mirrors the org's "estimates" vs "appointments" terminology
 // so the card reads in the manager's preferred verbiage.
@@ -2767,31 +2769,36 @@ function ConversionBottleneckCard({ stats = {}, countLabel = 'Estimates' }) {
   const estLabel = countLabel.toLowerCase()
 
   // Build stages in order. `entered` = pool that reached this stage,
-  // `passed` = pool that advanced to the next stage. Conversion% = passed/entered.
+  // `passed` = pool that advanced to the next stage. Conversion% =
+  // passed/entered. Each stage carries its own coaching tip — the toggle
+  // surfaces the tip for whichever stage the manager has selected.
   const stages = [
     {
-      key:   'doors',
-      from:  'Doors',
-      to:    'Conversations',
+      key:     'doors',
+      from:    'Doors',
+      to:      'Conversations',
+      short:   'Door → Convo',
       entered: doors,
       passed:  conversations,
-      tip:    'Reps are knocking but not getting people to talk. Reinforce opening lines and the "second knock" rule, and check whether they\'re hitting at the right times of day.',
+      tip:     'Reps are knocking but not getting people to talk. Reinforce opening lines and the "second knock" rule, and check whether they\'re hitting at the right times of day. Audit a few sessions where contact rate is below team average — the gap is usually pitch delivery, not territory quality.',
     },
     {
-      key:   'convos',
-      from:  'Conversations',
-      to:    countLabel,
+      key:     'convos',
+      from:    'Conversations',
+      to:      countLabel,
+      short:   `Convo → ${countLabel.slice(0, 3)}.`,
       entered: conversations,
       passed:  estimates,
-      tip:    `Reps are starting conversations but not landing ${estLabel}. Roleplay objection handling and tighten the value pitch — most ${estLabel} are won in the first 30 seconds.`,
+      tip:     `Reps are starting conversations but not landing ${estLabel}. Roleplay objection handling and tighten the value pitch — most ${estLabel} are won in the first 30 seconds. Listen in on a few live sessions; "I'm not interested" almost always means the opener didn't earn the next minute.`,
     },
     {
-      key:   'estimates',
-      from:  countLabel,
-      to:    'Bookings',
+      key:     'estimates',
+      from:    countLabel,
+      to:      'Bookings',
+      short:   `${countLabel.slice(0, 3)}. → Book`,
       entered: estimates,
       passed:  bookings,
-      tip:    `${countLabel} aren't converting to booked jobs. Review the quoting flow with reps, check pricing competitiveness, and make sure follow-ups are happening within 24 hrs.`,
+      tip:     `${countLabel} aren't converting to booked jobs. Review the quoting flow with reps, check pricing competitiveness, and make sure follow-ups happen within 24 hrs. Pull the ${estLabel} that went cold and check whether the rep ever circled back — silent attrition is the usual cause.`,
     },
   ]
 
@@ -2805,76 +2812,141 @@ function ConversionBottleneckCard({ stats = {}, countLabel = 'Estimates' }) {
     }))
     .filter((s) => s.convPct != null)
 
-  // Worst stage = lowest pass-through %. Tie-break to the earlier stage
-  // (first match wins) since fixing an upstream leak compounds downstream.
-  let worst = null
+  // Auto-suggested = lowest pass-through % (= highest drop %). Tie-break
+  // to the earlier stage (first match wins) since fixing an upstream leak
+  // compounds downstream. The card no longer calls this "the bottleneck";
+  // it's a starting point the manager can override via the toggle.
+  let suggested = null
   for (const s of evaluable) {
-    if (!worst || s.convPct < worst.convPct) worst = s
+    if (!suggested || s.convPct < suggested.convPct) suggested = s
   }
+
+  // Margin between the worst and runner-up stages — drives the "tight
+  // margins" disclaimer. If the gap is < 10 pts, the auto-suggestion is
+  // fragile and we say so. The card still has a default selection, but
+  // the manager is steered to look at all three.
+  const sortedByDrop = [...evaluable].sort((a, b) => b.dropPct - a.dropPct)
+  const tightMargins =
+    sortedByDrop.length >= 2 &&
+    Math.abs(sortedByDrop[0].dropPct - sortedByDrop[1].dropPct) < 10
+
+  // Selected stage is local state — initialized to the auto-suggested key
+  // but the manager can browse the others. We re-sync when the suggestion
+  // itself changes (e.g. period filter changes, different stage now leads).
+  const [selectedKey, setSelectedKey] = useState(suggested?.key || null)
+  useEffect(() => {
+    if (suggested && suggested.key !== selectedKey) {
+      setSelectedKey(suggested.key)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggested?.key])
+
+  const selected =
+    evaluable.find((s) => s.key === selectedKey) || suggested
 
   return (
     <section className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
       <div className="flex items-center justify-between mb-4 md:mb-5">
         <p className="text-gray-800 font-semibold text-base md:text-lg flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5 text-gray-400" /> Biggest Drop-Off
+          <AlertTriangle className="w-5 h-5 text-gray-400" /> Funnel Drop-Off
         </p>
         <p className="text-xs md:text-sm font-semibold text-gray-600 bg-gray-50 px-3 py-1 rounded-full">
-          weakest stage
+          tap a stage
         </p>
       </div>
-      {!worst ? (
+      {!selected ? (
         <div className="py-8 text-center">
           <AlertTriangle className="w-7 h-7 mx-auto mb-2 text-gray-300" />
-          <p className="text-sm text-gray-500">Not enough activity to find a bottleneck.</p>
+          <p className="text-sm text-gray-500">Not enough activity to evaluate the funnel.</p>
           <p className="text-xs text-gray-400 mt-0.5">Need at least one door knocked.</p>
         </div>
       ) : (
         <div className="space-y-4 md:space-y-5">
-          {/* Headline — stage name + the CONVERSION rate (matches the funnel
-             above). The drop is called out below so the framing is explicit
-             without dressing the headline number in a misleading metric. */}
+          {/* Stage toggle — three chips, one per funnel stage. The selected
+             chip gets a red wash (echoes "leak" framing); the auto-suggested
+             stage gets a small "biggest" badge so the manager has a starting
+             point but can override. Each chip always shows its conversion %
+             so the relative weights are visible regardless of which one is
+             open. */}
+          <div
+            role="tablist"
+            aria-label="Funnel stage"
+            className="grid grid-cols-3 gap-2"
+          >
+            {evaluable.map((s) => {
+              const isSelected  = s.key === selected.key
+              const isSuggested = s.key === suggested?.key
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  onClick={() => setSelectedKey(s.key)}
+                  className={
+                    'relative rounded-lg px-2 py-2 border text-left transition-colors ' +
+                    (isSelected
+                      ? 'border-red-300 bg-red-50 ring-1 ring-red-200'
+                      : 'border-gray-200 bg-gray-50 hover:bg-slate-100 hover:border-slate-300')
+                  }
+                >
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold truncate">
+                    {s.short}
+                  </p>
+                  <p className={`text-base font-extrabold tabular-nums ${isSelected ? 'text-red-700' : 'text-gray-700'}`}>
+                    {Math.round(s.convPct)}%
+                  </p>
+                  {isSuggested && (
+                    <span
+                      className="absolute -top-1.5 -right-1.5 text-[8.5px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-red-600 text-white shadow-sm"
+                      title="Auto-flagged as the steepest drop in this period"
+                    >
+                      Biggest
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Tight-margins disclaimer — only shows when the worst stage
+             isn't meaningfully worse than the runner-up. Keeps the card
+             honest: if all three are leaking at similar rates, naming one
+             "the" bottleneck is misleading. */}
+          {tightMargins && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5 leading-snug">
+              <span className="font-semibold">Tight margins.</span> The top two stages drop within 10 pts of each other — every stage matters this period.
+            </p>
+          )}
+
+          {/* Headline — selected stage's CONVERSION rate (matches the
+             Conversion Funnel above). The drop is spelled out below so
+             the framing is explicit either way. */}
           <div>
             <p className="text-xs md:text-sm uppercase tracking-wide text-red-600 font-semibold">
-              {worst.from} → {worst.to}
+              {selected.from} → {selected.to}
             </p>
             <div className="flex items-baseline gap-2 mt-1">
               <p className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-none tabular-nums">
-                {Math.round(worst.convPct)}%
+                {Math.round(selected.convPct)}%
               </p>
               <p className="text-sm md:text-base text-gray-500 font-medium">advance</p>
             </div>
             <p className="text-xs md:text-sm text-gray-500 mt-1.5">
-              <span className="font-semibold text-red-600">▼ {Math.round(worst.dropPct)}% drop</span>
+              <span className="font-semibold text-red-600">▼ {Math.round(selected.dropPct)}% drop</span>
               {' · '}
-              {(worst.entered - worst.passed).toLocaleString()} of {worst.entered.toLocaleString()} didn't advance
+              {(selected.entered - selected.passed).toLocaleString()} of {selected.entered.toLocaleString()} didn't advance
             </p>
           </div>
-          {/* Mini 3-stage comparison — same conversion %s shown across all
-             stages so the manager sees where the worst rate ranks. The
-             red chip highlights the bottleneck without changing scale. */}
-          <div className="grid grid-cols-3 gap-2">
-            {evaluable.map((s) => {
-              const isWorst = s.key === worst.key
-              return (
-                <div key={s.key} className={`rounded-lg px-2 py-2 border ${isWorst ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
-                  <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold truncate">
-                    {s.from} → {s.to}
-                  </p>
-                  <p className={`text-base font-extrabold tabular-nums ${isWorst ? 'text-red-700' : 'text-gray-700'}`}>
-                    {Math.round(s.convPct)}%
-                  </p>
-                </div>
-              )
-            })}
-          </div>
-          {/* Coaching nudge — stage-specific. Keeps the card from being a
-             pure diagnostic; should leave a manager with one thing they
-             could do this week. */}
+
+          {/* Coaching nudge — driven by the selected stage. Each stage has
+             its own recommendation so toggling actually gives the manager
+             something new to read. */}
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-3.5 py-2.5">
             <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">
-              Suggested action
+              Suggested action · {selected.from} → {selected.to}
             </p>
-            <p className="text-xs md:text-sm text-slate-700 leading-snug">{worst.tip}</p>
+            <p className="text-xs md:text-sm text-slate-700 leading-snug">{selected.tip}</p>
           </div>
         </div>
       )}

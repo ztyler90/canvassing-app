@@ -102,7 +102,7 @@ serve(async (req) => {
     //
     // Both modes persist `phone` when provided. `phone` is optional.
     if (action === 'create') {
-      const { fullName, email, mode = 'invite', password, phone } = body
+      const { fullName, email, mode = 'invite', password, phone, role = 'rep' } = body
       if (!fullName || !email) {
         return new Response(JSON.stringify({ error: 'fullName and email are required' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -110,6 +110,15 @@ serve(async (req) => {
       }
       if (mode !== 'invite' && mode !== 'temp_password') {
         return new Response(JSON.stringify({ error: `Unknown mode "${mode}"` }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      // Phase 2: role is now parameterized so the same flow handles reps
+      // (door knockers / setters) and closers. 'manager' creation stays
+      // out of this endpoint — owners self-sign-up. Default 'rep' keeps
+      // older callers (the existing rep-add UI) working without changes.
+      if (role !== 'rep' && role !== 'closer') {
+        return new Response(JSON.stringify({ error: `Unknown role "${role}"` }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
@@ -133,7 +142,7 @@ serve(async (req) => {
             redirectTo: `${APP_BASE_URL}/set-password`,
             // Mirrored into auth.users.raw_user_meta_data so downstream
             // triggers (if any) and the /set-password screen can read it.
-            data: { full_name: fullName, role: 'rep' },
+            data: { full_name: fullName, role },
           },
         })
         if (linkError || !linkData?.user || !linkData?.properties?.action_link) {
@@ -163,7 +172,7 @@ serve(async (req) => {
           email,
           password,
           email_confirm: true,
-          user_metadata: { full_name: fullName, role: 'rep' },
+          user_metadata: { full_name: fullName, role },
         })
         if (createError || !createData?.user) {
           return new Response(JSON.stringify({
@@ -185,7 +194,7 @@ serve(async (req) => {
         id:                    newUserId,
         email,
         full_name:             fullName,
-        role:                  'rep',
+        role,
         organization_id:       callerProfile.organization_id,
         phone:                 phoneNormalized,
         force_password_change: mode === 'temp_password',
@@ -249,8 +258,11 @@ serve(async (req) => {
         .single()
 
       const sameOrg = repProfile?.organization_id === callerProfile.organization_id
-      if (!repProfile || repProfile.role !== 'rep' || (!sameOrg && !callerProfile.is_super_admin)) {
-        return new Response(JSON.stringify({ error: 'Rep not found or not under your organization' }), {
+      // Accept rep OR closer here — both are manage-team-managed team
+      // members. Managers and owners can't be deleted through this path.
+      const isTeamMember = repProfile?.role === 'rep' || repProfile?.role === 'closer'
+      if (!repProfile || !isTeamMember || (!sameOrg && !callerProfile.is_super_admin)) {
+        return new Response(JSON.stringify({ error: 'Team member not found or not under your organization' }), {
           status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
@@ -290,8 +302,9 @@ serve(async (req) => {
         .single()
 
       const sameOrg = repProfile?.organization_id === callerProfile.organization_id
-      if (!repProfile || repProfile.role !== 'rep' || (!sameOrg && !callerProfile.is_super_admin)) {
-        return new Response(JSON.stringify({ error: 'Rep not found or not under your organization' }), {
+      const isTeamMember = repProfile?.role === 'rep' || repProfile?.role === 'closer'
+      if (!repProfile || !isTeamMember || (!sameOrg && !callerProfile.is_super_admin)) {
+        return new Response(JSON.stringify({ error: 'Team member not found or not under your organization' }), {
           status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }

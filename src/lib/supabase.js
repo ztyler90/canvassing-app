@@ -966,9 +966,9 @@ async function callManageTeam(body) {
  * uses `mode` to decide whether to show the credentials panel and
  * `loginUrl` to build a pre-filled SMS body.
  */
-export async function createRep({ fullName, email, phone, mode = 'invite', password }) {
+export async function createRep({ fullName, email, phone, mode = 'invite', password, role = 'rep' }) {
   const { data, error } = await callManageTeam({
-    action: 'create', fullName, email, phone, mode, password,
+    action: 'create', fullName, email, phone, mode, password, role,
   })
   if (error) return { error }
   return {
@@ -979,6 +979,105 @@ export async function createRep({ fullName, email, phone, mode = 'invite', passw
     loginUrl:   data?.login_url || null,
     error:      null,
   }
+}
+
+/**
+ * Convenience wrapper around createRep for closers. Same endpoint, same
+ * shape — just hard-codes role='closer' so callers in the Closer section
+ * of Settings don't accidentally invite a rep.
+ */
+export async function createCloser({ fullName, email, phone, mode = 'invite', password }) {
+  return createRep({ fullName, email, phone, mode, password, role: 'closer' })
+}
+
+/**
+ * List all closers in the caller's org. Mirrors getAllReps but filters to
+ * role='closer'. Returns notification pref so the Closers settings page
+ * can render each closer's chosen channel.
+ */
+export async function getAllClosers() {
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
+  const { data } = await supabase
+    .from('users')
+    .select('id, full_name, email, role, organization_id, closer_notification_pref')
+    .eq('role', 'closer')
+    .eq('organization_id', orgId)
+    .order('full_name')
+  return data || []
+}
+
+/**
+ * Update a closer's notification preference. Closers update their own
+ * pref; managers may also update a closer's pref in their org. RLS
+ * enforces this (users can update own row, managers can update users in
+ * their org via the existing Managers-update-users policy).
+ *
+ *   pref : 'app' | 'email' | 'sms' | 'both'
+ */
+export async function updateCloserNotificationPref(userId, pref) {
+  if (!['app', 'email', 'sms', 'both'].includes(pref)) {
+    return { error: new Error(`Invalid notification pref: ${pref}`) }
+  }
+  const { data, error } = await supabase
+    .from('users')
+    .update({ closer_notification_pref: pref })
+    .eq('id', userId)
+    .select('id, closer_notification_pref')
+    .single()
+  return { data, error }
+}
+
+/**
+ * Fetch the leads (interactions) currently assigned to the caller as a
+ * closer. Used by the Closer Inbox screen. RLS allows closers to read
+ * rows where closer_id = auth.uid() (policy added in 20260602 phase-1
+ * migration). Returns the same shape Pipeline tab will use, so the two
+ * screens can share rendering code later.
+ */
+export async function getMyAssignedLeads() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+  const { data } = await supabase
+    .from('interactions')
+    .select(`
+      id, stage, address, contact_name, contact_phone, contact_email,
+      service_types, estimated_value, notes, appointment_at,
+      estimate_sent_at, hot_lead_started_at, lost_reason, lost_at,
+      created_at, rep_id, closer_id,
+      users:rep_id ( full_name )
+    `)
+    .eq('closer_id', user.id)
+    .in('stage', ['hot_lead', 'appt_scheduled', 'estimate_sent', 'booked'])
+    .order('appointment_at', { ascending: true, nullsFirst: false })
+  return data || []
+}
+
+/**
+ * Closer-facing helper to advance a lead through the pipeline. Used by
+ * the Closer Inbox to mark "estimate sent" / "booked" / "lost". RLS lets
+ * closers update only rows where closer_id = auth.uid().
+ *
+ *   stage : 'hot_lead' | 'appt_scheduled' | 'estimate_sent' | 'booked'
+ *         | 'closed_stale' | 'closed_lost' | 'closed_not_interested'
+ *   extras: { appointment_at?, estimate_sent_at?, lost_reason?,
+ *             lost_reason_notes?, lost_at? }
+ */
+export async function updateLeadStage(leadId, stage, extras = {}) {
+  const patch = { stage }
+  for (const k of [
+    'appointment_at', 'estimate_sent_at',
+    'lost_reason', 'lost_reason_notes', 'lost_at',
+  ]) {
+    if (extras[k] !== undefined) patch[k] = extras[k]
+  }
+  const { data, error } = await supabase
+    .from('interactions')
+    .update(patch)
+    .eq('id', leadId)
+    .select()
+    .single()
+  return { data, error }
 }
 
 /**
@@ -1498,47 +1597,166 @@ export async function getActiveRepLocations() {
 }
 
 /**
- * Aggregate session stats by rep for a given period.
+ * Aggregate session stats by rep for a given period, enriched with the
+ * fields the manager Leaderboard needs to feel "alive": prior-period rank
+ * (for movement chips), a rolling daily-booking streak, and the rep's
+ * personal best revenue over a comparable historical window (for PR
+ * badges). Done in one trip so the UI doesn't need N+1 round-trips.
+ *
  * period: 'today' | 'week' | 'month'
+ *
+ * Returned shape per rep:
+ *   { id, name, doors, conversations, estimates, bookings, revenue,
+ *     prior:        { rank, revenue, bookings, ... } | null,
+ *     streakDays:   number,   // consecutive days ending today with bookings > 0
+ *     personalBest: number,   // max revenue across prior matching periods
+ *     isPR:         boolean   // current revenue strictly exceeds personalBest
+ *   }
  */
 export async function getLeaderboardData(period = 'today') {
-  const now  = new Date()
-  let dateFrom
+  // ── 1. Resolve current + prior windows ─────────────────────────────────────
+  // We pull a 60-day lookback in one query and bucket rows in JS so we can
+  // compute current / prior / personal-best from a single network trip.
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  let windowMs, periodLabel
   if (period === 'today') {
-    dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+    windowMs    = 86400000          // 1 day
+    periodLabel = 'today'
   } else if (period === 'week') {
-    dateFrom = new Date(Date.now() - 7  * 86400000).toISOString()
+    windowMs    = 7 * 86400000      // 7 days
+    periodLabel = 'week'
   } else {
-    dateFrom = new Date(Date.now() - 30 * 86400000).toISOString()
+    windowMs    = 30 * 86400000     // 30 days
+    periodLabel = 'month'
   }
+
+  const currentFrom = (period === 'today')
+    ? startOfToday.getTime()
+    : Date.now() - windowMs
+  const priorFrom   = currentFrom - windowMs
+  // 60 days back is enough for ~8 weekly windows or 2 monthly windows worth
+  // of personal-best comparison without paying for a full-org historical scan.
+  const lookbackFrom = Math.min(priorFrom, Date.now() - 60 * 86400000)
 
   const { data } = await supabase
     .from('canvassing_sessions')
-    .select('rep_id, doors_knocked, conversations, estimates, bookings, revenue_booked, users(full_name)')
-    .gte('started_at', dateFrom)
+    .select('rep_id, started_at, doors_knocked, conversations, estimates, bookings, revenue_booked, users(full_name)')
+    .gte('started_at', new Date(lookbackFrom).toISOString())
 
-  const repMap = {}
-  for (const s of data || []) {
-    if (!repMap[s.rep_id]) {
-      repMap[s.rep_id] = {
-        id:            s.rep_id,
-        name:          s.users?.full_name || 'Unknown',
-        doors:         0,
-        conversations: 0,
-        estimates:     0,
-        bookings:      0,
-        revenue:       0,
-      }
-    }
-    const r = repMap[s.rep_id]
-    r.doors         += s.doors_knocked  || 0
-    r.conversations += s.conversations  || 0
-    r.estimates     += s.estimates      || 0
-    r.bookings      += s.bookings       || 0
-    r.revenue       += s.revenue_booked || 0
+  const sessions = data || []
+
+  // ── 2. Bucket sessions into current + prior + collect by-day for streak ────
+  const blank = (s) => ({
+    id:            s.rep_id,
+    name:          s.users?.full_name || 'Unknown',
+    doors:         0,
+    conversations: 0,
+    estimates:     0,
+    bookings:      0,
+    revenue:       0,
+  })
+  const accumulate = (target, s) => {
+    target.doors         += s.doors_knocked  || 0
+    target.conversations += s.conversations  || 0
+    target.estimates     += s.estimates      || 0
+    target.bookings      += s.bookings       || 0
+    target.revenue       += Number(s.revenue_booked) || 0
   }
 
-  return Object.values(repMap)
+  const current = {}                  // rep_id → stats for the active window
+  const prior   = {}                  // rep_id → stats for the prior window
+  // For PR: bucket each rep's revenue per fixed-length window the same size
+  // as `windowMs`, anchored to the current window's start. Buckets older
+  // than the current window become PR candidates.
+  const buckets = {}                  // rep_id → { bucketIdx → revenue }
+  // For streak: rep_id → Set<YYYY-MM-DD> of days that had at least 1 booking.
+  const bookingDays = {}
+
+  for (const s of sessions) {
+    const ts = new Date(s.started_at).getTime()
+    if (ts >= currentFrom) {
+      current[s.rep_id] ??= blank(s); accumulate(current[s.rep_id], s)
+    }
+    if (ts >= priorFrom && ts < currentFrom) {
+      prior[s.rep_id]   ??= blank(s); accumulate(prior[s.rep_id], s)
+    }
+    // PR buckets: how many `windowMs` units before currentFrom did this fall?
+    // bucketIdx 0 == current, 1 == prior, 2+ == older history.
+    const bucketIdx = Math.floor((currentFrom - ts) / windowMs) + (ts >= currentFrom ? 0 : 1)
+    if (bucketIdx >= 1) {
+      buckets[s.rep_id] ??= {}
+      buckets[s.rep_id][bucketIdx] = (buckets[s.rep_id][bucketIdx] || 0) + (Number(s.revenue_booked) || 0)
+    }
+    // Streak tracking (only counts days that had at least one booking)
+    if ((s.bookings || 0) > 0) {
+      const d = new Date(ts)
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+      bookingDays[s.rep_id] ??= new Set()
+      bookingDays[s.rep_id].add(key)
+    }
+  }
+
+  // ── 3. Rank prior window so we can compute movement ────────────────────────
+  const priorRanked = Object.values(prior).sort((a, b) => b.revenue - a.revenue)
+  const priorRankById = {}
+  priorRanked.forEach((r, i) => { priorRankById[r.id] = i + 1 })
+
+  // ── 4. Streak: walk backward day-by-day until we hit a gap ─────────────────
+  function streakFor(repId) {
+    const set = bookingDays[repId]
+    if (!set || set.size === 0) return 0
+    let n = 0
+    const cursor = new Date(startOfToday)
+    // Allow today OR yesterday to start a streak (a rep checking the board
+    // in the morning shouldn't see their streak reset before they go out).
+    const todayKey = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`
+    if (!set.has(todayKey)) {
+      cursor.setDate(cursor.getDate() - 1)
+      const y = cursor
+      const yKey = `${y.getFullYear()}-${y.getMonth()}-${y.getDate()}`
+      if (!set.has(yKey)) return 0
+    }
+    while (true) {
+      const key = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`
+      if (set.has(key)) { n++; cursor.setDate(cursor.getDate() - 1) }
+      else break
+    }
+    return n
+  }
+
+  // ── 5. Stitch enriched rows ────────────────────────────────────────────────
+  // Roster = union of reps active in either window so a rep who fell off
+  // still shows up with their movement chip.
+  const allRepIds = new Set([...Object.keys(current), ...Object.keys(prior)])
+  const out = []
+  for (const id of allRepIds) {
+    const cur = current[id] || blank({ rep_id: id, users: { full_name: prior[id]?.name } })
+    cur.id   = id
+    cur.name = cur.name || prior[id]?.name || 'Unknown'
+
+    const priorStats = prior[id] || null
+    const priorRank  = priorRankById[id] || null
+
+    // Personal best across historical buckets that have ≥ 60% of the current
+    // window's coverage worth of data (cheap heuristic to skip partial buckets
+    // at the lookback edge).
+    const myBuckets = buckets[id] || {}
+    const personalBest = Math.max(0, ...Object.entries(myBuckets)
+      .filter(([idx]) => Number(idx) >= 1)
+      .map(([, rev]) => rev))
+
+    out.push({
+      ...cur,
+      prior: priorStats ? { ...priorStats, rank: priorRank } : null,
+      streakDays:    streakFor(id),
+      personalBest,
+      isPR:          cur.revenue > 0 && cur.revenue > personalBest,
+      periodLabel,
+    })
+  }
+
+  return out
 }
 
 /**

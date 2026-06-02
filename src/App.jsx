@@ -15,6 +15,9 @@ import ManagerDashboard  from './screens/ManagerDashboard.jsx'
 import RepDetail         from './screens/RepDetail.jsx'
 import Settings          from './screens/Settings.jsx'
 import PipelineSettings  from './screens/PipelineSettings.jsx'
+import ClosersSettings   from './screens/ClosersSettings.jsx'
+import CloserHome        from './screens/CloserHome.jsx'
+import CloserProfile     from './screens/CloserProfile.jsx'
 import RepProfile        from './screens/RepProfile.jsx'
 import RepTerritories    from './screens/RepTerritories.jsx'
 import SuperAdminDashboard from './screens/SuperAdminDashboard.jsx'
@@ -119,10 +122,25 @@ function AppRoutes() {
       <Route path="/manager/rep/:repId" element={<RepDetail />} />
       <Route path="/settings"          element={<Settings />} />
       <Route path="/settings/pipeline" element={<PipelineSettings />} />
+      <Route path="/settings/closers"  element={<ClosersSettings />} />
       <Route path="/session/:id"       element={<SessionDetail />} />
       {user.is_super_admin && <Route path="/super-admin"            element={<SuperAdminDashboard />} />}
       {user.is_super_admin && <Route path="/super-admin/org/:orgId" element={<OrganizationDetail />}  />}
       <Route path="*"                  element={<Navigate to="/manager" replace />} />
+    </Routes>
+  )
+
+  // Closer routes — Phase 2. Closers see ONLY their inbox + profile.
+  // No canvassing, no GPS, no territories, no other reps. The role enum
+  // gate prevents managers/super-admins from accidentally hitting this
+  // branch even if they craft the URL by hand. SessionProvider is not
+  // wrapped here because closers don't run canvassing sessions.
+  if (user.role === 'closer') return (
+    <Routes>
+      <Route path="/closer"         element={<CloserHome />} />
+      <Route path="/closer/profile" element={<CloserProfile />} />
+      <Route path="/set-password"   element={<SetPassword />} />
+      <Route path="*"               element={<Navigate to="/closer" replace />} />
     </Routes>
   )
 

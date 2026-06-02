@@ -53,7 +53,7 @@ async function buildProfile(sessionUser) {
     const { data: row } = await withTimeout(
       supabase
         .from('users')
-        .select('id, email, full_name, role, organization_id, is_super_admin, avatar_url, force_password_change, phone, status')
+        .select('id, email, full_name, role, organization_id, is_super_admin, avatar_url, force_password_change, phone, status, closer_notification_pref')
         .eq('id', sessionUser.id)
         .single(),
       4000,

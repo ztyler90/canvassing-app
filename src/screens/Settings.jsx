@@ -953,6 +953,34 @@ export default function Settings() {
           </button>
         </section>
 
+        {/* ── Closers ────────────────────────────────────────────────── */}
+        {/* Closers are managed separately from reps because their UX is
+            different (no canvassing app, notification-first), and we
+            don't want to clutter the Team section with role-aware tabs.
+            The sub-screen handles invite + list + notification prefs. */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <UserCheck className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+            <h2 className="text-gray-700 font-semibold text-base">Closers</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/settings/closers')}
+            className="w-full bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:border-blue-300 active:bg-gray-50 transition-colors text-left flex items-center gap-3"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900">
+                Manage closers &amp; notification routing
+              </p>
+              <p className="text-[12px] text-gray-500 mt-0.5 leading-snug">
+                Invite the people who receive setter-booked appointments. Set their
+                preferred channel (app, email, SMS). High-ticket sales only.
+              </p>
+            </div>
+            <ExternalLink className="w-4 h-4 text-gray-400 shrink-0" />
+          </button>
+        </section>
+
         {/* ── Daily Goal ─────────────────────────────────────────────── */}
         <section>
           <div className="flex items-center gap-2 mb-3">
