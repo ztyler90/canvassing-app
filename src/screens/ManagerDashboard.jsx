@@ -362,7 +362,7 @@ export default function ManagerDashboard() {
             )}
             {tab === 'live'        && <LiveTab allReps={reps} />}
             {tab === 'leaderboard' && <LeaderboardTab />}
-            {tab === 'reps'        && <RepsTab repStats={repStats} allReps={reps} sessions={sessions} />}
+            {tab === 'reps'        && <RepsTab repStats={repStats} allReps={reps} sessions={sessions} dateRange={dateRange} />}
             {tab === 'bookings'    && <BookingsTab bookings={bookings} />}
             {tab === 'map'         && <MapTab interactions={mapData} />}
             {tab === 'territories' && <TerritoryTab allReps={reps} managerId={user?.id} />}
@@ -812,7 +812,7 @@ function BookingsTab({ bookings }) {
 // dim card for reps on the team who had no sessions in the period (so newly-
 // added reps don't disappear until they log their first door). An "Add Rep"
 // button at the bottom opens the full Team Management flow in Settings.
-function RepsTab({ repStats, allReps = [], sessions = [] }) {
+function RepsTab({ repStats, allReps = [], sessions = [], dateRange = 'month' }) {
   const navigate = useNavigate()
 
   // Per-rep hours worked, summed from session start/end timestamps. We
@@ -824,6 +824,18 @@ function RepsTab({ repStats, allReps = [], sessions = [] }) {
     const h = (new Date(s.ended_at) - new Date(s.started_at)) / 3600000
     hoursByRep[s.rep_id] = (hoursByRep[s.rep_id] || 0) + h
   })
+
+  // Bucket sessions by rep so each card can render its own daily series of
+  // revenue/doors/bookings — the "graphical performance metrics per rep"
+  // surface. Window length follows the active dateRange filter to keep
+  // visual scale consistent with the overview's hero sparklines.
+  const sessionsByRep = {}
+  sessions.forEach((s) => {
+    if (!s.rep_id) return
+    if (!sessionsByRep[s.rep_id]) sessionsByRep[s.rep_id] = []
+    sessionsByRep[s.rep_id].push(s)
+  })
+  const chartDays = daysForRange(dateRange, sessions)
 
   // Enrich each rep with the derived metrics the Rankings card can sort by.
   // Stays in repStats order (sorted by revenue) so the card list below
@@ -847,99 +859,165 @@ function RepsTab({ repStats, allReps = [], sessions = [] }) {
   const handleOpenRep   = (repId) => navigate(`/manager/rep/${repId}`)
 
   return (
-    // Two-column on desktop: rankings chart left, rep list right. Stacks on
-    // mobile so the chart leads (matches the screenshot's mental model) and
-    // the rep cards follow as the named, tappable surface.
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 items-start">
-      {/* ── Left: graphical rankings ─────────────────────────────────────
-         Sticky on desktop so it stays in view as a manager scrolls the
-         rep list on the right. Toggling a metric reorders the bars but
-         doesn't reshuffle the right-side list — names stay in revenue
-         order there for stable reference. */}
-      <div className="lg:sticky lg:top-4">
-        <RepRankings repStats={enriched} onOpenRep={handleOpenRep} />
-      </div>
+    <div className="space-y-3">
+      {/* Performance rankings — full-width graphical leaderboard with metric
+         toggle pills. Defaults to revenue (matches the Overview's hero card). */}
+      <RepRankings repStats={enriched} onOpenRep={handleOpenRep} />
 
-      {/* ── Right: named rep cards (existing drill-in surface) ─────────── */}
-      <div className="space-y-3">
-        {/* Active reps with performance stats — tap to drill into full stats */}
-        {repStats.map((rep, i) => {
-          const cr = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0'
-          return (
-            <button
-              key={rep.id}
-              onClick={() => handleOpenRep(rep.id)}
-              className="w-full text-left bg-white rounded-2xl border border-gray-200 p-4 active:bg-gray-50 hover:border-blue-300 transition-colors"
-              aria-label={`Open ${rep.name} details`}
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                  style={{ backgroundColor: BRAND_GREEN }}>{i + 1}</div>
+      {/* Active reps with per-rep performance graphs. Each card visualizes
+         the rep's daily revenue / doors / bookings trend over the active
+         dateRange window — same series math the overview hero cards use,
+         so this is a per-rep miniature of that view. */}
+      {repStats.map((rep, i) => {
+        const cr = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0'
+        const repSessions = sessionsByRep[rep.id] || []
+        const daily       = groupSessionsByDay(repSessions, chartDays)
+        const dates       = daily.map((d) => d.date)
+        return (
+          <button
+            key={rep.id}
+            onClick={() => handleOpenRep(rep.id)}
+            className="w-full text-left bg-white rounded-2xl border border-gray-200 p-4 active:bg-gray-50 hover:border-blue-300 transition-colors"
+            aria-label={`Open ${rep.name} details`}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                style={{ backgroundColor: BRAND_GREEN }}>{i + 1}</div>
+              <div>
+                <p className="font-bold text-gray-900">{rep.name}</p>
+                <p className="text-xs text-gray-400">{rep.sessions} sessions</p>
+              </div>
+              <div className="ml-auto text-right flex items-center gap-1">
                 <div>
-                  <p className="font-bold text-gray-900">{rep.name}</p>
-                  <p className="text-xs text-gray-400">{rep.sessions} sessions</p>
+                  <p className="text-lg font-bold text-gray-900">${rep.revenue.toFixed(0)}</p>
+                  <p className="text-xs text-green-600">{rep.bookings} booked</p>
                 </div>
-                <div className="ml-auto text-right flex items-center gap-1">
-                  <div>
-                    <p className="text-lg font-bold text-gray-900">${rep.revenue.toFixed(0)}</p>
-                    <p className="text-xs text-green-600">{rep.bookings} booked</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0 ml-1" />
-                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0 ml-1" />
               </div>
-              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100">
-                <MicroStat label="Doors"     value={rep.doors}       />
-                <MicroStat label="Estimates" value={rep.estimates}   />
-                <MicroStat label="Close %"   value={`${cr}%`}        />
-              </div>
-            </button>
-          )
-        })}
-
-        {/* Empty state if no sessions anywhere in the period */}
-        {repStats.length === 0 && (
-          <div className="text-center py-10 text-gray-400">
-            <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
-            <p className="font-medium text-sm">No rep activity in this period.</p>
-            <p className="text-xs mt-1">Try expanding the date range — or add a new rep below.</p>
-          </div>
-        )}
-
-        {/* Reps on the team with no sessions in the window — keeps them visible. */}
-        {idleReps.length > 0 && (
-          <div className="pt-2">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">No activity yet</p>
-            <div className="space-y-2">
-              {idleReps.map((rep) => (
-                <button
-                  key={rep.id}
-                  onClick={() => handleOpenRep(rep.id)}
-                  className="w-full text-left bg-gray-50 rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3 active:bg-gray-100 hover:border-blue-300 transition-colors"
-                  aria-label={`Open ${rep.full_name || rep.email} details`}
-                >
-                  <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-500 text-xs font-bold flex items-center justify-center">
-                    {(rep.full_name || rep.email || '?')[0].toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-700 truncate">{rep.full_name || rep.email}</p>
-                    <p className="text-xs text-gray-400 truncate">No sessions in this window</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                </button>
-              ))}
             </div>
-          </div>
-        )}
 
-        {/* Add Rep button — opens Settings team management flow with the form pre-opened */}
-        <button
-          onClick={handleAddRep}
-          className="w-full mt-3 py-3 rounded-2xl border-2 border-dashed flex items-center justify-center gap-2 text-sm font-semibold transition-colors hover:bg-blue-50"
-          style={{ borderColor: BRAND_GREEN, color: BRAND_GREEN }}>
-          <UserPlus className="w-4 h-4" />
-          Add Rep
-        </button>
-      </div>
+            {/* ── Performance metrics, graphical ────────────────────────
+               Three mini-charts side-by-side: revenue area, doors bars,
+               bookings area. Same series math as overview hero cards. */}
+            <div className="grid grid-cols-3 gap-3 pt-3 border-t border-gray-100">
+              <RepMetricMini
+                label="Revenue"
+                value={`$${formatCompact(rep.revenue)}`}
+                variant="area"
+                values={daily.map((d) => d.revenue)}
+                dates={dates}
+                color="#5ea636"
+                fill="#7ac94340"
+                valueFormatter={(v) => `$${formatCompact(v)}`}
+              />
+              <RepMetricMini
+                label="Doors"
+                value={rep.doors.toLocaleString()}
+                variant="bars"
+                values={daily.map((d) => d.doors)}
+                dates={dates}
+                color="#2757d7"
+                highlight="#1e44b0"
+              />
+              <RepMetricMini
+                label="Jobs"
+                value={rep.bookings.toLocaleString()}
+                variant="area"
+                values={daily.map((d) => d.bookings)}
+                dates={dates}
+                color="#0d9488"
+                fill="#14b8a640"
+              />
+            </div>
+
+            {/* Existing numeric stat row — at-a-glance ratios the
+               sparklines above don't surface (estimates + close% +
+               efficiency). */}
+            <div className="grid grid-cols-3 gap-2 pt-3 mt-2 border-t border-gray-100">
+              <MicroStat label="Estimates"  value={rep.estimates}   />
+              <MicroStat label="Close %"    value={`${cr}%`}        />
+              <MicroStat label="Rev / Door" value={rep.doors > 0 ? `$${(rep.revenue / rep.doors).toFixed(0)}` : '—'} />
+            </div>
+          </button>
+        )
+      })}
+
+      {/* Empty state if no sessions anywhere in the period */}
+      {repStats.length === 0 && (
+        <div className="text-center py-10 text-gray-400">
+          <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="font-medium text-sm">No rep activity in this period.</p>
+          <p className="text-xs mt-1">Try expanding the date range — or add a new rep below.</p>
+        </div>
+      )}
+
+      {/* Reps on the team with no sessions in the window — keeps them visible. */}
+      {idleReps.length > 0 && (
+        <div className="pt-2">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">No activity yet</p>
+          <div className="space-y-2">
+            {idleReps.map((rep) => (
+              <button
+                key={rep.id}
+                onClick={() => handleOpenRep(rep.id)}
+                className="w-full text-left bg-gray-50 rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3 active:bg-gray-100 hover:border-blue-300 transition-colors"
+                aria-label={`Open ${rep.full_name || rep.email} details`}
+              >
+                <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-500 text-xs font-bold flex items-center justify-center">
+                  {(rep.full_name || rep.email || '?')[0].toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-gray-700 truncate">{rep.full_name || rep.email}</p>
+                  <p className="text-xs text-gray-400 truncate">No sessions in this window</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Add Rep button — opens Settings team management flow with the form pre-opened */}
+      <button
+        onClick={handleAddRep}
+        className="w-full mt-3 py-3 rounded-2xl border-2 border-dashed flex items-center justify-center gap-2 text-sm font-semibold transition-colors hover:bg-blue-50"
+        style={{ borderColor: BRAND_GREEN, color: BRAND_GREEN }}>
+        <UserPlus className="w-4 h-4" />
+        Add Rep
+      </button>
+    </div>
+  )
+}
+
+// ─── Per-rep mini metric ────────────────────────────────────────────────────
+// Compact, captioned sparkline used inside RepsTab's rep cards. Label on
+// top, big number under it, mini-chart fills the rest. Stays a passive
+// visual — the outer rep card is what's clickable for drill-in.
+function RepMetricMini({ label, value, variant, values, dates, color, fill, highlight, valueFormatter }) {
+  const empty = !values || values.every((v) => !v)
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">{label}</p>
+      <p className="text-sm font-bold text-gray-900 leading-tight">{value}</p>
+      {empty ? (
+        <div className="w-full h-9 md:h-10 mt-1 rounded bg-slate-50" />
+      ) : variant === 'bars' ? (
+        <MiniSparkBars
+          values={values}
+          dates={dates}
+          color={color}
+          highlight={highlight}
+          valueFormatter={valueFormatter}
+        />
+      ) : (
+        <MiniSparkArea
+          values={values}
+          dates={dates}
+          color={color}
+          fill={fill}
+          valueFormatter={valueFormatter}
+        />
+      )}
     </div>
   )
 }
@@ -2149,12 +2227,11 @@ function RepRankings({ repStats = [], onOpenRep }) {
       </div>
 
       {/* Ranking rows — full bench (not top 5) so this card is a real
-         comparison surface. We deliberately drop the sub-stat footer that
-         the overview leaderboard carries: the rep cards on the right are
-         the named/detail surface, so repeating doors/jobs/close% here
-         would just duplicate text. Keeps the left column reading as a
-         chart, not a second list. */}
-      <ul className="space-y-2.5">
+         comparison surface across the whole team. Layout: rank chip →
+         avatar → name (left) + value (right) sitting above a normalized
+         gradient bar. Mirrors the overview RepLeaderboard structure but
+         re-sorts whenever metricId changes. */}
+      <ul className="space-y-3">
         {ranked.map((r, i) => {
           const val = r[metricId] || 0
           const pct = (val / max) * 100
@@ -2166,21 +2243,21 @@ function RepRankings({ repStats = [], onOpenRep }) {
                 className="w-full text-left rounded-lg -mx-1 px-1 py-1 hover:bg-slate-50 transition-colors"
                 aria-label={`Open ${r.name} details`}
               >
-                <div className="flex items-center gap-2.5">
-                  <span className="w-5 text-center text-xs font-extrabold text-gray-400">{i + 1}</span>
-                  <div className={`w-7 h-7 rounded-full font-bold text-[10px] grid place-items-center shrink-0 ${avatarColors[i % avatarColors.length]}`}
-                       title={r.name}>
+                <div className="flex items-center gap-3">
+                  <span className="w-6 text-center text-sm font-extrabold text-gray-400">{i + 1}</span>
+                  <div className={`w-8 h-8 rounded-full font-bold text-xs grid place-items-center shrink-0 ${avatarColors[i % avatarColors.length]}`}>
                     {repInitials(r.name)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="relative h-3 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="flex justify-between items-baseline gap-3">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{r.name}</p>
+                      <p className="text-sm font-extrabold text-gray-900 tabular-nums shrink-0">{metric.format(val)}</p>
+                    </div>
+                    <div className="relative h-2 mt-1.5 rounded-full bg-slate-100 overflow-hidden">
                       <span className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-300"
                             style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#7ac943,#2757d7)' }} />
                     </div>
                   </div>
-                  <p className="text-sm font-extrabold text-gray-900 tabular-nums shrink-0 w-16 text-right">
-                    {metric.format(val)}
-                  </p>
                 </div>
               </button>
             </li>
@@ -2195,6 +2272,11 @@ function RepRankings({ repStats = [], onOpenRep }) {
 // The palette cycles through 5 pastel avatar colors so it matches the
 // mockup feel without needing per-rep color meta.
 function RepLeaderboard({ repStats = [] }) {
+  // useNavigate so each leaderboard row can route into RepDetail
+  // (/manager/rep/:repId) — same destination the Reps tab uses, so a
+  // manager can drill straight into a rep's home-page view from the
+  // Overview without bouncing through the rep list.
+  const navigate = useNavigate()
   if (!repStats.length) {
     return (
       <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
@@ -2216,33 +2298,48 @@ function RepLeaderboard({ repStats = [] }) {
     <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
       <div className="flex items-baseline justify-between mb-3">
         <p className="text-sm font-semibold text-gray-900">Rep Leaderboard</p>
-        <p className="text-[11px] text-gray-500">By revenue</p>
+        <p className="text-[11px] text-gray-500">By revenue · tap a rep</p>
       </div>
-      <ul className="space-y-3">
+      <ul className="space-y-1">
         {top.map((r, i) => {
           const pct = (r.revenue / max) * 100
           const close = r.doors > 0 ? ((r.bookings / r.doors) * 100).toFixed(1) : '0'
           return (
             <li key={r.id}>
-              <div className="flex items-center gap-3">
-                <span className="w-6 text-center text-sm font-extrabold text-gray-400">{i + 1}</span>
-                <div className={`w-8 h-8 rounded-full font-bold text-xs grid place-items-center ${avatarColors[i % avatarColors.length]}`}>
-                  {repInitials(r.name)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{r.name}</p>
-                    <p className="text-sm font-extrabold text-gray-900">${formatCompact(r.revenue)}</p>
+              {/* Whole row is the hit-target — rank chip, avatar, name,
+                 bar, and stats all open the same RepDetail. The name
+                 underlines on hover/focus as the explicit affordance,
+                 and the row gets a soft slate wash so it advertises
+                 itself before the first click. */}
+              <button
+                type="button"
+                onClick={() => navigate(`/manager/rep/${r.id}`)}
+                aria-label={`Open ${r.name}'s detail view`}
+                title={`View ${r.name}`}
+                className="group block w-full text-left rounded-xl -mx-2 px-2 py-2 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="w-6 text-center text-sm font-extrabold text-gray-400">{i + 1}</span>
+                  <div className={`w-8 h-8 rounded-full font-bold text-xs grid place-items-center ${avatarColors[i % avatarColors.length]}`}>
+                    {repInitials(r.name)}
                   </div>
-                  <div className="relative h-2 mt-1.5 rounded-full bg-slate-100 overflow-hidden">
-                    <span className="absolute inset-y-0 left-0 rounded-full"
-                          style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#7ac943,#2757d7)' }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-baseline">
+                      <p className="text-sm font-semibold text-gray-900 truncate group-hover:underline group-focus-visible:underline decoration-2 underline-offset-2">
+                        {r.name}
+                      </p>
+                      <p className="text-sm font-extrabold text-gray-900">${formatCompact(r.revenue)}</p>
+                    </div>
+                    <div className="relative h-2 mt-1.5 rounded-full bg-slate-100 overflow-hidden">
+                      <span className="absolute inset-y-0 left-0 rounded-full"
+                            style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#7ac943,#2757d7)' }} />
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      {r.doors} doors · {r.bookings} jobs · {close}% close · {r.sessions} sessions
+                    </p>
                   </div>
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    {r.doors} doors · {r.bookings} jobs · {close}% close · {r.sessions} sessions
-                  </p>
                 </div>
-              </div>
+              </button>
             </li>
           )
         })}
