@@ -1,10 +1,10 @@
 /**
  * RepDetail — manager-only drill-down into a single rep's home-page stats.
  *
- * Reached from ManagerDashboard → Reps tab by tapping any rep card. Shows
- * the same period-aware numbers the rep sees on their own RepHome: today's
- * goal progress, gamification level, doors / bookings / revenue / commission
- * cards, conversion funnel, and recent sessions.
+ * Reached from ManagerDashboard → Reps tab by tapping any rep card. Mirrors
+ * the rep's own RepHome dashboard 1:1 so a manager sees exactly what the
+ * rep sees, including the goal/level scoreboard, gradient stat cards with
+ * sparklines + trend chips, conversion funnel, and recent sessions.
  *
  * Data flow:
  *   - getRepById(repId) for name, avatar, commission_config
@@ -12,15 +12,16 @@
  *     read sessions in their org)
  *   - getMyOrganization() for the configured daily goal + terminology
  *
- * This screen is READ-ONLY — no "Start Canvassing" button, no sign-out —
- * and is protected by the manager-only route gate in App.jsx.
+ * This screen is READ-ONLY — no "Start Canvassing" button, no sign-out, no
+ * personalized callouts, no Next Stops inbox (those are rep-only) — and is
+ * protected by the manager-only route gate in App.jsx.
  */
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { format } from 'date-fns'
+import { format, differenceInCalendarDays, startOfWeek, startOfMonth } from 'date-fns'
 import { StoragePhoto } from '../lib/photos.jsx'
 import {
-  ChevronLeft, MapPin, DollarSign, Trophy, TrendingUp, Target, Sparkles,
+  ChevronLeft, MapPin, DollarSign, Trophy, TrendingUp, Sparkles,
 } from 'lucide-react'
 import {
   getRepById, getRepSessions, getMyOrganization,
@@ -30,14 +31,42 @@ import {
   computeXP, computeLevel, calcCommission,
 } from '../lib/repStats.js'
 import {
-  PeriodTabs, LevelCard, BigStatCard, CommissionCard, ConversionFunnel, SessionRow,
+  PeriodTabs, GoalCard, LevelCard, CommissionCard, ConversionFunnel, SessionRow,
 } from './RepHome.jsx'
+import {
+  RichStatCard, MiniSparkArea, MiniSparkBars,
+  formatCompact, computeTrend, groupSessionsByDay,
+} from '../components/StatSparkCards.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
 const DEFAULT_GOAL = {
   daily_goal_type:  'revenue',
   daily_goal_value: 1000,
   count_goal_label: 'estimates',
+}
+
+// Mirrors daysForRepPeriod in RepHome — pick the window length for the
+// sparkline based on the selected period tab. Kept local so RepDetail
+// renders the same daily series the rep sees.
+function daysForRepPeriod(period, sessions) {
+  const now = new Date()
+  if (period === 'week') {
+    return Math.max(1, differenceInCalendarDays(now, startOfWeek(now, { weekStartsOn: 1 })) + 1)
+  }
+  if (period === 'month') {
+    return Math.max(1, differenceInCalendarDays(now, startOfMonth(now)) + 1)
+  }
+  if (period === 'lifetime') {
+    if (!sessions || sessions.length === 0) return 7
+    const oldest = sessions.reduce((min, s) => {
+      const t = new Date(s.started_at).getTime()
+      return (!min || t < min) ? t : min
+    }, null)
+    if (!oldest) return 7
+    const spanDays = differenceInCalendarDays(now, new Date(oldest)) + 1
+    return Math.max(1, Math.min(30, spanDays))
+  }
+  return 7
 }
 
 export default function RepDetail() {
@@ -80,6 +109,15 @@ export default function RepDetail() {
   // ── Derived numbers ─────────────────────────────────────────────────────────
   const periods = computePeriodStats(allSessions)
   const stats   = periods[period] || periods.week
+
+  // Daily series powering the sparkline + trend chip on each stat card.
+  // Window length mirrors the selected period tab — same helper RepHome
+  // uses, so the visual treatment stays consistent between the two screens.
+  const repDays  = daysForRepPeriod(period, allSessions)
+  const repDaily = groupSessionsByDay(allSessions, repDays)
+  const doorsTrend    = computeTrend(repDaily, 'doors')
+  const bookingsTrend = computeTrend(repDaily, 'bookings')
+  const revenueTrend  = computeTrend(repDaily, 'revenue')
 
   const todayKey   = format(new Date(), 'yyyy-MM-dd')
   const todayStats = allSessions
@@ -131,12 +169,12 @@ export default function RepDetail() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col pb-10">
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* ── Slim Header (identity + back button only) ──────────────────────── */}
       <div
-        className="px-5 pt-12 pb-6 rounded-b-3xl"
+        className="px-5 pt-12 pb-5"
         style={{ background: 'linear-gradient(135deg, #1B4FCC 0%, #4338CA 55%, #6D28D9 100%)' }}
       >
-        <div className="flex items-center gap-3 mb-4">
+        <div className="max-w-xl mx-auto w-full flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
             className="p-2 rounded-full bg-white/20 active:bg-white/30 shrink-0"
@@ -145,55 +183,39 @@ export default function RepDetail() {
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>
 
-          <div className="w-10 h-10 rounded-full overflow-hidden bg-white/20 shrink-0 flex items-center justify-center">
+          <div className="w-11 h-11 rounded-full overflow-hidden bg-white shrink-0 flex items-center justify-center">
             {rep?.avatar_url ? (
               <StoragePhoto pathOrUrl={rep.avatar_url} bucket="avatars" alt={rep.full_name} className="w-full h-full object-cover" />
             ) : (
-              <span className="text-white text-sm font-bold">
+              <span className="text-sm font-bold" style={{ color: BRAND_BLUE }}>
                 {(rep?.full_name || 'R')[0].toUpperCase()}
               </span>
             )}
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="text-blue-200 text-xs">Rep Detail</p>
-            <h1 className="text-white text-xl font-bold truncate">
+            <p className="text-blue-100 text-xs">Rep Detail</p>
+            <h1 className="text-white text-xl font-bold truncate leading-tight">
               {rep?.full_name || rep?.email || 'Rep'}
             </h1>
           </div>
         </div>
-
-        {/* Today's Goal Progress — mirrors RepHome */}
-        <div className="bg-white/15 backdrop-blur rounded-2xl p-4">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-white font-semibold text-sm flex items-center gap-1.5">
-              <Target className="w-4 h-4" /> Today's Goal
-            </span>
-            <span className="text-white font-bold">
-              {goalCurrentLabel}
-              <span className="text-blue-200 font-normal"> / {goalTargetLabel}</span>
-            </span>
-          </div>
-          <div className="h-2.5 bg-white/30 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${goalPct}%`, backgroundColor: goalPct >= 100 ? '#FFD700' : '#86EFAC' }}
-            />
-          </div>
-          {todayStats.doors > 0 && (
-            <p className="text-blue-200 text-xs mt-2">
-              {todayStats.doors} door{todayStats.doors === 1 ? '' : 's'} knocked today
-              {goalPct >= 100 && <span className="ml-2 font-semibold text-yellow-300">🔥 Goal crushed!</span>}
-            </p>
-          )}
-        </div>
       </div>
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
-      <div className="flex-1 px-5 pt-6 space-y-5">
+      <div className="flex-1 w-full max-w-xl mx-auto px-4 pt-5 space-y-3">
 
-        {/* Level (Gamification) */}
-        <LevelCard level={levelInfo} />
+        {/* Scoreboard row: Today's Goal + Level (mirrors RepHome) */}
+        <div className="grid grid-cols-2 gap-2.5">
+          <GoalCard
+            current={goalCurrent}
+            target={goalTarget}
+            pct={goalPct}
+            currentLabel={goalCurrentLabel}
+            targetLabel={goalTargetLabel}
+          />
+          <LevelCard level={levelInfo} />
+        </div>
 
         {/* Stats Section with period tabs */}
         <section>
@@ -205,25 +227,46 @@ export default function RepDetail() {
             <PeriodTabs period={period} onChange={setPeriod} />
           </div>
 
+          {/* Headline numbers — gradient cards + micro-charts. Same visual
+              language the rep sees on RepHome, so a manager drilling into
+              a rep gets the same dashboards the rep is looking at. */}
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <BigStatCard
-              icon={<MapPin className="w-4 h-4" />}
+            <RichStatCard
               label="Doors"
               value={stats.doors.toLocaleString()}
-              accent="blue"
-            />
-            <BigStatCard
-              icon={<Trophy className="w-4 h-4" />}
+              trend={doorsTrend}
+              icon={<MapPin className="w-4 h-4" />}
+              gradient="from-blue-100 via-blue-50 to-white"
+              border="border-blue-200/60"
+              iconColor="text-blue-700"
+            >
+              <MiniSparkBars values={repDaily.map((d) => d.doors)} color="#2757d7" highlight="#1e44b0" />
+            </RichStatCard>
+
+            <RichStatCard
               label="Bookings"
               value={stats.bookings.toLocaleString()}
-              accent="lime"
-            />
-            <BigStatCard
-              icon={<DollarSign className="w-4 h-4" />}
+              trend={bookingsTrend}
+              icon={<Trophy className="w-4 h-4" />}
+              gradient="from-teal-100 via-teal-50 to-white"
+              border="border-teal-200/60"
+              iconColor="text-teal-700"
+            >
+              <MiniSparkArea values={repDaily.map((d) => d.bookings)} color="#0d9488" fill="#14b8a673" />
+            </RichStatCard>
+
+            <RichStatCard
               label="Revenue"
-              value={`$${stats.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
-              accent="green"
-            />
+              value={`$${formatCompact(stats.revenue)}`}
+              trend={revenueTrend}
+              icon={<DollarSign className="w-4 h-4" />}
+              gradient="from-lime-100 via-lime-50 to-white"
+              border="border-lime-200/60"
+              iconColor="text-lime-700"
+            >
+              <MiniSparkArea values={repDaily.map((d) => d.revenue)} color="#5ea636" fill="#7ac94373" />
+            </RichStatCard>
+
             <CommissionCard
               amount={commission}
               config={rep?.commission_config}

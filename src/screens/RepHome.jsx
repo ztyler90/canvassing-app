@@ -502,36 +502,54 @@ export default function RepHome() {
                   label="Doors"
                   value={stats.doors.toLocaleString()}
                   trend={doorsTrend}
+                  trendLabel="doors knocked"
                   icon={<MapPin className="w-4 h-4" />}
                   gradient="from-blue-100 via-blue-50 to-white"
                   border="border-blue-200/60"
                   iconColor="text-blue-700"
                 >
-                  <MiniSparkBars values={repDaily.map((d) => d.doors)} color="#2757d7" highlight="#1e44b0" />
+                  <MiniSparkBars
+                    values={repDaily.map((d) => d.doors)}
+                    dates={repDaily.map((d) => d.date)}
+                    valueFormatter={(v) => `${Math.round(v).toLocaleString()} doors`}
+                    color="#2757d7" highlight="#1e44b0"
+                  />
                 </RichStatCard>
 
                 <RichStatCard
                   label="Bookings"
                   value={stats.bookings.toLocaleString()}
                   trend={bookingsTrend}
+                  trendLabel="bookings"
                   icon={<Trophy className="w-4 h-4" />}
                   gradient="from-teal-100 via-teal-50 to-white"
                   border="border-teal-200/60"
                   iconColor="text-teal-700"
                 >
-                  <MiniSparkArea values={repDaily.map((d) => d.bookings)} color="#0d9488" fill="#14b8a673" />
+                  <MiniSparkArea
+                    values={repDaily.map((d) => d.bookings)}
+                    dates={repDaily.map((d) => d.date)}
+                    valueFormatter={(v) => `${Math.round(v).toLocaleString()} ${v === 1 ? 'booking' : 'bookings'}`}
+                    color="#0d9488" fill="#14b8a673"
+                  />
                 </RichStatCard>
 
                 <RichStatCard
                   label="Revenue"
                   value={`$${formatCompact(stats.revenue)}`}
                   trend={revenueTrend}
+                  trendLabel="revenue"
                   icon={<DollarSign className="w-4 h-4" />}
                   gradient="from-lime-100 via-lime-50 to-white"
                   border="border-lime-200/60"
                   iconColor="text-lime-700"
                 >
-                  <MiniSparkArea values={repDaily.map((d) => d.revenue)} color="#5ea636" fill="#7ac94373" />
+                  <MiniSparkArea
+                    values={repDaily.map((d) => d.revenue)}
+                    dates={repDaily.map((d) => d.date)}
+                    valueFormatter={(v) => `$${formatCompact(v)}`}
+                    color="#5ea636" fill="#7ac94373"
+                  />
                 </RichStatCard>
 
                 <CommissionCard

@@ -87,10 +87,70 @@ export function TrendChip({ trend, label = 'this metric' }) {
   )
 }
 
+// ─── Hover-tooltip helpers ───────────────────────────────────────────────────
+// Centralized so both sparklines share the same tooltip styling + orientation
+// rules. The tooltip is rendered as an absolutely-positioned div outside the
+// SVG (HTML, not <foreignObject>) so it can overflow the chart bounds cleanly
+// and pick up Tailwind classes.
+//
+// `xRatio` is 0..1 across the chart. We flip the anchor side near the edges
+// so the tooltip doesn't slide off the card. `topOffset` lets bar charts push
+// the tooltip up above the tallest bar instead of sitting on top of it.
+function ChartTooltip({ xRatio, label, value, topOffset = -8 }) {
+  // Left/right side flip: past 65% from the left we anchor from the right
+  // so a "Jun 30" tooltip on the rightmost bar doesn't get clipped.
+  const flip = xRatio > 0.65
+  return (
+    <div
+      className="absolute z-20 pointer-events-none whitespace-nowrap rounded-md bg-gray-900 text-white text-[10px] leading-tight font-medium px-1.5 py-1 shadow-lg"
+      style={{
+        left: flip ? undefined : `${xRatio * 100}%`,
+        right: flip ? `${(1 - xRatio) * 100}%` : undefined,
+        top: topOffset,
+        transform: flip ? 'translateY(-100%)' : 'translate(-50%, -100%)',
+      }}
+    >
+      <div className="text-gray-300">{label}</div>
+      <div className="font-bold">{value}</div>
+    </div>
+  )
+}
+
+// Map a mousemove event to the nearest series index. Pure function so it
+// stays testable and both sparklines can share the same snap behavior.
+function hoverIndexFromEvent(e, host, count) {
+  if (!host || !count) return null
+  const rect = host.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const i = Math.round((x / Math.max(rect.width, 1)) * (count - 1))
+  return Math.max(0, Math.min(count - 1, i))
+}
+
+// Format a Date for the tooltip "Mon, Jun 2"-style label; falls back to an
+// index-relative label ("Day 12 of 30") when we don't have a dates array.
+function tooltipLabelFor(dates, i, totalCount) {
+  const d = dates?.[i]
+  if (d instanceof Date && !Number.isNaN(d.getTime())) {
+    return format(d, totalCount > 10 ? 'EEE, MMM d' : 'EEEE')
+  }
+  return `Point ${i + 1} of ${totalCount}`
+}
+
 // ─── Area sparkline ──────────────────────────────────────────────────────────
 // Uses preserveAspectRatio="none" so the path stretches responsively in a
 // 120×36 viewBox. Draws a filled area + top line + terminal dot.
-export function MiniSparkArea({ values = [], color = '#5ea636', fill = '#7ac94373' }) {
+//
+// New optional props:
+//   `dates`           — parallel array of Date objects (one per value), so
+//                       the hover tooltip can show "Mon, Jun 2".
+//   `valueFormatter`  — function(value) → string; defaults to a compact
+//                       number. Pass `(v) => "$" + formatCompact(v)` for $.
+export function MiniSparkArea({
+  values = [], dates = [], valueFormatter,
+  color = '#5ea636', fill = '#7ac94373',
+}) {
+  const hostRef = useRef(null)
+  const [hoverIdx, setHoverIdx] = useState(null)
   if (!values.length) return <div className="w-full h-9 md:h-12 mt-1" />
   const w = 120, h = 36, pad = 4
   const max = Math.max(...values, 1)
@@ -103,37 +163,164 @@ export function MiniSparkArea({ values = [], color = '#5ea636', fill = '#7ac9437
   const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
   const areaPath = `${linePath} L${(w - pad).toFixed(1)},${(h - pad).toFixed(1)} L${pad},${(h - pad).toFixed(1)} Z`
   const last = pts[pts.length - 1]
+  const fmt = valueFormatter || formatCompact
+
+  const onMove  = (e) => setHoverIdx(hoverIndexFromEvent(e, hostRef.current, values.length))
+  const onLeave = () => setHoverIdx(null)
+
+  // Hovered point's screen position, as a 0..1 ratio of chart width, so the
+  // HTML tooltip can sit above the exact data point even though the SVG is
+  // stretched (preserveAspectRatio="none").
+  const xRatio = hoverIdx != null ? pts[hoverIdx][0] / w : 0
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-9 md:h-12 mt-1" preserveAspectRatio="none">
-      <path d={areaPath} fill={fill} />
-      <path d={linePath} stroke={color} strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={last[0]} cy={last[1]} r="2.4" fill={color} />
-    </svg>
+    <div
+      ref={hostRef}
+      className="relative mt-1"
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+    >
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-9 md:h-12 block" preserveAspectRatio="none">
+        <path d={areaPath} fill={fill} />
+        <path d={linePath} stroke={color} strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={last[0]} cy={last[1]} r="2.4" fill={color} />
+        {hoverIdx != null && (
+          <g>
+            <line
+              x1={pts[hoverIdx][0]} x2={pts[hoverIdx][0]} y1={0} y2={h}
+              stroke="#475569" strokeWidth="0.6" strokeDasharray="2 2"
+              vectorEffect="non-scaling-stroke"
+            />
+            <circle
+              cx={pts[hoverIdx][0]} cy={pts[hoverIdx][1]} r="2.6"
+              fill="#fff" stroke={color} strokeWidth="1.4"
+            />
+          </g>
+        )}
+      </svg>
+      {hoverIdx != null && (
+        <ChartTooltip
+          xRatio={xRatio}
+          label={tooltipLabelFor(dates, hoverIdx, values.length)}
+          value={fmt(values[hoverIdx])}
+        />
+      )}
+    </div>
   )
 }
 
 // ─── Mini bar sparkline ──────────────────────────────────────────────────────
 // Downsamples to `target` buckets (default 8) so long series stay legible.
 // Final bar is rendered with the `highlight` color to draw the eye to "now".
-export function MiniSparkBars({ values = [], color = '#2757d7', highlight = '#1e44b0', target = 8 }) {
+//
+// On hover, the bar under the mouse highlights and a tooltip shows the
+// underlying date range + summed value for that bucket — important since
+// each bar may represent several days once we downsample a 30-day series.
+export function MiniSparkBars({
+  values = [], dates = [], valueFormatter,
+  color = '#2757d7', highlight = '#1e44b0', target = 8,
+}) {
+  const hostRef = useRef(null)
+  const [hoverIdx, setHoverIdx] = useState(null)
   if (!values.length) return <div className="w-full h-9 md:h-12 mt-1" />
-  const bars = downsample(values, target)
+
+  // Downsample both values + dates together so each visible bar knows the
+  // date span it represents. `bucketDates` is an array of {from, to} pairs
+  // (or null when no parallel dates were passed).
+  const { bars, bucketDates } = downsamplePaired(values, dates, target)
   const w = 120, h = 36
   const max = Math.max(...bars, 1)
   const barW = (w - 4) / bars.length - 2
+  const fmt = valueFormatter || formatCompact
+
+  const onMove = (e) => {
+    if (!hostRef.current) return
+    const rect = hostRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    // Snap to the bucket the mouse is over (each bucket gets equal width).
+    const i = Math.floor((x / Math.max(rect.width, 1)) * bars.length)
+    setHoverIdx(Math.max(0, Math.min(bars.length - 1, i)))
+  }
+  const onLeave = () => setHoverIdx(null)
+
+  const xRatio = hoverIdx != null
+    ? (2 + hoverIdx * (barW + 2) + barW / 2) / w
+    : 0
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-9 md:h-12 mt-1" preserveAspectRatio="none">
-      <g>
-        {bars.map((v, i) => {
-          const bh = Math.max((v / max) * (h - 4), 1.5)
-          const x = 2 + i * (barW + 2)
-          const y = h - 2 - bh
-          return <rect key={i} x={x} y={y} width={barW} height={bh} rx="2"
-                       fill={i === bars.length - 1 ? highlight : color} opacity={i === bars.length - 1 ? 1 : 0.85} />
-        })}
-      </g>
-    </svg>
+    <div
+      ref={hostRef}
+      className="relative mt-1"
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+    >
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-9 md:h-12 block" preserveAspectRatio="none">
+        <g>
+          {bars.map((v, i) => {
+            const bh = Math.max((v / max) * (h - 4), 1.5)
+            const x = 2 + i * (barW + 2)
+            const y = h - 2 - bh
+            const isLast    = i === bars.length - 1
+            const isHovered = i === hoverIdx
+            return (
+              <rect
+                key={i} x={x} y={y} width={barW} height={bh} rx="2"
+                fill={isHovered ? '#0f172a' : isLast ? highlight : color}
+                opacity={isHovered ? 1 : isLast ? 1 : 0.85}
+              />
+            )
+          })}
+        </g>
+      </svg>
+      {hoverIdx != null && (
+        <ChartTooltip
+          xRatio={xRatio}
+          label={bucketLabelFor(bucketDates, hoverIdx, bars.length)}
+          value={fmt(bars[hoverIdx])}
+        />
+      )}
+    </div>
   )
+}
+
+// Downsample values + dates in lockstep so each bucket carries the {from,to}
+// of the source rows it averaged. Mirrors `downsample()` exactly when
+// values.length <= target; otherwise builds size-matched buckets.
+function downsamplePaired(values, dates, target) {
+  if (values.length <= target) {
+    return {
+      bars: values,
+      bucketDates: values.map((_, i) => {
+        const d = dates?.[i]
+        return d instanceof Date ? { from: d, to: d } : null
+      }),
+    }
+  }
+  const size = values.length / target
+  const bars = []
+  const bucketDates = []
+  for (let i = 0; i < target; i++) {
+    const lo = Math.floor(i * size)
+    const hi = Math.floor((i + 1) * size)
+    const slice = values.slice(lo, hi)
+    bars.push(slice.reduce((s, v) => s + v, 0) / Math.max(slice.length, 1))
+    const from = dates?.[lo]
+    const to   = dates?.[Math.max(lo, hi - 1)]
+    bucketDates.push(
+      from instanceof Date && to instanceof Date ? { from, to } : null
+    )
+  }
+  return { bars, bucketDates }
+}
+
+// "Mon, Jun 2" for a single-day bucket, "May 5 – May 11" for a multi-day
+// downsampled bucket. Falls back to an index-relative label when dates
+// weren't provided.
+function bucketLabelFor(bucketDates, i, totalBuckets) {
+  const b = bucketDates?.[i]
+  if (!b) return `Bucket ${i + 1} of ${totalBuckets}`
+  if (b.from.getTime() === b.to.getTime()) return format(b.from, 'EEE, MMM d')
+  return `${format(b.from, 'MMM d')} – ${format(b.to, 'MMM d')}`
 }
 
 // ─── Radial gauge ────────────────────────────────────────────────────────────
