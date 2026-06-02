@@ -1451,7 +1451,7 @@ export async function getActiveRepLocations() {
     sessionIds.length
       ? supabase
           .from('canvassing_sessions')
-          .select('id, doors_knocked, conversations, bookings, revenue_booked, started_at')
+          .select('id, doors_knocked, conversations, estimates, bookings, revenue_booked, started_at')
           .in('id', sessionIds)
       : Promise.resolve({ data: [] }),
   ])

@@ -1521,6 +1521,22 @@ function LiveTab({ allReps }) {
   // refetching doesn't keep re-flagging a rep the manager has checked in
   // on. Kept local (not persisted) — a full page reload resets acks.
   const [ackedIds, setAckedIds]       = useState(() => new Set())
+  // Currently-focused rep — the one we just zoomed to via list click.
+  // Drives a soft highlight on the card so the manager remembers what
+  // they're looking at on the map.
+  const [focusedRepId, setFocusedRepId] = useState(null)
+  // Ref to the MapView so list clicks can drive map.flyTo without a
+  // full re-render or prop-drilling a moving target into MapView.
+  const mapRef = useRef(null)
+
+  // Pan + zoom the map onto a rep when their list card is tapped.
+  // 18.25 keeps just enough block context around the pin to read the
+  // street pattern; the 0.75s flyTo duration we get from MapView itself.
+  const focusRep = (rep) => {
+    if (!rep || rep.lat == null || rep.lng == null) return
+    mapRef.current?.flyTo(rep.lat, rep.lng, 18.25)
+    setFocusedRepId(rep.rep_id)
+  }
 
   const refresh = async () => {
     try {
@@ -1604,7 +1620,7 @@ function LiveTab({ allReps }) {
               style={{ borderWidth: 3, borderStyle: 'solid', borderColor: `${BRAND_GREEN} transparent transparent transparent` }} />
           </div>
         ) : (
-          <MapView repLocations={annotatedReps} className="w-full h-full" followUser={false} />
+          <MapView ref={mapRef} repLocations={annotatedReps} className="w-full h-full" followUser={false} />
         )}
       </div>
 
@@ -1621,15 +1637,24 @@ function LiveTab({ allReps }) {
       )}
       <div className="px-4 pb-3 space-y-2">
         {annotatedReps.map((rep, idx) => {
-          const color = REP_COLORS[idx % REP_COLORS.length]
-          const sess  = rep.session
-          // Stalled cards pop with a red border + soft blush so the manager's
-          // eye lands on them first.
+          const color   = REP_COLORS[idx % REP_COLORS.length]
+          const sess    = rep.session
+          const focused = focusedRepId === rep.rep_id
+          // Card styling priority: stalled (red) > focused (blue ring) > default.
+          // Stalled wins because that signal is more urgent than "you clicked me."
           const cardCls = rep.stalled
-            ? 'bg-red-50 border-2 border-red-300 rounded-xl px-4 py-3'
-            : 'bg-white border border-gray-200 rounded-xl px-4 py-3'
+            ? 'bg-red-50 border-2 border-red-300'
+            : focused
+              ? 'bg-blue-50 border-2 border-blue-400 ring-2 ring-blue-100'
+              : 'bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300'
           return (
-            <div key={rep.rep_id} className={cardCls}>
+            <button
+              key={rep.rep_id}
+              type="button"
+              onClick={() => focusRep(rep)}
+              className={`block w-full text-left rounded-xl px-4 py-3 transition-colors ${cardCls}`}
+              title="Zoom map to this rep"
+            >
               <div className="flex items-center gap-3">
                 <div className="relative flex-shrink-0">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
@@ -1656,6 +1681,8 @@ function LiveTab({ allReps }) {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-right flex-shrink-0">
                   <span className="text-xs text-gray-400">Doors</span>
                   <span className="text-xs font-bold text-gray-900">{sess?.doors_knocked ?? '—'}</span>
+                  <span className="text-xs text-gray-400">Estimates</span>
+                  <span className="text-xs font-bold text-gray-900">{sess?.estimates ?? '—'}</span>
                   <span className="text-xs text-gray-400">Revenue</span>
                   <span className="text-xs font-bold text-green-600">
                     {sess?.revenue_booked != null ? `$${sess.revenue_booked.toFixed(0)}` : '—'}
@@ -1663,12 +1690,19 @@ function LiveTab({ allReps }) {
                 </div>
               </div>
               {rep.stalled && (
-                <button onClick={() => ackRep(rep.rep_id)}
-                  className="mt-2.5 w-full py-1.5 rounded-lg bg-white border border-red-300 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors">
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => { e.stopPropagation(); ackRep(rep.rep_id) }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); ackRep(rep.rep_id) }
+                  }}
+                  className="mt-2.5 inline-block w-full text-center py-1.5 rounded-lg bg-white border border-red-300 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors cursor-pointer"
+                >
                   I've checked in
-                </button>
+                </span>
               )}
-            </div>
+            </button>
           )
         })}
       </div>
