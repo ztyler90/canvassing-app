@@ -18,6 +18,7 @@ import {
   getMyOrganization,
   getAllClosers,
   pickRoundRobinCloser,
+  notifyAssignedCloser,
 } from '../lib/supabase.js'
 import { reverseGeocodeCandidates } from '../lib/geocoding.js'
 
@@ -295,6 +296,39 @@ export default function InteractionModal({
       setError('Please enter an estimated job value.')
       return
     }
+    // Phase 3: round-robin closer auto-pick. Only fires when the org's
+    // routing mode is round_robin AND the rep hasn't manually selected
+    // someone (selectedCloserId empty). Runs synchronously so the closer
+    // id lands on the payload below before logInteraction is called.
+    // Failures are swallowed — the deal just stays unassigned and the
+    // manager dispatches it from the Pipeline tab.
+    if (
+      selectedOutcome === 'estimate_requested' &&
+      routingMode === 'round_robin' &&
+      !selectedCloserId
+    ) {
+      try {
+        const pick = await pickRoundRobinCloser()
+        if (pick) setSelectedCloserId(pick)
+        // saveInteraction below reads selectedCloserId, but React state
+        // hasn't flushed yet at this point. Pass it through extras so the
+        // payload picks it up on this turn.
+        if (pick) {
+          await saveInteraction(selectedOutcome, {
+            contact_name:    contactName,
+            contact_phone:   contactPhone,
+            contact_email:   contactEmail,
+            service_types:   selectedServices,
+            estimated_value: estimatedValue ? Number(estimatedValue) : null,
+            notes:           notes || null,
+            closer_id:       pick,
+          })
+          return
+        }
+      } catch (e) {
+        console.warn('[round-robin] pick failed, leaving unassigned:', e)
+      }
+    }
     await saveInteraction(selectedOutcome, {
       contact_name:    contactName,
       contact_phone:   contactPhone,
@@ -408,6 +442,17 @@ export default function InteractionModal({
       savedData   = data
       interactionId = data?.id
       setSavedInteractionId(interactionId)
+
+      // Phase 3: if a closer was assigned (via setter_picks dropdown or
+      // round-robin auto-pick), fire the notify-closer edge function so
+      // the closer gets an email/SMS based on their pref. Best-effort —
+      // we log failures but don't block the save. A future enhancement
+      // could surface "couldn't notify Mike" inline.
+      if (payload.closer_id) {
+        notifyAssignedCloser(interactionId)
+          .then((r) => { if (!r?.delivered) console.warn('[notify-closer] not delivered:', r) })
+          .catch((e) => console.warn('[notify-closer] threw:', e))
+      }
     }
 
     // Upload photos (best-effort — failure doesn't block saving). Skip in
@@ -708,12 +753,94 @@ export default function InteractionModal({
           </div>
         )}
 
+        {/* ── Step: lost reason (door-stage) ────────────────────────────── */}
+        {/* Phase 3 addition. Reached when the rep picks "Not Interested" so
+            we capture why the door closed. The 5 options match the
+            taxonomy decided in design — short list keeps it scannable so
+            the rep doesn't dwell on a no-sale door longer than necessary. */}
+        {step === 'lost_reason' && (
+          <div className="px-5 py-4 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <AlertCircle className="w-4 h-4 text-red-500" />
+              <h3 className="font-bold text-gray-900 text-base">Why wasn't this a fit?</h3>
+            </div>
+            <p className="text-xs text-gray-500 leading-snug">
+              Tap a reason. We use these to spot patterns — like a
+              neighborhood that's all "already has a provider" so the
+              manager knows to redirect canvassing.
+            </p>
+            <div className="space-y-2">
+              {DOOR_LOST_REASONS.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setLostReason(r.id)}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl border-2 text-sm font-semibold transition-colors ${
+                    lostReason === r.id
+                      ? 'border-red-500 bg-red-50 text-red-700'
+                      : 'border-gray-200 bg-white text-gray-700'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            {lostReason === 'other' && (
+              <input
+                type="text"
+                value={lostReasonNotes}
+                onChange={(e) => setLostReasonNotes(e.target.value)}
+                placeholder="Tell us more (optional)"
+                className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:border-red-400 focus:outline-none"
+              />
+            )}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => saveInteraction('not_interested', { notes: notes || null })}
+                disabled={saving}
+                className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold"
+              >
+                Skip
+              </button>
+              <button
+                type="button"
+                disabled={saving || !lostReason}
+                onClick={() => saveInteraction('not_interested', { notes: notes || null })}
+                className="flex-1 py-3 rounded-xl bg-red-600 text-white text-sm font-bold disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── Step: details ─────────────────────────────────────────────── */}
         {step === 'details' && (
           <form onSubmit={handleDetailsSave} className="px-5 py-4 space-y-4">
             <h3 className="font-bold text-gray-900 text-base">
               {selectedOutcome === 'booked' ? '🎉 Book the Job' : '📋 Estimate Details'}
             </h3>
+
+            {/* Phase 3: appointment + closer assignment.
+                Shown when the rep is logging a Hot Lead (estimate_requested)
+                AND the org is appointment_based / mixed. Quick-quote orgs
+                skip both fields — they don't run appointments.
+                Closer dropdown only renders when routing mode is
+                setter_picks; round_robin auto-fills via pickRoundRobinCloser
+                on save, and manager_assigns leaves it blank intentionally. */}
+            {selectedOutcome === 'estimate_requested' && salesCycle !== 'quick_quote' && (
+              <ApptAndCloserPanel
+                appointmentAt={appointmentAt}
+                onChangeAppt={setAppointmentAt}
+                required={salesCycle === 'appointment_based'}
+                closers={closers}
+                routingMode={routingMode}
+                selectedCloserId={selectedCloserId}
+                onChangeCloser={setSelectedCloserId}
+              />
+            )}
+
 
             {/* Customer name */}
             <div className="relative">
@@ -946,4 +1073,153 @@ export default function InteractionModal({
       </div>
     </div>
   )
+}
+
+/* ── Phase 3: appointment + closer assignment ──────────────────────────────
+ * Sub-component rendered inside the details step for Hot Leads on
+ * appointment_based / mixed orgs. Pulled out as its own function so the
+ * main modal stays scannable; nothing here touches modal-level state
+ * except via the props passed in.
+ *
+ * UX intent:
+ *   • Three quick-pick chips ("Today + 2h", "Tomorrow 10am", "Tomorrow 2pm")
+ *     handle ~80% of in-the-field bookings in one tap.
+ *   • Native <input type="datetime-local"> handles the long tail without us
+ *     shipping a custom date picker.
+ *   • Closer dropdown only renders when routingMode === 'setter_picks'.
+ *     Other modes (round_robin, manager_assigns, territory_based) handle
+ *     assignment server-side or post-hoc, so the rep doesn't see this row.
+ */
+function ApptAndCloserPanel({
+  appointmentAt, onChangeAppt, required,
+  closers, routingMode, selectedCloserId, onChangeCloser,
+}) {
+  const quickPicks = useMemo(() => buildQuickPicks(), [])
+  return (
+    <div className="rounded-2xl border-2 border-blue-100 bg-blue-50/40 p-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <Calendar className="w-4 h-4 text-blue-700" />
+        <h4 className="font-bold text-blue-900 text-sm">
+          Appointment{required ? '' : ' (optional)'}
+        </h4>
+      </div>
+
+      {/* Quick-pick chips */}
+      <div className="flex gap-1.5 flex-wrap">
+        {quickPicks.map((q) => {
+          const active = appointmentAt === q.iso
+          return (
+            <button
+              key={q.iso}
+              type="button"
+              onClick={() => onChangeAppt(q.iso)}
+              className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-full border transition-colors ${
+                active
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-200'
+              }`}
+            >
+              {q.label}
+            </button>
+          )
+        })}
+        {appointmentAt && (
+          <button
+            type="button"
+            onClick={() => onChangeAppt('')}
+            className="text-[11px] font-semibold px-2 py-1.5 rounded-full bg-white text-gray-400 border border-gray-200"
+            aria-label="Clear appointment"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Calendar fallback */}
+      <input
+        type="datetime-local"
+        value={appointmentAt ? toLocalInput(appointmentAt) : ''}
+        onChange={(e) => onChangeAppt(fromLocalInput(e.target.value))}
+        required={required}
+        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none bg-white"
+      />
+
+      {/* Closer assignment — setter_picks only */}
+      {routingMode === 'setter_picks' && closers.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <UserCheck className="w-4 h-4 text-blue-700" />
+            <p className="text-xs font-bold text-blue-900">Assign closer</p>
+          </div>
+          <select
+            value={selectedCloserId}
+            onChange={(e) => onChangeCloser(e.target.value)}
+            className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none bg-white"
+          >
+            <option value="">— Pick a closer —</option>
+            {closers.map((c) => (
+              <option key={c.id} value={c.id}>{c.full_name || c.email}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {routingMode === 'setter_picks' && closers.length === 0 && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+          No closers configured yet. Ask your manager to add closers in Settings → Closers.
+        </p>
+      )}
+      {routingMode === 'manager_assigns' && (
+        <p className="text-[11px] text-gray-500">
+          Your manager will assign a closer from the Pipeline view.
+        </p>
+      )}
+      {routingMode === 'round_robin' && (
+        <p className="text-[11px] text-gray-500">
+          Auto-assigning to the next closer in rotation.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Three opinionated quick-pick chips covering the most common at-the-door
+ * appointment slots. Computed once when the modal mounts (via useMemo)
+ * so the same chip selection stays stable across re-renders.
+ */
+function buildQuickPicks() {
+  const now = new Date()
+  // +2 hrs from now, rounded down to the half hour.
+  const t1 = new Date(now)
+  t1.setHours(t1.getHours() + 2)
+  t1.setMinutes(t1.getMinutes() < 30 ? 0 : 30, 0, 0)
+  // Tomorrow at 10am local
+  const t2 = new Date(now)
+  t2.setDate(t2.getDate() + 1)
+  t2.setHours(10, 0, 0, 0)
+  // Tomorrow at 2pm local
+  const t3 = new Date(now)
+  t3.setDate(t3.getDate() + 1)
+  t3.setHours(14, 0, 0, 0)
+  return [
+    { iso: t1.toISOString(), label: 'In 2 hours' },
+    { iso: t2.toISOString(), label: 'Tomorrow 10am' },
+    { iso: t3.toISOString(), label: 'Tomorrow 2pm' },
+  ]
+}
+
+// datetime-local inputs use a tz-naive YYYY-MM-DDTHH:MM string. Convert
+// to/from ISO so we can write the canonical UTC ISO to the database while
+// showing the rep a local-time value in the input.
+function toLocalInput(iso) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+function fromLocalInput(localStr) {
+  if (!localStr) return ''
+  // localStr is interpreted as local time by Date()
+  const d = new Date(localStr)
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString()
 }

@@ -1054,6 +1054,36 @@ export async function getMyAssignedLeads() {
 }
 
 /**
+ * Fire the notify-closer edge function for a freshly-assigned lead.
+ * Called from the canvassing flow right after the insert succeeds.
+ * Best-effort: failures are returned but never thrown — a missed
+ * notification shouldn't roll back a lead the rep just captured.
+ */
+export async function notifyAssignedCloser(interactionId) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return { delivered: false, error: 'no session' }
+    const url = `${supabaseUrl}/functions/v1/notify-closer`
+    const res = await fetch(url, {
+      method:  'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify({ interactionId }),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { delivered: false, error: data?.error || `HTTP ${res.status}` }
+    }
+    return data
+  } catch (err) {
+    return { delivered: false, error: err?.message || String(err) }
+  }
+}
+
+/**
  * Pick the next closer in round-robin rotation. Used by the canvassing
  * flow when a setter books a Hot Lead and the org's lead_routing_mode
  * is 'round_robin'. Picks the closer with the oldest most-recent
