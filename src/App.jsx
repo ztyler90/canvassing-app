@@ -14,6 +14,7 @@ import SessionDetail     from './screens/SessionDetail.jsx'
 import ManagerDashboard  from './screens/ManagerDashboard.jsx'
 import RepDetail         from './screens/RepDetail.jsx'
 import Settings          from './screens/Settings.jsx'
+import PipelineSettings  from './screens/PipelineSettings.jsx'
 import RepProfile        from './screens/RepProfile.jsx'
 import RepTerritories    from './screens/RepTerritories.jsx'
 import SuperAdminDashboard from './screens/SuperAdminDashboard.jsx'
@@ -117,6 +118,7 @@ function AppRoutes() {
       <Route path="/manager"           element={<ManagerDashboard />} />
       <Route path="/manager/rep/:repId" element={<RepDetail />} />
       <Route path="/settings"          element={<Settings />} />
+      <Route path="/settings/pipeline" element={<PipelineSettings />} />
       <Route path="/session/:id"       element={<SessionDetail />} />
       {user.is_super_admin && <Route path="/super-admin"            element={<SuperAdminDashboard />} />}
       {user.is_super_admin && <Route path="/super-admin/org/:orgId" element={<OrganizationDetail />}  />}

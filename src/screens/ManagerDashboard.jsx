@@ -655,11 +655,16 @@ function OverviewTab({
           />
           <GoalTrackerCard
             totalRevenue={totalRevenue}
+            totalEstimates={totalEstimates}
+            countLabel={countLabel}
             sessions={sessions}
             org={org}
             dateRange={dateRange}
           />
-          <TopAreasCard sessions={sessions} />
+          <TopAreasCard
+            sessions={sessions}
+            onJumpToTerritories={() => onJumpToTab?.('territories')}
+          />
           <ConversionBottleneckCard
             stats={{
               doors:         totalDoors,
@@ -2342,7 +2347,7 @@ function RepLeaderboard({ repStats = [] }) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline">
-                      <p className="text-sm font-semibold text-gray-900 truncate group-hover:underline group-focus-visible:underline decoration-2 underline-offset-2">
+                      <p className="text-sm font-semibold text-gray-900 truncate">
                         {r.name}
                       </p>
                       <p className="text-sm font-extrabold text-gray-900">${formatCompact(r.revenue)}</p>
@@ -2415,20 +2420,24 @@ function RecentSessionsCard({ sessions = [], onOpen }) {
 }
 
 // Goal Tracker — pace-vs-target for the period currently filtered on the
-// overview. Multiplies the org's daily revenue goal by the number of days
-// in the selected period to derive a period goal, then compares actual
-// revenue booked against it. The status pill ("on pace" / "behind" /
-// "ahead") is driven by whether the rate-to-date is keeping up with the
-// daily goal — not just whether the period total has been hit yet — so a
-// team early in the month sees something meaningful instead of always
-// reading "behind" until the last week.
+// overview. Multiplies the org's daily goal by the number of days in the
+// selected period to derive a period goal, then compares actual against it.
 //
-// We only compute this for revenue-type org goals; count-type goals (e.g.
-// doors or bookings) get a minimal "set a revenue goal" empty state.
-function GoalTrackerCard({ totalRevenue = 0, sessions = [], org = null, dateRange = 'month' }) {
+// Supports BOTH goal types the org settings expose:
+//   • revenue → headline = totalRevenue, formatted as $X.Xk
+//   • count   → headline = totalEstimates, formatted as integer + plural
+//               noun (estimates / appointments — driven by count_goal_label)
+//
+// The status pill ("on pace" / "behind" / "ahead") is driven by whether
+// the rate-to-date is keeping up with the daily goal — not just whether
+// the period total has been hit — so a team early in the month sees
+// something meaningful instead of always reading "behind" until the end.
+function GoalTrackerCard({
+  totalRevenue = 0, totalEstimates = 0, countLabel = 'Estimates',
+  sessions = [], org = null, dateRange = 'month',
+}) {
   // Days in the selected filter window — mirrors the math driving the
-  // KPI sparklines so a "month" view here lines up with what the cards above
-  // already show.
+  // KPI sparklines so a "month" view here lines up with the cards above.
   const periodDays =
     dateRange === 'today' ? 1  :
     dateRange === 'week'  ? 7  :
@@ -2446,13 +2455,42 @@ function GoalTrackerCard({ totalRevenue = 0, sessions = [], org = null, dateRang
   }
   const daysElapsed = Math.max(activeDayKeys.size, 0)
 
-  const goalType  = org?.daily_goal_type  || 'revenue'
-  const dailyGoal = Number(org?.daily_goal_value) || 0
-  const isRevenueGoal = goalType === 'revenue'
+  const goalType   = org?.daily_goal_type  || 'revenue'
+  const dailyGoal  = Number(org?.daily_goal_value) || 0
 
-  // Bail-out states — no usable goal config or an "all time" view where a
-  // period target doesn't make sense.
-  if (!isRevenueGoal || !dailyGoal || periodDays == null) {
+  // Per-goal-type plumbing. Everything downstream branches on `isRevenue`
+  // through these formatters and the `actual` value — no `if (revenue) ...
+  // else ...` blocks in the render. Keeps the two code paths in sync.
+  const isRevenue  = goalType === 'revenue'
+  const unitNoun   = isRevenue
+    ? null
+    : (countLabel || 'estimates').toLowerCase()
+  const pluralNoun = (n) => {
+    if (isRevenue) return null
+    if (n === 1) {
+      // "estimates" → "estimate", "appointments" → "appointment"
+      return unitNoun.replace(/s$/, '')
+    }
+    return unitNoun
+  }
+  const actual     = isRevenue ? totalRevenue : totalEstimates
+  // Formatters: revenue uses compact $ (e.g. "$58.6k"); counts use integers
+  // since 4–60 estimates a day shouldn't be lossy-formatted.
+  const fmtTotal   = (v) => isRevenue ? `$${formatCompact(v)}` : Math.round(v).toLocaleString()
+  // Per-day formatter — same idea but with a "/day" suffix to mirror the
+  // revenue version. We round to 1 decimal for low-count cases so a team
+  // averaging 2.3 estimates/day doesn't get crushed down to "2".
+  const fmtPerDay  = (v) => {
+    if (v == null) return '—'
+    if (isRevenue) return `$${formatCompact(v)}`
+    // Show one decimal when small (< 10) so 2.3 stays readable; otherwise round.
+    if (v < 10) return v.toFixed(1)
+    return Math.round(v).toLocaleString()
+  }
+
+  // Bail-out: only "all time" view (no fixed window) and missing goal
+  // config kick us out. We no longer fall through for count goals.
+  if (!dailyGoal || periodDays == null) {
     return (
       <section className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-4 md:mb-5">
@@ -2462,12 +2500,7 @@ function GoalTrackerCard({ totalRevenue = 0, sessions = [], org = null, dateRang
         </div>
         <div className="py-6 text-center">
           <Target className="w-7 h-7 mx-auto mb-2 text-gray-300" />
-          {!isRevenueGoal ? (
-            <>
-              <p className="text-sm text-gray-500">Goal Tracker needs a revenue-type goal.</p>
-              <p className="text-xs text-gray-400 mt-0.5">Set one under Settings → Daily Goal.</p>
-            </>
-          ) : periodDays == null ? (
+          {periodDays == null ? (
             <>
               <p className="text-sm text-gray-500">Pick a fixed period to see pace.</p>
               <p className="text-xs text-gray-400 mt-0.5">"All time" doesn't have a target.</p>
@@ -2483,18 +2516,17 @@ function GoalTrackerCard({ totalRevenue = 0, sessions = [], org = null, dateRang
     )
   }
 
-  const periodGoal     = dailyGoal * periodDays
-  const remainingDays  = Math.max(periodDays - daysElapsed, 0)
-  const pctOfGoal      = Math.min((totalRevenue / periodGoal) * 100, 999)
-  const pctClamped     = Math.min(pctOfGoal, 100)
-  const remainingGoal  = Math.max(periodGoal - totalRevenue, 0)
-  // Daily run-rate so far. If no days canvassed yet, leave undefined so we
-  // don't show "$0/day" as a current pace.
-  const currentRate    = daysElapsed > 0 ? totalRevenue / daysElapsed : null
+  const periodGoal    = dailyGoal * periodDays
+  const remainingDays = Math.max(periodDays - daysElapsed, 0)
+  const pctOfGoal     = Math.min((actual / periodGoal) * 100, 999)
+  const pctClamped    = Math.min(pctOfGoal, 100)
+  const remainingGoal = Math.max(periodGoal - actual, 0)
+  // Daily run-rate so far. If no days canvassed yet, leave null so we
+  // don't show "0/day" as a current pace.
+  const currentRate   = daysElapsed > 0 ? actual / daysElapsed : null
   // What the team needs to average over the remaining days to still hit
-  // the period goal. If the period is over (remainingDays === 0), the
-  // catch-up rate isn't actionable — handled below.
-  const requiredRate   = remainingDays > 0 ? remainingGoal / remainingDays : null
+  // the period goal. If the period is over, this isn't actionable.
+  const requiredRate  = remainingDays > 0 ? remainingGoal / remainingDays : null
 
   // Status framing — "ahead" when current pace ≥ daily goal, "behind" when
   // below 90% of it, "on pace" in between. The 90% band keeps a team that's
@@ -2504,7 +2536,7 @@ function GoalTrackerCard({ totalRevenue = 0, sessions = [], org = null, dateRang
     status      = 'no data yet'
     statusColor = 'text-slate-600 bg-slate-100'
   } else if (currentRate >= dailyGoal) {
-    status      = totalRevenue >= periodGoal ? 'goal hit 🎉' : 'on pace'
+    status      = actual >= periodGoal ? 'goal hit 🎉' : 'on pace'
     statusColor = 'text-green-700 bg-green-100'
   } else if (currentRate >= dailyGoal * 0.9) {
     status      = 'on pace'
@@ -2513,7 +2545,7 @@ function GoalTrackerCard({ totalRevenue = 0, sessions = [], org = null, dateRang
     status      = 'behind'
     statusColor = 'text-amber-700 bg-amber-100'
   }
-  if (remainingDays === 0 && totalRevenue < periodGoal) {
+  if (remainingDays === 0 && actual < periodGoal) {
     status      = 'missed'
     statusColor = 'text-red-700 bg-red-100'
   }
@@ -2522,6 +2554,11 @@ function GoalTrackerCard({ totalRevenue = 0, sessions = [], org = null, dateRang
     dateRange === 'today' ? 'today' :
     dateRange === 'week'  ? 'this week (rolling 7d)' :
     /* month */              'this period (rolling 30d)'
+  // Headline eyebrow — "Revenue today" vs. "Estimates today" — so the
+  // big number always carries its own unit context.
+  const metricLabel = isRevenue
+    ? 'Revenue'
+    : countLabel.charAt(0).toUpperCase() + countLabel.slice(1).toLowerCase()
 
   return (
     <section className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
@@ -2534,18 +2571,20 @@ function GoalTrackerCard({ totalRevenue = 0, sessions = [], org = null, dateRang
         </p>
       </div>
 
-      {/* Big number — total $ booked vs the period goal, sized to match the
-         Bottleneck card's headline. */}
+      {/* Big number — total vs the period goal, sized to match the
+         Bottleneck card's headline. Suffix carries the unit when the goal
+         is count-based ("12 estimates of 60"). */}
       <div>
         <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
-          Revenue {periodLabelStr}
+          {metricLabel} {periodLabelStr}
         </p>
-        <div className="flex items-baseline gap-2 mt-1">
+        <div className="flex items-baseline gap-2 mt-1 flex-wrap">
           <p className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-none tabular-nums">
-            ${formatCompact(totalRevenue)}
+            {fmtTotal(actual)}
           </p>
           <p className="text-sm md:text-base text-gray-500 font-medium">
-            of ${formatCompact(periodGoal)}
+            of {fmtTotal(periodGoal)}
+            {!isRevenue && <> {pluralNoun(periodGoal)}</>}
           </p>
         </div>
         <p className="text-xs md:text-sm text-gray-500 mt-1.5 tabular-nums">
@@ -2568,48 +2607,55 @@ function GoalTrackerCard({ totalRevenue = 0, sessions = [], org = null, dateRang
         />
       </div>
 
-      {/* Pace stats — three columns sized to mirror the Bottleneck card's
-         3-stage chips so the two cards in this row stay visually aligned. */}
+      {/* Pace stats — three columns mirroring the Bottleneck card's chips
+         so this row stays visually aligned across the 2-col grid. */}
       <div className="grid grid-cols-3 gap-2 mt-4 md:mt-5">
         <div className="rounded-lg px-2 py-2 border border-gray-200 bg-gray-50">
           <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Daily goal</p>
-          <p className="text-base font-extrabold text-gray-700 tabular-nums">${formatCompact(dailyGoal)}</p>
+          <p className="text-base font-extrabold text-gray-700 tabular-nums">{fmtTotal(dailyGoal)}</p>
         </div>
         <div className="rounded-lg px-2 py-2 border border-gray-200 bg-gray-50">
           <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Current pace</p>
           <p className="text-base font-extrabold text-gray-700 tabular-nums">
-            {currentRate != null ? `$${formatCompact(currentRate)}` : '—'}
+            {fmtPerDay(currentRate)}
             <span className="text-[10px] font-medium text-gray-400">/day</span>
           </p>
         </div>
         <div className={`rounded-lg px-2 py-2 border ${requiredRate != null && currentRate != null && requiredRate > currentRate ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
           <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Needed</p>
           <p className={`text-base font-extrabold tabular-nums ${requiredRate != null && currentRate != null && requiredRate > currentRate ? 'text-amber-700' : 'text-gray-700'}`}>
-            {requiredRate != null ? `$${formatCompact(requiredRate)}` : totalRevenue >= periodGoal ? '✓' : '—'}
+            {requiredRate != null ? fmtPerDay(requiredRate) : actual >= periodGoal ? '✓' : '—'}
             {requiredRate != null && <span className="text-[10px] font-medium text-gray-400">/day</span>}
           </p>
         </div>
       </div>
 
-      {/* Plain-English summary — tells the manager the one number they
-         actually need to act on. Built off the same fields the chips
-         use, so changes there stay in sync. */}
+      {/* Plain-English summary — translates the math into one sentence
+         the manager can act on. Built off the same fields the chips use. */}
       <div className="rounded-lg bg-slate-50 border border-slate-200 px-3.5 py-2.5 mt-4">
         <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">
           What this means
         </p>
         <p className="text-xs md:text-sm text-slate-700 leading-snug">
-          {totalRevenue >= periodGoal ? (
+          {actual >= periodGoal ? (
             <>Goal hit — keep stacking. Anything past today builds the next-period buffer.</>
           ) : remainingDays === 0 ? (
-            <>Period closed ${formatCompact(remainingGoal)} short. Look at which days didn't run sessions.</>
+            <>Period closed {fmtTotal(remainingGoal)}{!isRevenue && <> {pluralNoun(remainingGoal)}</>} short. Look at which days didn't run sessions.</>
           ) : daysElapsed === 0 ? (
-            <>No active days yet. Daily goal is ${formatCompact(dailyGoal)} over {periodDays} days.</>
+            <>No active days yet. Daily goal is {fmtTotal(dailyGoal)}{!isRevenue && <> {pluralNoun(dailyGoal)}</>} over {periodDays} days.</>
           ) : (
             <>
-              {currentRate >= dailyGoal
-                ? <>Pace is above the ${formatCompact(dailyGoal)}/day target. Stay on it — ${formatCompact(remainingGoal)} left across {remainingDays} day{remainingDays === 1 ? '' : 's'}.</>
-                : <>Team needs <span className="font-semibold text-gray-900">${formatCompact(requiredRate)}/day</span> across the remaining {remainingDays} day{remainingDays === 1 ? '' : 's'} to hit ${formatCompact(periodGoal)}.</>}
+              {currentRate >= dailyGoal ? (
+                <>Pace is above the {fmtTotal(dailyGoal)}{!isRevenue && <> {pluralNoun(dailyGoal)}</>}/day target. Stay on it — {fmtTotal(remainingGoal)}{!isRevenue && <> {pluralNoun(remainingGoal)}</>} left across {remainingDays} day{remainingDays === 1 ? '' : 's'}.</>
+              ) : (
+                <>
+                  Team needs{' '}
+                  <span className="font-semibold text-gray-900">
+                    {fmtPerDay(requiredRate)}{!isRevenue && <> {pluralNoun(requiredRate)}</>}/day
+                  </span>{' '}
+                  across the remaining {remainingDays} day{remainingDays === 1 ? '' : 's'} to hit {fmtTotal(periodGoal)}{!isRevenue && <> {pluralNoun(periodGoal)}</>}.
+                </>
+              )}
             </>
           )}
         </p>
@@ -2627,7 +2673,7 @@ function GoalTrackerCard({ totalRevenue = 0, sessions = [], org = null, dateRang
 // because the same neighborhood can rank #1 by gross revenue and still be
 // a weak hunting ground per-door. RPD is the signal that tells a manager
 // "send more reps here."
-function TopAreasCard({ sessions = [] }) {
+function TopAreasCard({ sessions = [], onJumpToTerritories }) {
   const buckets = {}
   for (const s of sessions) {
     const key = (s.neighborhood || '').trim() || 'Untagged'
@@ -2647,7 +2693,7 @@ function TopAreasCard({ sessions = [] }) {
     <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
       <div className="flex items-baseline justify-between mb-3">
         <p className="text-sm font-semibold text-gray-900">Top Areas</p>
-        <p className="text-[11px] text-gray-500">By revenue · per-door at right</p>
+        <p className="text-[11px] text-gray-500">By revenue · tap a row</p>
       </div>
       {top.length === 0 ? (
         <div className="py-6 text-center">
@@ -2656,30 +2702,42 @@ function TopAreasCard({ sessions = [] }) {
           <p className="text-[10px] text-gray-400 mt-0.5">Reps can tag the area when starting a session.</p>
         </div>
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="space-y-1">
           {top.map((b, i) => {
             const pct = (b.revenue / max) * 100
             const rpd = b.doors > 0 ? b.revenue / b.doors : 0
             return (
               <li key={b.name}>
-                <div className="flex items-center gap-3">
-                  <span className="w-5 text-center text-xs font-extrabold text-gray-400">{i + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-baseline gap-2">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{b.name}</p>
-                      <p className="text-sm font-extrabold text-gray-900 shrink-0">${formatCompact(b.revenue)}</p>
+                {/* Whole row routes to the Territories tab — same affordance
+                    pattern as Rep Leaderboard: slate hover wash for the cue,
+                    no underline. The aria-label calls out the destination so
+                    screen-reader users aren't surprised by the tab switch. */}
+                <button
+                  type="button"
+                  onClick={() => onJumpToTerritories?.()}
+                  aria-label={`Open Territories tab (from ${b.name})`}
+                  title="View territories"
+                  className="group block w-full text-left rounded-xl -mx-2 px-2 py-2 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-5 text-center text-xs font-extrabold text-gray-400">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-baseline gap-2">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{b.name}</p>
+                        <p className="text-sm font-extrabold text-gray-900 shrink-0">${formatCompact(b.revenue)}</p>
+                      </div>
+                      <div className="relative h-2 mt-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <span
+                          className="absolute inset-y-0 left-0 rounded-full"
+                          style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#7ac943,#2757d7)' }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        {b.doors} doors · {b.bookings} jobs · ${rpd.toFixed(0)}/door
+                      </p>
                     </div>
-                    <div className="relative h-2 mt-1.5 rounded-full bg-slate-100 overflow-hidden">
-                      <span
-                        className="absolute inset-y-0 left-0 rounded-full"
-                        style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#7ac943,#2757d7)' }}
-                      />
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-1">
-                      {b.doors} doors · {b.bookings} jobs · ${rpd.toFixed(0)}/door
-                    </p>
                   </div>
-                </div>
+                </button>
               </li>
             )
           })}

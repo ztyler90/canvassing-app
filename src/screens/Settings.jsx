@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2 } from 'lucide-react'
+import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2, Workflow } from 'lucide-react'
 import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl } from '../lib/supabase.js'
 import { describeCommission, DEFAULT_COMMISSION_CONFIG } from '../lib/repStats.js'
 
@@ -923,6 +923,34 @@ export default function Settings() {
               )
             })}
           </div>
+        </section>
+
+        {/* ── Pipeline ───────────────────────────────────────────────── */}
+        {/* Entry tile to the Pipeline configuration screen (sales cycle,
+            lead routing, follow-up SLA, stale window). Kept as a single
+            tile here so the main Settings page stays scannable; the
+            sub-screen owns the detailed pickers. */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Workflow className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+            <h2 className="text-gray-700 font-semibold text-base">Pipeline</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/settings/pipeline')}
+            className="w-full bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:border-blue-300 active:bg-gray-50 transition-colors text-left flex items-center gap-3"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900">
+                Configure sales cycle &amp; lead routing
+              </p>
+              <p className="text-[12px] text-gray-500 mt-0.5 leading-snug">
+                Pick your stages (appointment-based vs quick-quote), decide how leads
+                route from setters to closers, and tune Hot Lead aging.
+              </p>
+            </div>
+            <ExternalLink className="w-4 h-4 text-gray-400 shrink-0" />
+          </button>
         </section>
 
         {/* ── Daily Goal ─────────────────────────────────────────────── */}

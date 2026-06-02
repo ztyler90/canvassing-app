@@ -567,6 +567,37 @@ export async function updateOrganizationGoal(orgId, { type, value, countLabel })
   return { data, error }
 }
 
+/**
+ * Update the org's pipeline configuration — sales cycle, lead routing,
+ * hot-lead stale window, and quote follow-up SLA. Called from manager
+ * Pipeline Settings.
+ *
+ *   salesCycle       : 'appointment_based' | 'quick_quote' | 'mixed'
+ *   leadRoutingMode  : 'setter_picks' | 'round_robin' | 'manager_assigns'
+ *                    | 'territory_based'
+ *   quoteFollowupHrs : integer 1–240
+ *   hotLeadStaleDays : integer 1–90
+ *
+ * Any subset of fields may be passed; only those provided are patched.
+ * RLS: only org owners/managers can update — enforced at the DB level.
+ */
+export async function updateOrganizationPipelineConfig(orgId, {
+  salesCycle, leadRoutingMode, quoteFollowupHrs, hotLeadStaleDays,
+} = {}) {
+  const patch = {}
+  if (salesCycle       !== undefined) patch.sales_cycle          = salesCycle
+  if (leadRoutingMode  !== undefined) patch.lead_routing_mode    = leadRoutingMode
+  if (quoteFollowupHrs !== undefined) patch.quote_followup_hours = quoteFollowupHrs
+  if (hotLeadStaleDays !== undefined) patch.hot_lead_stale_days  = hotLeadStaleDays
+  const { data, error } = await supabase
+    .from('organizations')
+    .update(patch)
+    .eq('id', orgId)
+    .select()
+    .single()
+  return { data, error }
+}
+
 /** Count users in each org — for the super-admin dashboard. */
 export async function getOrganizationMemberCounts() {
   const { data } = await supabase

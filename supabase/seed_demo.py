@@ -160,22 +160,25 @@ def territory_polygon(territory_idx: int) -> str:
     coord_str = ",".join(f"[{c[0]:.6f},{c[1]:.6f}]" for c in coords)
     return f'{{"type":"Polygon","coordinates":[[{coord_str}]]}}'
 
-# Service deal-value ranges
+# Service deal-value ranges. Halved from earlier "industry-realistic" demo
+# values — the demo total felt too punchy and obviously synthetic; these
+# numbers track closer to what a mid-market solar installer would actually
+# report per quarter while still showing meaningful pipeline.
 def estimated_value_for(services: list[str]) -> float:
     total = 0.0
     for s in services:
         if s == "Rooftop Solar Install":
-            total += random.uniform(18000, 45000)
+            total += random.uniform(9000, 22500)
         elif s == "Battery Storage":
-            total += random.uniform(8000, 15000)
+            total += random.uniform(4000, 7500)
         elif s == "Solar + Roof Bundle":
-            total += random.uniform(50000, 70000)
+            total += random.uniform(25000, 35000)
         elif s == "EV Charger":
-            total += random.uniform(1500, 3000)
+            total += random.uniform(750, 1500)
         elif s == "Free Solar Quote":
             total += 0  # free quotes don't add value directly
     if total == 0:
-        total = random.uniform(20000, 35000)  # fallback
+        total = random.uniform(10000, 17500)  # fallback
     return round(total, -2)  # round to nearest $100
 
 def pick_services():
