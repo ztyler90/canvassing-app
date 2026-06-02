@@ -11,7 +11,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ChevronLeft, Edit2, Check, X, MapPin, Clock, DollarSign, Home, MessageSquare, Save } from 'lucide-react'
 import { getSessionWithInteractions, updateInteraction, updateSession } from '../lib/supabase.js'
-import { PhotoThumb } from '../lib/photos.js'
+import { PhotoThumb } from '../lib/photos.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'

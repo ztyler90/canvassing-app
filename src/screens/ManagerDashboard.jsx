@@ -15,7 +15,7 @@ import { computeConversion } from '../lib/repStats.js'
 import { ConversionFunnel } from './RepHome.jsx'
 import MapView from '../components/MapView.jsx'
 import TerritoryMap from '../components/TerritoryMap.jsx'
-import { PhotoThumb } from '../lib/photos.js'
+import { PhotoThumb } from '../lib/photos.jsx'
 import {
   RichStatCard, MiniSparkArea, MiniSparkBars, RadialGauge,
   formatCompact, computeTrend, groupSessionsByDay,

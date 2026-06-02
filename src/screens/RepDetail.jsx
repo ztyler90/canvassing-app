@@ -18,7 +18,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { format } from 'date-fns'
-import { StoragePhoto } from '../lib/photos.js'
+import { StoragePhoto } from '../lib/photos.jsx'
 import {
   ChevronLeft, MapPin, DollarSign, Trophy, TrendingUp, Target, Sparkles,
 } from 'lucide-react'

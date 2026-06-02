@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { getOrganizationDetail } from '../lib/supabase.js'
-import { StoragePhoto } from '../lib/photos.js'
+import { StoragePhoto } from '../lib/photos.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'

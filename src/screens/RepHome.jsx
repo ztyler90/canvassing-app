@@ -29,7 +29,7 @@ import {
   computeCloseRateDiagnostic, computeLevelUpProximity, computeTeamPulse,
 } from '../lib/callouts.js'
 import RepCallouts from '../components/RepCallouts.jsx'
-import { StoragePhoto } from '../lib/photos.js'
+import { StoragePhoto } from '../lib/photos.jsx'
 import {
   RichStatCard, MiniSparkArea, MiniSparkBars,
   formatCompact, computeTrend, groupSessionsByDay,

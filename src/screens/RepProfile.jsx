@@ -14,7 +14,7 @@ import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   updateUserProfile, sendPasswordReset, uploadAvatar,
 } from '../lib/supabase.js'
-import { StoragePhoto } from '../lib/photos.js'
+import { StoragePhoto } from '../lib/photos.jsx'
 import { usePrefs, setPref } from '../lib/prefs.js'
 
 const BRAND_BLUE = '#1B4FCC'
