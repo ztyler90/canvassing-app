@@ -19,15 +19,19 @@
 //                                 revenue / doors / bookings / estimates.
 //   downsample(values, target)  — averages a long series into exactly
 //                                 `target` buckets (used for mini-bars).
+import { useRef, useState } from 'react'
 import { format, subDays, startOfDay } from 'date-fns'
 
 // ─── Card shell ──────────────────────────────────────────────────────────────
-export function RichStatCard({ label, value, trend, icon, gradient, border, iconColor, children }) {
+// `trendLabel` (optional) — short, human noun that names what's trending
+// (e.g. "revenue"). Surfaces in the trend chip's hover blurb so a manager
+// who's never seen the dashboard can decode "▼ 63%" without guessing.
+export function RichStatCard({ label, value, trend, trendLabel, icon, gradient, border, iconColor, children }) {
   return (
     <div className={`bg-gradient-to-br ${gradient} ${border} border rounded-2xl p-3 md:p-4`}>
       <div className="flex items-center justify-between">
         <div className={`p-1.5 rounded-lg bg-white/70 ${iconColor}`}>{icon}</div>
-        {trend && <TrendChip trend={trend} />}
+        {trend && <TrendChip trend={trend} label={trendLabel || label} />}
       </div>
       <div className="mt-2">
         <p className="text-[11px] font-semibold text-gray-600">{label}</p>
@@ -39,12 +43,48 @@ export function RichStatCard({ label, value, trend, icon, gradient, border, icon
 }
 
 // ─── Trend chip ──────────────────────────────────────────────────────────────
-export function TrendChip({ trend }) {
+// Hover the chip and a tooltip surfaces the back-half-vs-front-half
+// comparison rule in plain English. Done as a custom popover (not the
+// native `title=` attribute) so the blurb appears instantly instead of
+// after the OS-level hover delay, and so it's discoverable on touch.
+export function TrendChip({ trend, label = 'this metric' }) {
+  const [open, setOpen] = useState(false)
   if (!trend) return null
   const { dir, pct } = trend
-  if (dir === 'up')   return <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-800">▲ {pct}%</span>
-  if (dir === 'down') return <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-800">▼ {pct}%</span>
-  return <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">—</span>
+  const blurb =
+    `Compares the second half of the selected period to the first half for ${label}. ` +
+    `▲ means the back half outpaced the front; ▼ means it lagged.`
+  const base =
+    'relative inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full cursor-help'
+  const tone =
+    dir === 'up'   ? 'bg-green-100 text-green-800' :
+    dir === 'down' ? 'bg-red-100 text-red-800'     :
+                     'bg-slate-100 text-slate-600'
+  const symbol =
+    dir === 'up'   ? `▲ ${pct}%` :
+    dir === 'down' ? `▼ ${pct}%` :
+                     '—'
+  return (
+    <span
+      className={`${base} ${tone}`}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+      tabIndex={0}
+      aria-label={blurb}
+    >
+      {symbol}
+      {open && (
+        <span
+          role="tooltip"
+          className="absolute right-0 top-full mt-1.5 w-56 z-20 pointer-events-none rounded-md bg-gray-900 text-white text-[10.5px] leading-snug font-medium px-2.5 py-1.5 shadow-lg"
+        >
+          {blurb}
+        </span>
+      )}
+    </span>
+  )
 }
 
 // ─── Area sparkline ──────────────────────────────────────────────────────────
