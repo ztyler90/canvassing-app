@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KnockIQ — Bookings Tab Mock</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --brand-blue: #1B4FCC;
+    --brand-lime: #7DC31E;
+    --brand-green: #059669;
+  }
+  body { background: #f9fafb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  .scroll-x::-webkit-scrollbar { height: 6px; }
+  .scroll-x::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+  .kanban-col { min-height: 600px; }
+  .pulse-red { animation: pulse-red 2s ease-in-out infinite; }
+  @keyframes pulse-red {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+    50%      { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  }
+  /* Lucide-style stroked icons via inline svg */
+  .icon { width: 16px; height: 16px; stroke-width: 2; stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body class="text-gray-800">
+
+<!-- Disclaimer banner -->
+<div class="bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1.5 font-semibold tracking-wide">
+  STATIC MOCK — Bookings Tab redesign · sample data, no real records
+</div>
+
+<!-- Page chrome simulation: just enough to set context -->
+<div class="max-w-7xl mx-auto px-4 pt-5">
+
+  <!-- Tab strip (simulated) -->
+  <div class="flex gap-1 border-b border-gray-200 mb-5 overflow-x-auto scroll-x">
+    <button class="px-4 py-2.5 text-sm font-semibold text-gray-400">Overview</button>
+    <button class="px-4 py-2.5 text-sm font-semibold text-gray-400">Live</button>
+    <button class="px-4 py-2.5 text-sm font-semibold text-gray-400">Leaderboard</button>
+    <button class="px-4 py-2.5 text-sm font-semibold text-gray-400">Reps</button>
+    <button class="px-4 py-2.5 text-sm font-bold text-blue-700 border-b-2 border-blue-700">Bookings</button>
+    <button class="px-4 py-2.5 text-sm font-semibold text-gray-400">Map</button>
+    <button class="px-4 py-2.5 text-sm font-semibold text-gray-400">Territories</button>
+  </div>
+
+  <!-- Filter bar: same shape as other tabs -->
+  <div class="flex flex-wrap items-center gap-2 mb-5">
+    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">Filter</span>
+    <button class="px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-600 text-white">Last 30 days</button>
+    <button class="px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-600">All reps</button>
+    <button class="px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-600">All services</button>
+    <div class="flex-1"></div>
+    <div class="flex items-center gap-2 text-xs text-gray-500">
+      <span class="inline-block w-2 h-2 rounded-full bg-green-500"></span>Live · updated 2 min ago
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────────────────────────────── -->
+  <!-- ZONE 1: ACTION QUEUE                                                    -->
+  <!-- ─────────────────────────────────────────────────────────────────────── -->
+  <section class="mb-6">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <svg class="icon text-red-600"><use href="#icon-flame"/></svg>
+        <h2 class="text-base font-bold text-gray-900">Needs Action Today</h2>
+        <span class="text-[11px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">5</span>
+      </div>
+      <button class="text-xs font-semibold text-blue-700 hover:underline">View all 14 →</button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+
+      <!-- Action card 1: appointment in 3 hrs -->
+      <div class="bg-white rounded-2xl border-l-4 border-red-500 border-y border-r border-gray-200 p-3.5 shadow-sm">
+        <div class="flex items-center gap-1.5 mb-2">
+          <span class="w-2 h-2 rounded-full bg-red-500 pulse-red"></span>
+          <span class="text-[10px] font-bold uppercase tracking-wide text-red-600">Appt in 3 hrs</span>
+        </div>
+        <p class="font-bold text-sm text-gray-900 truncate">John & Lisa Davis</p>
+        <p class="text-[11px] text-gray-500 truncate mt-0.5">123 Oak Ridge Dr · Roofing</p>
+        <div class="mt-2.5 flex items-end justify-between">
+          <div class="flex items-center gap-1.5">
+            <div class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center">MR</div>
+            <span class="text-[11px] text-gray-600 truncate">Mike R.</span>
+          </div>
+          <span class="text-base font-extrabold text-gray-900">$14,500</span>
+        </div>
+        <button class="mt-2.5 w-full py-1.5 rounded-lg text-[11px] font-bold bg-red-50 text-red-700 hover:bg-red-100">Confirm with rep</button>
+      </div>
+
+      <!-- Action card 2: stale estimate -->
+      <div class="bg-white rounded-2xl border-l-4 border-red-500 border-y border-r border-gray-200 p-3.5 shadow-sm">
+        <div class="flex items-center gap-1.5 mb-2">
+          <span class="w-2 h-2 rounded-full bg-red-500"></span>
+          <span class="text-[10px] font-bold uppercase tracking-wide text-red-600">Estimate stale 8d</span>
+        </div>
+        <p class="font-bold text-sm text-gray-900 truncate">Sarah Mitchell</p>
+        <p class="text-[11px] text-gray-500 truncate mt-0.5">456 Elm Ave · Solar</p>
+        <div class="mt-2.5 flex items-end justify-between">
+          <div class="flex items-center gap-1.5">
+            <div class="w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-[10px] font-bold flex items-center justify-center">SK</div>
+            <span class="text-[11px] text-gray-600 truncate">Sarah K.</span>
+          </div>
+          <span class="text-base font-extrabold text-gray-900">$8,200</span>
+        </div>
+        <button class="mt-2.5 w-full py-1.5 rounded-lg text-[11px] font-bold bg-red-50 text-red-700 hover:bg-red-100">Push or mark lost</button>
+      </div>
+
+      <!-- Action card 3: high-value aging -->
+      <div class="bg-white rounded-2xl border-l-4 border-amber-500 border-y border-r border-gray-200 p-3.5 shadow-sm">
+        <div class="flex items-center gap-1.5 mb-2">
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+          <span class="text-[10px] font-bold uppercase tracking-wide text-amber-700">High $ aging 5d</span>
+        </div>
+        <p class="font-bold text-sm text-gray-900 truncate">The Chen Family</p>
+        <p class="text-[11px] text-gray-500 truncate mt-0.5">999 Hilltop Rd · Roofing + Gutters</p>
+        <div class="mt-2.5 flex items-end justify-between">
+          <div class="flex items-center gap-1.5">
+            <div class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center">MR</div>
+            <span class="text-[11px] text-gray-600 truncate">Mike R.</span>
+          </div>
+          <span class="text-base font-extrabold text-gray-900">$45,000</span>
+        </div>
+        <button class="mt-2.5 w-full py-1.5 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-700 hover:bg-amber-100">Join the call</button>
+      </div>
+
+      <!-- Action card 4: follow-up overdue -->
+      <div class="bg-white rounded-2xl border-l-4 border-amber-500 border-y border-r border-gray-200 p-3.5 shadow-sm">
+        <div class="flex items-center gap-1.5 mb-2">
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+          <span class="text-[10px] font-bold uppercase tracking-wide text-amber-700">Follow-up overdue</span>
+        </div>
+        <p class="font-bold text-sm text-gray-900 truncate">Marcus Bell</p>
+        <p class="text-[11px] text-gray-500 truncate mt-0.5">789 Pine Dr · Solar</p>
+        <div class="mt-2.5 flex items-end justify-between">
+          <div class="flex items-center gap-1.5">
+            <div class="w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold flex items-center justify-center">TG</div>
+            <span class="text-[11px] text-gray-600 truncate">Tony G.</span>
+          </div>
+          <span class="text-base font-extrabold text-gray-900">$22,000</span>
+        </div>
+        <button class="mt-2.5 w-full py-1.5 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-700 hover:bg-amber-100">Nudge rep</button>
+      </div>
+
+      <!-- Action card 5: no rep activity -->
+      <div class="bg-white rounded-2xl border-l-4 border-amber-500 border-y border-r border-gray-200 p-3.5 shadow-sm">
+        <div class="flex items-center gap-1.5 mb-2">
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+          <span class="text-[10px] font-bold uppercase tracking-wide text-amber-700">No activity 5d</span>
+        </div>
+        <p class="font-bold text-sm text-gray-900 truncate">Linda Park</p>
+        <p class="text-[11px] text-gray-500 truncate mt-0.5">321 Maple Way · Pest control</p>
+        <div class="mt-2.5 flex items-end justify-between">
+          <div class="flex items-center gap-1.5">
+            <div class="w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-[10px] font-bold flex items-center justify-center">SK</div>
+            <span class="text-[11px] text-gray-600 truncate">Sarah K.</span>
+          </div>
+          <span class="text-base font-extrabold text-gray-900">$6,800</span>
+        </div>
+        <button class="mt-2.5 w-full py-1.5 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-700 hover:bg-amber-100">Reassign</button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────────── -->
+  <!-- ZONE 2: UPCOMING APPOINTMENTS STRIP                                     -->
+  <!-- ─────────────────────────────────────────────────────────────────────── -->
+  <section class="mb-6">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <svg class="icon text-blue-700"><use href="#icon-calendar"/></svg>
+        <h2 class="text-base font-bold text-gray-900">Next 10 Days</h2>
+        <span class="text-[11px] text-gray-500">13 scheduled · <span class="font-semibold text-gray-700">$172k</span> on calendar</span>
+      </div>
+      <button class="text-xs font-semibold text-blue-700 hover:underline">Full calendar →</button>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-200 p-3 shadow-sm overflow-x-auto scroll-x">
+      <div class="flex gap-2 min-w-max">
+        <!-- Day cells -->
+        <!-- Today -->
+        <div class="w-[124px] rounded-xl border-2 border-blue-600 bg-blue-50 p-2.5 flex flex-col gap-1.5">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-blue-700">Today</div>
+          <div class="text-lg font-extrabold text-blue-900 leading-none">Mon 2</div>
+          <div class="flex items-center justify-between mt-1">
+            <span class="text-[10px] font-semibold text-blue-700">2 appts</span>
+          </div>
+          <div class="text-[13px] font-extrabold text-blue-900">$18k</div>
+          <div class="flex flex-col gap-0.5 mt-1">
+            <div class="text-[10px] bg-blue-600 text-white rounded px-1.5 py-0.5 truncate">2pm Davis — $14.5k</div>
+            <div class="text-[10px] bg-blue-600 text-white rounded px-1.5 py-0.5 truncate">5pm Cruz — $3.5k</div>
+          </div>
+        </div>
+
+        <div class="w-[124px] rounded-xl border border-gray-200 bg-white p-2.5 flex flex-col gap-1.5">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Tue</div>
+          <div class="text-lg font-extrabold text-gray-700 leading-none">Tue 3</div>
+          <div class="text-[10px] font-semibold text-gray-500 mt-1">3 appts</div>
+          <div class="text-[13px] font-extrabold text-gray-800">$27k</div>
+          <div class="flex flex-col gap-0.5 mt-1">
+            <div class="text-[10px] bg-gray-100 text-gray-700 rounded px-1.5 py-0.5 truncate">10a Chen — $45k</div>
+            <div class="text-[10px] bg-gray-100 text-gray-700 rounded px-1.5 py-0.5 truncate">1p Park — $6.8k</div>
+            <div class="text-[10px] bg-gray-100 text-gray-700 rounded px-1.5 py-0.5 truncate">4p Hsu — $12k</div>
+          </div>
+        </div>
+
+        <div class="w-[124px] rounded-xl border border-gray-200 bg-white p-2.5 flex flex-col gap-1.5">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Wed</div>
+          <div class="text-lg font-extrabold text-gray-700 leading-none">Wed 4</div>
+          <div class="text-[10px] font-semibold text-gray-500 mt-1">1 appt</div>
+          <div class="text-[13px] font-extrabold text-gray-800">$9k</div>
+          <div class="flex flex-col gap-0.5 mt-1">
+            <div class="text-[10px] bg-gray-100 text-gray-700 rounded px-1.5 py-0.5 truncate">3p Bell — $9k</div>
+          </div>
+        </div>
+
+        <div class="w-[124px] rounded-xl border border-gray-200 bg-white p-2.5 flex flex-col gap-1.5">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Thu</div>
+          <div class="text-lg font-extrabold text-gray-700 leading-none">Thu 5</div>
+          <div class="text-[10px] font-semibold text-gray-500 mt-1">2 appts</div>
+          <div class="text-[13px] font-extrabold text-gray-800">$15k</div>
+          <div class="flex flex-col gap-0.5 mt-1">
+            <div class="text-[10px] bg-gray-100 text-gray-700 rounded px-1.5 py-0.5 truncate">9a Riley — $11k</div>
+            <div class="text-[10px] bg-gray-100 text-gray-700 rounded px-1.5 py-0.5 truncate">4p Vega — $4k</div>
+          </div>
+        </div>
+
+        <div class="w-[124px] rounded-xl border border-gray-200 bg-white p-2.5 flex flex-col gap-1.5">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Fri</div>
+          <div class="text-lg font-extrabold text-gray-700 leading-none">Fri 6</div>
+          <div class="text-[10px] font-semibold text-gray-500 mt-1">0 appts</div>
+          <div class="text-[13px] font-extrabold text-gray-300">$0</div>
+          <div class="text-[10px] text-gray-300 italic mt-1">Open</div>
+        </div>
+
+        <div class="w-[124px] rounded-xl border border-gray-200 bg-gray-50 p-2.5 flex flex-col gap-1.5">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Sat</div>
+          <div class="text-lg font-extrabold text-gray-500 leading-none">Sat 7</div>
+          <div class="text-[10px] font-semibold text-gray-500 mt-1">1 appt</div>
+          <div class="text-[13px] font-extrabold text-gray-700">$22k</div>
+          <div class="flex flex-col gap-0.5 mt-1">
+            <div class="text-[10px] bg-amber-100 text-amber-800 rounded px-1.5 py-0.5 truncate">11a Bell — $22k ⚠</div>
+          </div>
+        </div>
+
+        <div class="w-[124px] rounded-xl border border-gray-200 bg-gray-50 p-2.5 flex flex-col gap-1.5">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Sun</div>
+          <div class="text-lg font-extrabold text-gray-500 leading-none">Sun 8</div>
+          <div class="text-[10px] font-semibold text-gray-500 mt-1">0 appts</div>
+          <div class="text-[13px] font-extrabold text-gray-300">—</div>
+        </div>
+
+        <div class="w-[124px] rounded-xl border border-gray-200 bg-white p-2.5 flex flex-col gap-1.5">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Mon</div>
+          <div class="text-lg font-extrabold text-gray-700 leading-none">Mon 9</div>
+          <div class="text-[10px] font-semibold text-gray-500 mt-1">3 appts</div>
+          <div class="text-[13px] font-extrabold text-gray-800">$31k</div>
+        </div>
+
+        <div class="w-[124px] rounded-xl border border-gray-200 bg-white p-2.5 flex flex-col gap-1.5">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Tue</div>
+          <div class="text-lg font-extrabold text-gray-700 leading-none">Tue 10</div>
+          <div class="text-[10px] font-semibold text-gray-500 mt-1">1 appt</div>
+          <div class="text-[13px] font-extrabold text-gray-800">$12k</div>
+        </div>
+
+        <div class="w-[124px] rounded-xl border border-gray-200 bg-white p-2.5 flex flex-col gap-1.5">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Wed</div>
+          <div class="text-lg font-extrabold text-gray-700 leading-none">Wed 11</div>
+          <div class="text-[10px] font-semibold text-gray-500 mt-1">1 appt</div>
+          <div class="text-[13px] font-extrabold text-gray-800">$28k</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────────── -->
+  <!-- ZONE 3: PIPELINE BOARD (Kanban)                                         -->
+  <!-- ─────────────────────────────────────────────────────────────────────── -->
+  <section class="mb-6">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <svg class="icon text-gray-700"><use href="#icon-layers"/></svg>
+        <h2 class="text-base font-bold text-gray-900">Open Pipeline</h2>
+        <span class="text-[11px] text-gray-500">21 deals · <span class="font-semibold text-gray-700">$295k</span> open</span>
+      </div>
+      <div class="flex gap-1.5">
+        <button class="px-3 py-1 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700">By stage</button>
+        <button class="px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-gray-200 text-gray-500">By rep</button>
+        <button class="px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-gray-200 text-gray-500">By value</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+
+      <!-- ── Column 1: Hot Lead ── -->
+      <div class="kanban-col bg-gray-100/70 rounded-2xl p-3">
+        <div class="flex items-center justify-between mb-3 px-1">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            <p class="text-xs font-bold text-gray-700 uppercase tracking-wide">Hot Lead</p>
+          </div>
+        </div>
+        <p class="text-[10px] text-gray-500 px-1 mb-2 leading-snug">
+          Good convo at the door — needs an appt booked or a quote sent.
+        </p>
+        <div class="flex items-baseline justify-between mb-3 px-1">
+          <span class="text-xl font-extrabold text-gray-900">8</span>
+          <span class="text-xs font-bold text-gray-500">$62k</span>
+        </div>
+
+        <div class="space-y-2.5">
+          <!-- Card -->
+          <div class="bg-white rounded-xl border border-gray-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Robert Hayes</p>
+                <p class="text-[10px] text-gray-500 truncate">2014 Ash Ln</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$5.5k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded">Roofing</span>
+              <span class="text-[10px] text-gray-500">Mike R. · 1d</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Janice Wu</p>
+                <p class="text-[10px] text-gray-500 truncate">802 Hawthorn</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$3.2k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-cyan-50 text-cyan-700 px-1.5 py-0.5 rounded">Windows</span>
+              <span class="text-[10px] text-gray-500">Sarah K. · 2d</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Carlos Mendez</p>
+                <p class="text-[10px] text-gray-500 truncate">119 Stagecoach</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$11k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded">Roofing</span>
+              <span class="text-[10px] text-gray-500">Tony G. · 4d</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Patricia Foley</p>
+                <p class="text-[10px] text-gray-500 truncate">6611 Maple</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$8.2k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded">Solar</span>
+              <span class="text-[10px] text-red-600 font-semibold">Sarah K. · 9d ⚠</span>
+            </div>
+          </div>
+          <button class="w-full py-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-700">+ 4 more</button>
+        </div>
+      </div>
+
+      <!-- ── Column 2: Appointment Scheduled ── -->
+      <div class="kanban-col bg-purple-50/60 rounded-2xl p-3">
+        <div class="flex items-center justify-between mb-3 px-1">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+            <p class="text-xs font-bold text-gray-700 uppercase tracking-wide">Appointment Scheduled</p>
+          </div>
+        </div>
+        <p class="text-[10px] text-gray-500 px-1 mb-2 leading-snug">
+          Closer/setter has a confirmed meeting on the calendar.
+        </p>
+        <div class="flex items-baseline justify-between mb-3 px-1">
+          <span class="text-xl font-extrabold text-gray-900">4</span>
+          <span class="text-xs font-bold text-gray-500">$51k</span>
+        </div>
+
+        <div class="space-y-2.5">
+          <div class="bg-white rounded-xl border-2 border-blue-400 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">John & Lisa Davis</p>
+                <p class="text-[10px] text-blue-700 font-semibold truncate">Today · 2:00 PM</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$14.5k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded">Roofing</span>
+              <span class="text-[10px] text-gray-500">Closer: Mike R.</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Estela Cruz</p>
+                <p class="text-[10px] text-gray-500 truncate">Today · 5:00 PM</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$3.5k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-cyan-50 text-cyan-700 px-1.5 py-0.5 rounded">Windows</span>
+              <span class="text-[10px] text-gray-500">Closer: Sarah K.</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Marcus Bell</p>
+                <p class="text-[10px] text-gray-500 truncate">Wed · 3:00 PM</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$22k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded">Solar</span>
+              <span class="text-[10px] text-gray-500">Closer: Tony G.</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Megan Riley</p>
+                <p class="text-[10px] text-gray-500 truncate">Thu · 9:00 AM</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$11k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded">Roofing</span>
+              <span class="text-[10px] text-gray-500">Closer: Mike R.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Column 3: Estimate Sent ── -->
+      <div class="kanban-col bg-blue-50/60 rounded-2xl p-3">
+        <div class="flex items-center justify-between mb-3 px-1">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+            <p class="text-xs font-bold text-gray-700 uppercase tracking-wide">Estimate Sent</p>
+          </div>
+        </div>
+        <p class="text-[10px] text-gray-500 px-1 mb-2 leading-snug">
+          Quote/proposal delivered. Waiting on the customer to decide.
+        </p>
+        <div class="flex items-baseline justify-between mb-3 px-1">
+          <span class="text-xl font-extrabold text-gray-900">5</span>
+          <span class="text-xs font-bold text-gray-500">$84k</span>
+        </div>
+
+        <div class="space-y-2.5">
+          <div class="bg-white rounded-xl border border-gray-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Andrew Park</p>
+                <p class="text-[10px] text-gray-500 truncate">412 Briar Trail</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$18k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded">Solar</span>
+              <span class="text-[10px] text-gray-500">Mike R. · 2d</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-amber-300 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1">
+                  <p class="text-sm font-bold text-gray-900 truncate">The Chen Family</p>
+                  <span class="text-[9px] bg-amber-100 text-amber-700 font-bold px-1 py-0 rounded">🏴</span>
+                </div>
+                <p class="text-[10px] text-gray-500 truncate">999 Hilltop Rd</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$45k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded">Roofing + Gutters</span>
+              <span class="text-[10px] text-amber-700 font-semibold">Mike R. · 5d</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border-2 border-red-300 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Sarah Mitchell</p>
+                <p class="text-[10px] text-gray-500 truncate">456 Elm Ave</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$8.2k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded">Solar</span>
+              <span class="text-[10px] text-red-600 font-semibold">Sarah K. · 8d ⚠</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Diego Ramirez</p>
+                <p class="text-[10px] text-gray-500 truncate">88 Willow Bend</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$9k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded">Roofing</span>
+              <span class="text-[10px] text-gray-500">Tony G. · 1d</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">The Lin household</p>
+                <p class="text-[10px] text-gray-500 truncate">71 Bayfield</p>
+              </div>
+              <span class="text-sm font-extrabold text-gray-900">$3.8k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-cyan-50 text-cyan-700 px-1.5 py-0.5 rounded">Windows</span>
+              <span class="text-[10px] text-gray-500">Sarah K. · 4d</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Column 4: Booked (won) ── -->
+      <div class="kanban-col bg-green-50/60 rounded-2xl p-3">
+        <div class="flex items-center justify-between mb-3 px-1">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-green-600"></span>
+            <p class="text-xs font-bold text-gray-700 uppercase tracking-wide">Booked · Job Pending</p>
+          </div>
+        </div>
+        <div class="flex items-baseline justify-between mb-3 px-1">
+          <span class="text-xl font-extrabold text-gray-900">4</span>
+          <span class="text-xs font-bold text-green-700">$98k</span>
+        </div>
+
+        <div class="space-y-2.5">
+          <div class="bg-white rounded-xl border border-green-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <svg class="icon text-green-600 mt-0.5" style="width:14px;height:14px"><use href="#icon-check"/></svg>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Geoff & Allie Tan</p>
+                <p class="text-[10px] text-gray-500 truncate">Job: Mar 5</p>
+              </div>
+              <span class="text-sm font-extrabold text-green-700">$32k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded">Roofing</span>
+              <span class="text-[10px] text-gray-500">Mike R.</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-green-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <svg class="icon text-green-600 mt-0.5" style="width:14px;height:14px"><use href="#icon-check"/></svg>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Howard Brooks</p>
+                <p class="text-[10px] text-gray-500 truncate">Job: Mar 8</p>
+              </div>
+              <span class="text-sm font-extrabold text-green-700">$41k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded">Solar</span>
+              <span class="text-[10px] text-gray-500">Tony G.</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-green-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <svg class="icon text-green-600 mt-0.5" style="width:14px;height:14px"><use href="#icon-check"/></svg>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Kelsey Marsh</p>
+                <p class="text-[10px] text-gray-500 truncate">Job: Mar 12</p>
+              </div>
+              <span class="text-sm font-extrabold text-green-700">$18k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded">Roofing</span>
+              <span class="text-[10px] text-gray-500">Sarah K.</span>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-green-200 p-2.5 shadow-sm">
+            <div class="flex items-start gap-2 mb-1.5">
+              <svg class="icon text-green-600 mt-0.5" style="width:14px;height:14px"><use href="#icon-check"/></svg>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">Priya Shah</p>
+                <p class="text-[10px] text-gray-500 truncate">Job: TBD</p>
+              </div>
+              <span class="text-sm font-extrabold text-green-700">$7k</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider bg-cyan-50 text-cyan-700 px-1.5 py-0.5 rounded">Windows</span>
+              <span class="text-[10px] text-gray-500">Mike R.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Per-cycle note -->
+    <p class="text-[11px] text-gray-500 mt-3 px-1 leading-snug">
+      <span class="font-semibold text-gray-700">Stages adapt to your sales cycle.</span>
+      Appointment-based orgs (roofing, solar) flow Hot Lead → Appt Scheduled → Estimate Sent → Booked.
+      Quick-quote orgs (windows, pest, exterior) skip the appt column: Hot Lead → Estimate Sent → Booked.
+      Hot Leads auto-graduate to <em>Closed — Stale</em> after 14 days with no activity (configurable).
+    </p>
+
+    <!-- Aging legend -->
+    <div class="flex items-center gap-4 mt-3 px-1 text-[11px] text-gray-500">
+      <span class="font-semibold uppercase tracking-wide">Aging:</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> Fresh &lt;3d</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Warming 3–7d</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span> Stale &gt;7d</span>
+      <span class="text-gray-400">·</span>
+      <span class="flex items-center gap-1">🏴 Follow-up flag</span>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────────── -->
+  <!-- ZONE 4: OFF-RAMPS (collapsed)                                           -->
+  <!-- ─────────────────────────────────────────────────────────────────────── -->
+  <section class="mb-8">
+    <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      <div class="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer">
+        <div class="flex items-center gap-3">
+          <svg class="icon text-gray-500"><use href="#icon-archive"/></svg>
+          <div>
+            <p class="text-sm font-bold text-gray-800">Closed — Not Interested & Lost</p>
+            <p class="text-[11px] text-gray-500">14 not interested · 7 estimates lost · last 30 days</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="text-right">
+            <p class="text-[10px] uppercase font-bold tracking-wide text-gray-400">Top loss reasons</p>
+            <p class="text-[11px] text-gray-600">Price (4) · Competitor (2) · Ghosted (2)</p>
+          </div>
+          <svg class="icon text-gray-400"><use href="#icon-chevron-down"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <p class="text-[11px] text-gray-400 mt-2 px-1">
+      Closed deals don't clutter the active pipeline. Click to expand for lost-reason analysis and to revive any deal that
+      shouldn't have been written off.
+    </p>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────────────── -->
+  <!-- ZONE 5: ROLL-UP STATS                                                   -->
+  <!-- ─────────────────────────────────────────────────────────────────────── -->
+  <section class="mb-10">
+    <h2 class="text-base font-bold text-gray-900 mb-3">Pipeline Health · Last 30 Days</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Avg time to book</p>
+        <p class="text-2xl font-extrabold text-gray-900 mt-1">4.2<span class="text-sm font-bold text-gray-500"> days</span></p>
+        <p class="text-[11px] text-green-600 font-semibold mt-0.5">▼ 1.1d vs prior 30d</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Est → Book rate</p>
+        <p class="text-2xl font-extrabold text-gray-900 mt-1">38%</p>
+        <p class="text-[11px] text-green-600 font-semibold mt-0.5">▲ 4 pts vs prior 30d</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Pipeline at risk</p>
+        <p class="text-2xl font-extrabold text-red-600 mt-1">$74k</p>
+        <p class="text-[11px] text-gray-500 mt-0.5">5 deals stale &gt;7d</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Forecast next 14d</p>
+        <p class="text-2xl font-extrabold text-gray-900 mt-1">$112k</p>
+        <p class="text-[11px] text-gray-500 mt-0.5">weighted by stage</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Lucide-ish icon defs -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="icon-flame" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol>
+    <symbol id="icon-calendar" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></symbol>
+    <symbol id="icon-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+    <symbol id="icon-archive" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
+  </defs>
+</svg>
+
+</body>
+</html>

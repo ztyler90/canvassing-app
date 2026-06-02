@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay, differenceInCalendarDays } from 'date-fns'
-import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight } from 'lucide-react'
+import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight, Target } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllSessions, getAllReps, getManagerMapData, signOut,
@@ -359,6 +359,7 @@ export default function ManagerDashboard() {
                 countLabel={countLabel}
                 repStats={repStats}
                 bookings={bookings}
+                org={org}
                 onJumpToTab={setTab}
                 dateRange={dateRange} />
             )}
@@ -379,7 +380,7 @@ export default function ManagerDashboard() {
 function OverviewTab({
   sessions, totalRevenue, totalDoors, totalBookings, totalEstimates,
   totalConversations = 0, closeRate, revenuePerDoor, countLabel = 'Estimates',
-  repStats = [], bookings = [], onJumpToTab,
+  repStats = [], bookings = [], org = null, onJumpToTab,
   dateRange = '7',
 }) {
   const navigate = useNavigate()
@@ -609,22 +610,36 @@ function OverviewTab({
           conv={teamConv}
           estimateLabel={countLabel}
         />
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-3 bg-gray-50 border-b">
-            <p className="font-semibold text-gray-700 text-sm">Performance Metrics</p>
+        {/* Performance Metrics — styled to match the Conversion Funnel's
+           type ramp and rhythm (bg-white rounded-2xl shadow-sm + p-5/6,
+           same header weight, same row spacing) so the two columns read
+           as a balanced pair instead of the older table-row look. */}
+        <div className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-4 md:mb-5">
+            <p className="text-gray-800 font-semibold text-base md:text-lg flex items-center gap-2">
+              <BarChart2 className="w-5 h-5 text-gray-400" /> Performance Metrics
+            </p>
+            <p className="text-xs md:text-sm font-semibold text-gray-600 bg-gray-50 px-3 py-1 rounded-full">
+              this period
+            </p>
           </div>
-          {[
-            ['Revenue / Hour',         `$${revenuePerHour}`],
-            ['Revenue / Door',         `$${revenuePerDoor}`],
-            ['Estimates Requested',    totalEstimates],
-            ['Sessions',               sessions.length],
-            ['Total Hours Canvassing', `${totalHours.toFixed(1)} hrs`],
-          ].map(([label, value]) => (
-            <div key={label} className="flex justify-between px-5 py-2.5 border-b last:border-0">
-              <span className="text-sm text-gray-600">{label}</span>
-              <span className="text-sm font-bold text-gray-900">{value}</span>
-            </div>
-          ))}
+          {/* Row spacing intentionally matches ConversionFunnel's space-y-4
+             md:space-y-5 so card heights track each other on desktop and
+             the right column doesn't bottom out short. */}
+          <div className="space-y-4 md:space-y-5">
+            {[
+              ['Revenue / Hour',         `$${revenuePerHour}`],
+              ['Revenue / Door',         `$${revenuePerDoor}`],
+              ['Estimates Requested',    totalEstimates.toLocaleString()],
+              ['Sessions',               sessions.length.toLocaleString()],
+              ['Total Hours Canvassing', `${totalHours.toFixed(1)} hrs`],
+            ].map(([label, value]) => (
+              <div key={label} className="flex items-baseline justify-between gap-3">
+                <span className="font-semibold text-gray-800 text-sm md:text-base">{label}</span>
+                <span className="font-bold text-gray-900 text-sm md:text-base tabular-nums">{value}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       {/* ── Bottom 2×2 grid ───────────────────────────────────────────────
@@ -638,9 +653,11 @@ function OverviewTab({
             sessions={sessions}
             onOpen={(id) => navigate('/session/' + id)}
           />
-          <OpenEstimatesCard
-            bookings={bookings}
-            onJumpToBookings={() => onJumpToTab?.('bookings')}
+          <GoalTrackerCard
+            totalRevenue={totalRevenue}
+            sessions={sessions}
+            org={org}
+            dateRange={dateRange}
           />
           <TopAreasCard sessions={sessions} />
           <ConversionBottleneckCard
@@ -2397,83 +2414,206 @@ function RecentSessionsCard({ sessions = [], onOpen }) {
   )
 }
 
-// Open Estimates — unbooked estimate_requested interactions, sorted by
-// recency. This is the "forward-looking" peer to Recent Sessions: estimates
-// the team got but haven't converted yet. Each row routes to the Bookings
-// tab (filtered to Unbooked Estimates) so a manager can drill in fast.
+// Goal Tracker — pace-vs-target for the period currently filtered on the
+// overview. Multiplies the org's daily revenue goal by the number of days
+// in the selected period to derive a period goal, then compares actual
+// revenue booked against it. The status pill ("on pace" / "behind" /
+// "ahead") is driven by whether the rate-to-date is keeping up with the
+// daily goal — not just whether the period total has been hit yet — so a
+// team early in the month sees something meaningful instead of always
+// reading "behind" until the last week.
 //
-// We deliberately surface estimated_value when present, since that's the
-// pipeline-dollars signal a manager cares about — total open $ becomes the
-// header KPI.
-function OpenEstimatesCard({ bookings = [], onJumpToBookings }) {
-  const open = bookings
-    .filter((b) => b.outcome === 'estimate_requested')
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  const totalValue = open.reduce((s, b) => s + (b.estimated_value || 0), 0)
-  const visible = open.slice(0, 5)
+// We only compute this for revenue-type org goals; count-type goals (e.g.
+// doors or bookings) get a minimal "set a revenue goal" empty state.
+function GoalTrackerCard({ totalRevenue = 0, sessions = [], org = null, dateRange = 'month' }) {
+  // Days in the selected filter window — mirrors the math driving the
+  // KPI sparklines so a "month" view here lines up with what the cards above
+  // already show.
+  const periodDays =
+    dateRange === 'today' ? 1  :
+    dateRange === 'week'  ? 7  :
+    dateRange === 'month' ? 30 :
+    /* all */               null
 
-  return (
-    <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
-      <div className="flex items-baseline justify-between mb-3">
-        <div>
-          <p className="text-sm font-semibold text-gray-900">Open Estimates</p>
-          <p className="text-[11px] text-gray-500">
-            {open.length} unbooked
-            {totalValue > 0 && <> · ${formatCompact(totalValue)} in pipeline</>}
+  // Number of *distinct* days the team has actually canvassed within the
+  // period. We elapse based on activity, not the wall clock — a brand-new
+  // org on day 3 of the month with 2 sessions logged shouldn't be told it
+  // needs to make up 27 days of pace it never had.
+  const activeDayKeys = new Set()
+  for (const s of sessions) {
+    if (!s.started_at) continue
+    activeDayKeys.add(format(startOfDay(new Date(s.started_at)), 'yyyy-MM-dd'))
+  }
+  const daysElapsed = Math.max(activeDayKeys.size, 0)
+
+  const goalType  = org?.daily_goal_type  || 'revenue'
+  const dailyGoal = Number(org?.daily_goal_value) || 0
+  const isRevenueGoal = goalType === 'revenue'
+
+  // Bail-out states — no usable goal config or an "all time" view where a
+  // period target doesn't make sense.
+  if (!isRevenueGoal || !dailyGoal || periodDays == null) {
+    return (
+      <section className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-4 md:mb-5">
+          <p className="text-gray-800 font-semibold text-base md:text-lg flex items-center gap-2">
+            <Target className="w-5 h-5 text-gray-400" /> Goal Tracker
           </p>
         </div>
-        {open.length > 0 && (
-          <button
-            type="button"
-            onClick={() => onJumpToBookings?.()}
-            className="text-[11px] font-semibold text-blue-600 hover:text-blue-700"
-          >
-            View all →
-          </button>
-        )}
-      </div>
-      {visible.length === 0 ? (
         <div className="py-6 text-center">
-          <BookOpen className="w-6 h-6 mx-auto mb-2 text-gray-300" />
-          <p className="text-xs text-gray-500">No open estimates this period.</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">Estimates show up here until they're booked.</p>
+          <Target className="w-7 h-7 mx-auto mb-2 text-gray-300" />
+          {!isRevenueGoal ? (
+            <>
+              <p className="text-sm text-gray-500">Goal Tracker needs a revenue-type goal.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Set one under Settings → Daily Goal.</p>
+            </>
+          ) : periodDays == null ? (
+            <>
+              <p className="text-sm text-gray-500">Pick a fixed period to see pace.</p>
+              <p className="text-xs text-gray-400 mt-0.5">"All time" doesn't have a target.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-500">No daily goal set.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Set one under Settings → Daily Goal.</p>
+            </>
+          )}
         </div>
-      ) : (
-        <ul className="space-y-2">
-          {visible.map((b) => {
-            const followUp = b.interactions?.follow_up || b.follow_up
-            return (
-              <li key={b.id}>
-                <button
-                  type="button"
-                  onClick={() => onJumpToBookings?.()}
-                  className="w-full text-left rounded-xl px-3 py-2.5 border border-amber-100 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-200 transition-colors"
-                >
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm text-gray-900 truncate">
-                        {b.contact_name || b.address || 'Unnamed estimate'}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">
-                        {b.users?.full_name ? `${b.users.full_name} · ` : ''}
-                        {b.created_at ? format(new Date(b.created_at), 'MMM d, h:mm a') : ''}
-                        {followUp && <span className="ml-1 text-amber-700 font-semibold">· 🏴 follow up</span>}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      {b.estimated_value > 0 ? (
-                        <p className="font-bold text-amber-700 text-sm">${formatCompact(b.estimated_value)}</p>
-                      ) : (
-                        <p className="text-xs text-gray-400">no value</p>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+      </section>
+    )
+  }
+
+  const periodGoal     = dailyGoal * periodDays
+  const remainingDays  = Math.max(periodDays - daysElapsed, 0)
+  const pctOfGoal      = Math.min((totalRevenue / periodGoal) * 100, 999)
+  const pctClamped     = Math.min(pctOfGoal, 100)
+  const remainingGoal  = Math.max(periodGoal - totalRevenue, 0)
+  // Daily run-rate so far. If no days canvassed yet, leave undefined so we
+  // don't show "$0/day" as a current pace.
+  const currentRate    = daysElapsed > 0 ? totalRevenue / daysElapsed : null
+  // What the team needs to average over the remaining days to still hit
+  // the period goal. If the period is over (remainingDays === 0), the
+  // catch-up rate isn't actionable — handled below.
+  const requiredRate   = remainingDays > 0 ? remainingGoal / remainingDays : null
+
+  // Status framing — "ahead" when current pace ≥ daily goal, "behind" when
+  // below 90% of it, "on pace" in between. The 90% band keeps a team that's
+  // a hair under target from getting whiplashed by the indicator.
+  let status, statusColor
+  if (currentRate == null) {
+    status      = 'no data yet'
+    statusColor = 'text-slate-600 bg-slate-100'
+  } else if (currentRate >= dailyGoal) {
+    status      = totalRevenue >= periodGoal ? 'goal hit 🎉' : 'on pace'
+    statusColor = 'text-green-700 bg-green-100'
+  } else if (currentRate >= dailyGoal * 0.9) {
+    status      = 'on pace'
+    statusColor = 'text-green-700 bg-green-100'
+  } else {
+    status      = 'behind'
+    statusColor = 'text-amber-700 bg-amber-100'
+  }
+  if (remainingDays === 0 && totalRevenue < periodGoal) {
+    status      = 'missed'
+    statusColor = 'text-red-700 bg-red-100'
+  }
+
+  const periodLabelStr =
+    dateRange === 'today' ? 'today' :
+    dateRange === 'week'  ? 'this week (rolling 7d)' :
+    /* month */              'this period (rolling 30d)'
+
+  return (
+    <section className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
+      <div className="flex items-center justify-between mb-4 md:mb-5">
+        <p className="text-gray-800 font-semibold text-base md:text-lg flex items-center gap-2">
+          <Target className="w-5 h-5 text-gray-400" /> Goal Tracker
+        </p>
+        <p className={`text-xs md:text-sm font-semibold px-3 py-1 rounded-full ${statusColor}`}>
+          {status}
+        </p>
+      </div>
+
+      {/* Big number — total $ booked vs the period goal, sized to match the
+         Bottleneck card's headline. */}
+      <div>
+        <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
+          Revenue {periodLabelStr}
+        </p>
+        <div className="flex items-baseline gap-2 mt-1">
+          <p className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-none tabular-nums">
+            ${formatCompact(totalRevenue)}
+          </p>
+          <p className="text-sm md:text-base text-gray-500 font-medium">
+            of ${formatCompact(periodGoal)}
+          </p>
+        </div>
+        <p className="text-xs md:text-sm text-gray-500 mt-1.5 tabular-nums">
+          <span className="font-bold text-gray-700">{pctOfGoal.toFixed(0)}%</span> of period goal
+        </p>
+      </div>
+
+      {/* Progress bar — clamped to 100% visually so an over-performing team
+         doesn't get a bar that spills past the card, but the headline still
+         shows the true %. */}
+      <div className="mt-3.5 h-3.5 md:h-4 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{
+            width: `${pctClamped}%`,
+            background: pctOfGoal >= 100
+              ? 'linear-gradient(90deg,#059669,#7DC31E)'
+              : 'linear-gradient(90deg,#7DC31E,#1B4FCC)',
+          }}
+        />
+      </div>
+
+      {/* Pace stats — three columns sized to mirror the Bottleneck card's
+         3-stage chips so the two cards in this row stay visually aligned. */}
+      <div className="grid grid-cols-3 gap-2 mt-4 md:mt-5">
+        <div className="rounded-lg px-2 py-2 border border-gray-200 bg-gray-50">
+          <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Daily goal</p>
+          <p className="text-base font-extrabold text-gray-700 tabular-nums">${formatCompact(dailyGoal)}</p>
+        </div>
+        <div className="rounded-lg px-2 py-2 border border-gray-200 bg-gray-50">
+          <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Current pace</p>
+          <p className="text-base font-extrabold text-gray-700 tabular-nums">
+            {currentRate != null ? `$${formatCompact(currentRate)}` : '—'}
+            <span className="text-[10px] font-medium text-gray-400">/day</span>
+          </p>
+        </div>
+        <div className={`rounded-lg px-2 py-2 border ${requiredRate != null && currentRate != null && requiredRate > currentRate ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+          <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Needed</p>
+          <p className={`text-base font-extrabold tabular-nums ${requiredRate != null && currentRate != null && requiredRate > currentRate ? 'text-amber-700' : 'text-gray-700'}`}>
+            {requiredRate != null ? `$${formatCompact(requiredRate)}` : totalRevenue >= periodGoal ? '✓' : '—'}
+            {requiredRate != null && <span className="text-[10px] font-medium text-gray-400">/day</span>}
+          </p>
+        </div>
+      </div>
+
+      {/* Plain-English summary — tells the manager the one number they
+         actually need to act on. Built off the same fields the chips
+         use, so changes there stay in sync. */}
+      <div className="rounded-lg bg-slate-50 border border-slate-200 px-3.5 py-2.5 mt-4">
+        <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">
+          What this means
+        </p>
+        <p className="text-xs md:text-sm text-slate-700 leading-snug">
+          {totalRevenue >= periodGoal ? (
+            <>Goal hit — keep stacking. Anything past today builds the next-period buffer.</>
+          ) : remainingDays === 0 ? (
+            <>Period closed ${formatCompact(remainingGoal)} short. Look at which days didn't run sessions.</>
+          ) : daysElapsed === 0 ? (
+            <>No active days yet. Daily goal is ${formatCompact(dailyGoal)} over {periodDays} days.</>
+          ) : (
+            <>
+              {currentRate >= dailyGoal
+                ? <>Pace is above the ${formatCompact(dailyGoal)}/day target. Stay on it — ${formatCompact(remainingGoal)} left across {remainingDays} day{remainingDays === 1 ? '' : 's'}.</>
+                : <>Team needs <span className="font-semibold text-gray-900">${formatCompact(requiredRate)}/day</span> across the remaining {remainingDays} day{remainingDays === 1 ? '' : 's'} to hit ${formatCompact(periodGoal)}.</>}
+            </>
+          )}
+        </p>
+      </div>
     </section>
   )
 }
@@ -2549,12 +2689,18 @@ function TopAreasCard({ sessions = [] }) {
   )
 }
 
-// Conversion Bottleneck — finds the steepest drop in the team funnel and
-// names it, with a coaching nudge. Drops are computed as (lost ÷ entered)
-// so the % is intuitive ("we lose 92% of people between conversation and
-// estimate"). Tie-break favors earlier stages because losing 80% at "door
-// → conversation" is a bigger lever than losing 80% at "estimate → book"
-// (the upstream stage feeds everything downstream).
+// Conversion Bottleneck — finds the funnel stage with the weakest
+// pass-through rate and names it, with a coaching nudge. We surface the
+// CONVERSION rate (passed ÷ entered) rather than the drop rate so the
+// number aligns with the Conversion Funnel above ("21% of doors" in the
+// funnel ⇄ "21% advance" here). The label still calls this a drop-off
+// because the *stage* with the lowest conversion rate is, by definition,
+// where the funnel leaks the most — but the figure the manager reads
+// matches the figure they just saw two cards up.
+//
+// Tie-break favors earlier stages: a leak at "Doors → Conversations" is
+// a bigger lever than the same percentage leak at "Estimates → Bookings"
+// because upstream losses compound downstream.
 //
 // `countLabel` mirrors the org's "estimates" vs "appointments" terminology
 // so the card reads in the manager's preferred verbiage.
@@ -2563,7 +2709,7 @@ function ConversionBottleneckCard({ stats = {}, countLabel = 'Estimates' }) {
   const estLabel = countLabel.toLowerCase()
 
   // Build stages in order. `entered` = pool that reached this stage,
-  // `passed` = pool that advanced to the next stage. Drop% = (1 - passed/entered).
+  // `passed` = pool that advanced to the next stage. Conversion% = passed/entered.
   const stages = [
     {
       key:   'doors',
@@ -2592,76 +2738,85 @@ function ConversionBottleneckCard({ stats = {}, countLabel = 'Estimates' }) {
   ]
 
   // Only consider stages where someone actually reached the top of the
-  // funnel — a stage with `entered = 0` has an undefined drop rate.
+  // funnel — a stage with `entered = 0` has an undefined conversion rate.
   const evaluable = stages
     .map((s) => ({
       ...s,
-      // dropPct: % of entered who did NOT advance. NaN-safe.
+      convPct: s.entered > 0 ? (s.passed / s.entered) * 100 : null,
       dropPct: s.entered > 0 ? (1 - s.passed / s.entered) * 100 : null,
     }))
-    .filter((s) => s.dropPct != null)
+    .filter((s) => s.convPct != null)
 
-  // Worst = highest dropPct; tie-break to the earlier stage (lower index)
-  // since fixing an upstream leak compounds downstream.
+  // Worst stage = lowest pass-through %. Tie-break to the earlier stage
+  // (first match wins) since fixing an upstream leak compounds downstream.
   let worst = null
   for (const s of evaluable) {
-    if (!worst || s.dropPct > worst.dropPct) worst = s
+    if (!worst || s.convPct < worst.convPct) worst = s
   }
 
   return (
-    <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
-      <div className="flex items-baseline justify-between mb-3">
-        <p className="text-sm font-semibold text-gray-900">Biggest Drop-Off</p>
-        <p className="text-[11px] text-gray-500">Where the funnel leaks most</p>
+    <section className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
+      <div className="flex items-center justify-between mb-4 md:mb-5">
+        <p className="text-gray-800 font-semibold text-base md:text-lg flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5 text-gray-400" /> Biggest Drop-Off
+        </p>
+        <p className="text-xs md:text-sm font-semibold text-gray-600 bg-gray-50 px-3 py-1 rounded-full">
+          weakest stage
+        </p>
       </div>
       {!worst ? (
-        <div className="py-6 text-center">
-          <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-gray-300" />
-          <p className="text-xs text-gray-500">Not enough activity to find a bottleneck.</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">Need at least one door knocked.</p>
+        <div className="py-8 text-center">
+          <AlertTriangle className="w-7 h-7 mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-500">Not enough activity to find a bottleneck.</p>
+          <p className="text-xs text-gray-400 mt-0.5">Need at least one door knocked.</p>
         </div>
       ) : (
-        <div>
-          {/* Headline — stage + drop %. Red wash on the chip echoes the
-             "leak" framing; the big number is what a manager remembers. */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex-1">
-              <p className="text-[11px] uppercase tracking-wide text-red-600 font-semibold">
-                {worst.from} → {worst.to}
+        <div className="space-y-4 md:space-y-5">
+          {/* Headline — stage name + the CONVERSION rate (matches the funnel
+             above). The drop is called out below so the framing is explicit
+             without dressing the headline number in a misleading metric. */}
+          <div>
+            <p className="text-xs md:text-sm uppercase tracking-wide text-red-600 font-semibold">
+              {worst.from} → {worst.to}
+            </p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <p className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-none tabular-nums">
+                {Math.round(worst.convPct)}%
               </p>
-              <p className="text-3xl font-extrabold text-gray-900 leading-none mt-0.5">
-                {Math.round(worst.dropPct)}%
-              </p>
-              <p className="text-[11px] text-gray-500 mt-0.5">
-                {worst.entered - worst.passed} of {worst.entered} dropped here
-              </p>
+              <p className="text-sm md:text-base text-gray-500 font-medium">advance</p>
             </div>
+            <p className="text-xs md:text-sm text-gray-500 mt-1.5">
+              <span className="font-semibold text-red-600">▼ {Math.round(worst.dropPct)}% drop</span>
+              {' · '}
+              {(worst.entered - worst.passed).toLocaleString()} of {worst.entered.toLocaleString()} didn't advance
+            </p>
           </div>
-          {/* Mini 3-stage drop-off bar — at a glance, where this stage
-             ranks against the other two so the manager has context. */}
-          <div className="grid grid-cols-3 gap-2 mb-3">
+          {/* Mini 3-stage comparison — same conversion %s shown across all
+             stages so the manager sees where the worst rate ranks. The
+             red chip highlights the bottleneck without changing scale. */}
+          <div className="grid grid-cols-3 gap-2">
             {evaluable.map((s) => {
               const isWorst = s.key === worst.key
               return (
-                <div key={s.key} className={`rounded-lg px-2 py-1.5 border ${isWorst ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
-                  <p className="text-[9px] uppercase tracking-wide text-gray-500 font-semibold truncate">
+                <div key={s.key} className={`rounded-lg px-2 py-2 border ${isWorst ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold truncate">
                     {s.from} → {s.to}
                   </p>
-                  <p className={`text-sm font-extrabold ${isWorst ? 'text-red-700' : 'text-gray-700'}`}>
-                    {Math.round(s.dropPct)}%
+                  <p className={`text-base font-extrabold tabular-nums ${isWorst ? 'text-red-700' : 'text-gray-700'}`}>
+                    {Math.round(s.convPct)}%
                   </p>
                 </div>
               )
             })}
           </div>
-          {/* Coaching nudge — stage-specific, hard-coded per leak. Keeps
-             the card from being a pure diagnostic; it should leave a
-             manager with one thing they could do this week. */}
-          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-0.5">
+          {/* Coaching nudge — stage-specific. Keeps the card from being a
+             pure diagnostic; should leave a manager with one thing they
+             could do this week. */}
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3.5 py-2.5">
+            <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1">
               Suggested action
             </p>
-            <p className="text-xs text-slate-700 leading-snug">{worst.tip}</p>
+            <p className="text-xs md:text-sm text-slate-700 leading-snug">{worst.tip}</p>
           </div>
         </div>
       )}
