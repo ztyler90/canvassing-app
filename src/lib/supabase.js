@@ -1054,6 +1054,44 @@ export async function getMyAssignedLeads() {
 }
 
 /**
+ * Pick the next closer in round-robin rotation. Used by the canvassing
+ * flow when a setter books a Hot Lead and the org's lead_routing_mode
+ * is 'round_robin'. Picks the closer with the oldest most-recent
+ * assignment so leads spread evenly across the team.
+ *
+ * Returns the chosen closer's user id, or null if the org has no closers.
+ * Computed client-side from a one-shot query so we don't need to ship
+ * an RPC for it — performance is fine while teams stay small.
+ */
+export async function pickRoundRobinCloser() {
+  const closers = await getAllClosers()
+  if (closers.length === 0) return null
+  const ids = closers.map((c) => c.id)
+  // Pull the most recent assignment time per closer. RLS lets a manager
+  // (the caller during the canvassing flow) read interactions in their
+  // org, which is exactly the rows we need.
+  const { data: recent } = await supabase
+    .from('interactions')
+    .select('closer_id, created_at')
+    .in('closer_id', ids)
+    .order('created_at', { ascending: false })
+  // Most-recent per-closer timestamp. Closers with no prior assignment
+  // sort to the front (Number.NEGATIVE_INFINITY) so brand-new hires get
+  // their first lead before busy veterans get their next.
+  const lastAt = {}
+  for (const id of ids) lastAt[id] = Number.NEGATIVE_INFINITY
+  for (const row of recent || []) {
+    const t = new Date(row.created_at).getTime()
+    if (t > lastAt[row.closer_id]) lastAt[row.closer_id] = t
+  }
+  let pick = ids[0]
+  for (const id of ids) {
+    if (lastAt[id] < lastAt[pick]) pick = id
+  }
+  return pick
+}
+
+/**
  * Closer-facing helper to advance a lead through the pipeline. Used by
  * the Closer Inbox to mark "estimate sent" / "booked" / "lost". RLS lets
  * closers update only rows where closer_id = auth.uid().

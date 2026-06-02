@@ -6,7 +6,7 @@
  * Extras: editable address, photo attachments, booking celebration animation
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { X, User, Phone, Mail, DollarSign, MapPin, Camera, MessageSquare } from 'lucide-react'
+import { X, User, Phone, Mail, DollarSign, MapPin, Camera, MessageSquare, Calendar, AlertCircle, UserCheck } from 'lucide-react'
 import {
   logInteraction,
   updateInteraction,
@@ -15,6 +15,9 @@ import {
   updateInteractionPhotos,
   flagInteractionFollowUp,
   getOrgServices,
+  getMyOrganization,
+  getAllClosers,
+  pickRoundRobinCloser,
 } from '../lib/supabase.js'
 import { reverseGeocodeCandidates } from '../lib/geocoding.js'
 
@@ -24,6 +27,28 @@ const OUTCOMES = [
   { id: 'estimate_requested', label: 'Estimate',        emoji: '📋', color: '#F59E0B', bg: '#FFFBEB' },
   { id: 'booked',             label: 'Booked!',         emoji: '✅', color: '#10B981', bg: '#ECFDF5' },
 ]
+
+// Phase 3: door-stage lost reasons. Mirrors the taxonomy decided in design
+// (5 options + Other). The estimate-stage version lives in CloserHome.
+const DOOR_LOST_REASONS = [
+  { id: 'has_provider',       label: 'Already has a provider' },
+  { id: 'not_decision_maker', label: 'Not the decision-maker' },
+  { id: 'not_in_market',      label: 'Not in the market right now' },
+  { id: 'hostile',            label: 'Hostile / asked us to leave' },
+  { id: 'other',              label: 'Other' },
+]
+
+// Outcome → pipeline stage. Drives the new `stage` column added in
+// 20260602_pipeline_phase1. no_answer doors don't enter the pipeline
+// (they have no homeowner contact), so they get a null stage.
+function outcomeToStage(outcome) {
+  switch (outcome) {
+    case 'booked':             return 'booked'
+    case 'estimate_requested': return 'hot_lead'
+    case 'not_interested':     return 'closed_not_interested'
+    default:                   return null
+  }
+}
 
 // SERVICES is now manager-configurable per organization — see Settings →
 // Services. The hardcoded exterior-cleaning list that used to live here
@@ -74,6 +99,43 @@ export default function InteractionModal({
     })
     return () => { alive = false }
   }, [])
+
+  // ── Phase 3: org-driven pipeline config ───────────────────────────────────
+  // Drives whether we show the appt picker (sales_cycle) and the closer
+  // assignment dropdown (lead_routing_mode). Loaded once on mount and
+  // stashed locally so the details step doesn't have to spinner-wait.
+  // Default to 'mixed' + 'manager_assigns' so a never-loaded org doesn't
+  // hide UI the rep needs.
+  const [salesCycle,      setSalesCycle]      = useState('mixed')
+  const [routingMode,     setRoutingMode]     = useState('manager_assigns')
+  const [closers,         setClosers]         = useState([])
+  useEffect(() => {
+    let alive = true
+    Promise.all([getMyOrganization(), getAllClosers()]).then(([org, cl]) => {
+      if (!alive) return
+      if (org?.sales_cycle)       setSalesCycle(org.sales_cycle)
+      if (org?.lead_routing_mode) setRoutingMode(org.lead_routing_mode)
+      setClosers(cl || [])
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  // Appointment date/time captured at the door. Surfaced as a step when
+  // the outcome is 'estimate_requested' on appointment_based / mixed orgs.
+  // Stored as ISO so we can write directly to interactions.appointment_at.
+  const [appointmentAt,   setAppointmentAt]   = useState(
+    existingInteraction?.appointment_at || ''
+  )
+  // Closer selection — populated for setter_picks routing or pre-filled
+  // from the round-robin pick. Empty string means "no closer assigned
+  // yet" (manager will dispatch later).
+  const [selectedCloserId, setSelectedCloserId] = useState(
+    existingInteraction?.closer_id || ''
+  )
+  // Lost-reason capture for 'not_interested' door outcomes. Stays NULL
+  // unless the rep explicitly picks a reason — we don't force it.
+  const [lostReason,       setLostReason]       = useState(null)
+  const [lostReasonNotes,  setLostReasonNotes]  = useState('')
   const [estimatedValue, setEstValue]   = useState(
     existingInteraction?.estimated_value != null ? String(existingInteraction.estimated_value) : ''
   )
@@ -212,10 +274,15 @@ export default function InteractionModal({
     cancelAutoDismiss()
     setOutcome(outcomeId)
     outcomeRef.current = outcomeId
-    if (outcomeId === 'no_answer' || outcomeId === 'not_interested') {
-      // Carry the typed notes through so "no answer / not interested" saves
-      // still capture any context the rep typed on the outcome screen.
+    if (outcomeId === 'no_answer') {
+      // No homeowner contact — save immediately. Notes carry through in
+      // case the rep typed anything on the outcome screen.
       await saveInteraction(outcomeId, { notes: notes || null })
+    } else if (outcomeId === 'not_interested') {
+      // Phase 3: route through the lost-reason picker so we capture *why*
+      // the door said no. Without a reason picker we'd only know the door
+      // closed, not which patterns are draining the funnel.
+      setStep('lost_reason')
     } else {
       setStep('details')
     }
@@ -263,6 +330,31 @@ export default function InteractionModal({
       lng:        knock?.lng || existingInteraction?.lng || null,
       outcome,
       ...extras,
+      // Phase 3: stage column added in 20260602_pipeline_phase1.
+      // Mapping is deterministic from outcome — we don't ask the rep,
+      // we just translate. Pipeline tab reads `stage`; legacy code still
+      // reads `outcome` so we write both.
+      stage: outcomeToStage(outcome),
+    }
+
+    // Hot-lead and lost-at timestamps land on the payload so the Pipeline
+    // tab can age cards correctly. Only set on first save — edits don't
+    // restart the clock.
+    if (!isEditing) {
+      if (outcome === 'estimate_requested') {
+        payload.hot_lead_started_at = new Date().toISOString()
+      }
+      if (outcome === 'not_interested') {
+        payload.lost_at = new Date().toISOString()
+        if (lostReason) {
+          payload.lost_reason       = lostReason
+          payload.lost_reason_notes = lostReasonNotes || null
+        }
+      }
+      // Appointment + closer fields populated only when the rep captured
+      // them in the new appt step. Empty string → null.
+      if (appointmentAt) payload.appointment_at = appointmentAt
+      if (selectedCloserId) payload.closer_id   = selectedCloserId
     }
 
     if (isNoAnswer) {
@@ -275,6 +367,11 @@ export default function InteractionModal({
       payload.service_types   = null
       payload.estimated_value = null
       payload.notes           = null
+      // Phase 3 fields don't apply to no_answer either.
+      payload.appointment_at   = null
+      payload.closer_id        = null
+      payload.lost_reason      = null
+      payload.lost_reason_notes = null
     }
 
     let interactionId = existingInteraction?.id || null

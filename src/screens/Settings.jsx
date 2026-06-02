@@ -505,7 +505,15 @@ export default function Settings() {
       {/* Header */}
       <div className="px-4 pt-12 pb-5 bg-brand-header">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 rounded-full bg-white/20">
+          {/* Always exit to the manager dashboard. `navigate(-1)` looks
+              correct at a glance but creates a bounce loop: visiting a
+              nested settings page (e.g. /settings/pipeline) then coming
+              back to /settings leaves /settings/pipeline as the previous
+              history entry, so pressing back here would push the user
+              right back into the page they just left. Settings is only
+              ever entered from /manager, so jumping there directly is the
+              safe exit. */}
+          <button onClick={() => navigate('/manager')} className="p-2 rounded-full bg-white/20">
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>
           <div>

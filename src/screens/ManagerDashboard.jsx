@@ -83,6 +83,10 @@ export default function ManagerDashboard() {
   const [mapData, setMapData]       = useState([])
   const [bookings, setBookings]     = useState([])
   const [org, setOrg]               = useState(null)
+  // Territories used by the Leaderboard tab's territory filter. Loaded
+  // alongside reps so the dropdown is populated on first render rather
+  // than after a click.
+  const [territoriesLite, setTerritoriesLite] = useState([])
   const [loading, setLoading]       = useState(true)
   const [dateRange, setDateRange]   = useState('month')
   const [selectedRep, setSelectedRep] = useState('all')
@@ -129,7 +133,7 @@ export default function ManagerDashboard() {
     const { dateFrom, dateTo } = resolvePeriod(dateRange)
     const filters  = { dateFrom, dateTo, ...(selectedRep !== 'all' ? { repId: selectedRep } : {}) }
 
-    const [sess, repList, interactions, bkgs, myOrg] = await Promise.all([
+    const [sess, repList, interactions, bkgs, myOrg, terrs] = await Promise.all([
       getAllSessions(filters),
       getAllReps(),
       getManagerMapData(filters),
@@ -137,12 +141,17 @@ export default function ManagerDashboard() {
       // Bookings tab's sub-nav can switch between them without re-fetching.
       getAllBookings({ ...filters, outcome: 'all' }),
       getMyOrganization(),
+      // Territories drive the Leaderboard's territory dropdown. Cheap query
+      // and rarely changes mid-session, so it's safe to refresh on every
+      // dashboard load instead of caching separately.
+      getTerritories(),
     ])
     setSessions(sess)
     setReps(repList)
     setMapData(interactions)
     setBookings(bkgs)
     setOrg(myOrg)
+    setTerritoriesLite(terrs)
     setLoading(false)
   }
 
@@ -364,7 +373,7 @@ export default function ManagerDashboard() {
                 dateRange={dateRange} />
             )}
             {tab === 'live'        && <LiveTab allReps={reps} />}
-            {tab === 'leaderboard' && <LeaderboardTab />}
+            {tab === 'leaderboard' && <LeaderboardTab territories={territoriesLite} />}
             {tab === 'reps'        && <RepsTab repStats={repStats} allReps={reps} sessions={sessions} dateRange={dateRange} />}
             {tab === 'bookings'    && <BookingsTab bookings={bookings} />}
             {tab === 'map'         && <MapTab interactions={mapData} />}
@@ -1895,11 +1904,112 @@ const MEDALS = [
   { label: 'Bronze', emoji: '🥉', gradient: 'linear-gradient(135deg, #D99363 0%, #9E5A2F 100%)', cardClass: 'border-orange-300 bg-orange-50' },
 ]
 
-function LeaderboardTab() {
-  const [period, setPeriod]         = useState('today')
-  const [sortBy, setSortBy]         = useState('revenue')
-  const [rows, setRows]             = useState([])
-  const [loading, setLoading]       = useState(true)
+// Deterministic avatar color from a name string — same name always lands on
+// the same hue so reps are recognizable across sessions. Hand-picked palette
+// reads against the white card background and the gold hero gradient without
+// fighting the KnockIQ lime accent.
+const AVATAR_PALETTE = [
+  '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B',
+  '#10B981', '#EF4444', '#0EA5E9', '#14B8A6',
+  '#A855F7', '#F97316',
+]
+function colorForName(name) {
+  let h = 0
+  for (let i = 0; i < (name || '').length; i++) h = (h * 31 + name.charCodeAt(i)) | 0
+  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length]
+}
+function initialsFor(name) {
+  if (!name) return '?'
+  const parts = String(name).trim().split(/\s+/)
+  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?'
+}
+function Avatar({ name, size = 36, ring = false }) {
+  return (
+    <div
+      className={`rounded-full grid place-items-center font-bold text-white shrink-0 ${ring ? 'ring-2 ring-white' : ''}`}
+      style={{ width: size, height: size, background: colorForName(name), fontSize: size * 0.4 }}
+    >
+      {initialsFor(name)}
+    </div>
+  )
+}
+
+// Rank-movement chip. ▲n green, ▼n red, — slate, or NEW pill if the rep had
+// no prior-period rank.
+function RankMovement({ current, prior }) {
+  if (prior == null) {
+    return (
+      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold">NEW</span>
+    )
+  }
+  const delta = prior - current
+  if (delta === 0) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-slate-400 text-[10px] font-bold"><Minus className="w-3 h-3" /></span>
+    )
+  }
+  const up = delta > 0
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold ${up ? 'text-emerald-600' : 'text-rose-500'}`}>
+      <span className="leading-none">{up ? '▲' : '▼'}</span>{Math.abs(delta)}
+    </span>
+  )
+}
+
+// Animated count-up — ease-out cubic from previous to next over ~600ms.
+function useCountUp(value, durationMs = 600) {
+  const [display, setDisplay] = useState(value)
+  const startRef = useRef({ from: value, t0: 0 })
+  useEffect(() => {
+    startRef.current = { from: display, t0: performance.now() }
+    let raf
+    const tick = (now) => {
+      const t = Math.min(1, (now - startRef.current.t0) / durationMs)
+      const eased = 1 - Math.pow(1 - t, 3)
+      const v = startRef.current.from + (value - startRef.current.from) * eased
+      setDisplay(v)
+      if (t < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+  return display
+}
+
+const PERIOD_OPTIONS = [
+  { value: 'today', label: 'Today' },
+  { value: 'week',  label: 'This Week' },
+  { value: 'month', label: 'This Month' },
+]
+const SORT_OPTIONS = [
+  { key: 'revenue',       label: 'Revenue' },
+  { key: 'bookings',      label: 'Booked'  },
+  { key: 'doors',         label: 'Doors'   },
+  { key: 'conversations', label: 'Convos'  },
+  { key: 'closeRate',     label: 'Close %' },
+  { key: 'revPerDoor',    label: '$/Door'  },
+]
+function projectSortValue(rep, key) {
+  if (!rep) return 0
+  if (key === 'closeRate')  return rep.doors > 0 ? (rep.bookings / rep.doors) : 0
+  if (key === 'revPerDoor') return rep.doors > 0 ? (rep.revenue  / rep.doors) : 0
+  return rep[key] || 0
+}
+
+function LeaderboardTab({ territories = [] }) {
+  const [period,    setPeriod]    = useState('today')
+  const [sortBy,    setSortBy]    = useState('revenue')
+  const [rows,      setRows]      = useState([])
+  const [loading,   setLoading]   = useState(true)
+  // "Share view" — hides revenue $ so the board can be posted publicly
+  // without surfacing comp-sensitive numbers.
+  const [redact,    setRedact]    = useState(false)
+  // Territory filter — 'all' shows the org-wide board, otherwise we restrict
+  // rows to reps assigned to the selected territory. Multi-territory reps
+  // appear under each of their territories.
+  const [territory, setTerritory] = useState('all')
+  const [shareMsg,  setShareMsg]  = useState('') // transient "Copied!" feedback
 
   useEffect(() => {
     setLoading(true)
@@ -1908,26 +2018,177 @@ function LeaderboardTab() {
       .finally(() => setLoading(false))
   }, [period])
 
-  const sorted = [...rows].sort((a, b) => b[sortBy] - a[sortBy])
+  // Set of rep IDs assigned to the currently selected territory. Empty set
+  // means "no filter" — see filtered() below.
+  const repIdsInTerritory = (() => {
+    if (territory === 'all') return null
+    const t = territories.find((x) => x.id === territory)
+    if (!t) return new Set()
+    return new Set((t.territory_assignments || []).map((a) => a.rep_id))
+  })()
+  const visible = repIdsInTerritory ? rows.filter((r) => repIdsInTerritory.has(r.id)) : rows
+  const sorted = [...visible].sort((a, b) => projectSortValue(b, sortBy) - projectSortValue(a, sortBy))
+  // Prior-period rank by the same metric the manager is sorting on, so the
+  // movement chip means "moved up in revenue" when sorted by revenue, etc.
+  // Also restricted to the territory filter so the rank delta reflects
+  // movement *within* that territory, not the whole org.
+  const priorRankByRepId = (() => {
+    const withPrior = visible
+      .filter((r) => r.prior)
+      .map((r) => ({ id: r.id, val: projectSortValue(r.prior, sortBy) }))
+      .sort((a, b) => b.val - a.val)
+    const out = {}
+    withPrior.forEach((r, i) => { out[r.id] = i + 1 })
+    return out
+  })()
 
-  const COLS = [
-    { key: 'doors',         label: 'Doors'   },
-    { key: 'conversations', label: 'Convos'  },
-    { key: 'bookings',      label: 'Booked'  },
-    { key: 'revenue',       label: 'Revenue' },
-  ]
+  const team = sorted.reduce((acc, r) => ({
+    revenue:       acc.revenue       + (r.revenue       || 0),
+    doors:         acc.doors         + (r.doors         || 0),
+    bookings:      acc.bookings      + (r.bookings      || 0),
+    conversations: acc.conversations + (r.conversations || 0),
+  }), { revenue: 0, doors: 0, bookings: 0, conversations: 0 })
+  const teamCloseRate = team.doors > 0 ? ((team.bookings / team.doors) * 100).toFixed(1) : '0.0'
+
+  const periodLabel = PERIOD_OPTIONS.find((p) => p.value === period)?.label || 'Today'
+
+  async function copyAsText() {
+    const lines = []
+    lines.push(`🏆 KnockIQ Leaderboard — ${periodLabel}`)
+    lines.push(`Team: ${team.bookings} bookings · ${team.doors} doors · ${teamCloseRate}% close${redact ? '' : ` · $${formatCompact(team.revenue)}`}`)
+    lines.push('')
+    sorted.slice(0, 10).forEach((r, i) => {
+      const medal = ['🥇', '🥈', '🥉'][i] || `${i + 1}.`
+      const cr    = r.doors > 0 ? ((r.bookings / r.doors) * 100).toFixed(0) : '0'
+      const $$    = redact ? '' : ` · $${formatCompact(r.revenue)}`
+      const streak = r.streakDays > 1 ? ` 🔥${r.streakDays}` : ''
+      const pr     = r.isPR ? ' ⭐PR' : ''
+      lines.push(`${medal} ${r.name} — ${r.bookings} booked · ${r.doors} doors · ${cr}%${$$}${streak}${pr}`)
+    })
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'))
+      setShareMsg('Copied to clipboard')
+    } catch {
+      setShareMsg('Copy failed')
+    }
+    setTimeout(() => setShareMsg(''), 1600)
+  }
+
+  async function downloadAsPng() {
+    const svg = buildLeaderboardShareSvg({ sorted, periodLabel, team, teamCloseRate, redact })
+    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+    const url  = URL.createObjectURL(blob)
+    const img  = new Image()
+    img.onload = () => {
+      const scale = 2  // retina-quality export
+      const canvas = document.createElement('canvas')
+      canvas.width  = img.width  * scale
+      canvas.height = img.height * scale
+      const ctx = canvas.getContext('2d')
+      ctx.scale(scale, scale)
+      ctx.drawImage(img, 0, 0)
+      canvas.toBlob((png) => {
+        URL.revokeObjectURL(url)
+        if (!png) { setShareMsg('Image export failed'); setTimeout(() => setShareMsg(''), 1600); return }
+        const a = document.createElement('a')
+        a.href     = URL.createObjectURL(png)
+        a.download = `leaderboard-${period}-${new Date().toISOString().slice(0, 10)}.png`
+        a.click()
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+        setShareMsg('Downloaded')
+        setTimeout(() => setShareMsg(''), 1600)
+      }, 'image/png')
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); setShareMsg('Image export failed'); setTimeout(() => setShareMsg(''), 1600) }
+    img.src = url
+  }
+
+  const top = sorted[0]
+  const restOfList = sorted.slice(1)
 
   return (
     <div className="flex flex-col max-w-7xl mx-auto w-full">
-      {/* Controls */}
-      <div className="px-4 py-3 bg-white border-b flex items-center gap-2">
-        {['today', 'week', 'month'].map((p) => (
-          <button key={p} onClick={() => setPeriod(p)}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${period === p ? 'text-white' : 'bg-gray-100 text-gray-500'}`}
-            style={period === p ? { backgroundColor: BRAND_GREEN } : {}}>
-            {p === 'today' ? 'Today' : p === 'week' ? 'This Week' : 'This Month'}
+      {/* ─── Sticky control strip ─────────────────────────────────────────
+          Period + Sort + Anonymize + Share live together so they stay
+          accessible while the manager scrolls a long roster. */}
+      <div className="sticky top-0 z-10 bg-white border-b">
+        <div className="px-4 py-3 flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-xl bg-slate-100 p-1">
+            {PERIOD_OPTIONS.map((p) => {
+              const active = period === p.value
+              return (
+                <button key={p.value} type="button" onClick={() => setPeriod(p.value)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${active ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:text-slate-900'}`}>
+                  {p.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Territory filter — restricts the board to a specific zone's
+              reps. Hidden when the org has no territories so the strip
+              doesn't show a useless one-option dropdown. */}
+          {territories.length > 0 && (
+            <select
+              value={territory}
+              onChange={(e) => setTerritory(e.target.value)}
+              className="text-xs font-semibold rounded-lg bg-white text-slate-700 ring-1 ring-slate-200 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              title="Filter by territory"
+            >
+              <option value="all">All territories</option>
+              {territories.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          )}
+
+          <div className="flex-1" />
+
+          {/* Share-view (anonymize $) toggle */}
+          <button
+            type="button"
+            onClick={() => setRedact((v) => !v)}
+            title={redact ? 'Show revenue' : 'Hide revenue ($) for public sharing'}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ring-1 transition-colors ${redact ? 'bg-amber-50 text-amber-900 ring-amber-200' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'}`}
+          >
+            {redact ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            {redact ? 'Hidden $' : 'Show $'}
           </button>
-        ))}
+
+          <button
+            type="button"
+            onClick={copyAsText}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+          >
+            <Copy className="w-3.5 h-3.5" /> Copy
+          </button>
+
+          <button
+            type="button"
+            onClick={downloadAsPng}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95"
+            style={{ backgroundColor: BRAND_GREEN }}
+          >
+            <Share2 className="w-3.5 h-3.5" /> Share PNG
+          </button>
+        </div>
+
+        <div className="px-4 pb-3 flex gap-2 flex-wrap items-center">
+          <span className="text-[11px] text-slate-500 font-medium uppercase tracking-wide mr-1">Sort by</span>
+          {SORT_OPTIONS.map(({ key, label }) => {
+            const active = sortBy === key
+            return (
+              <button key={key} onClick={() => setSortBy(key)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${active ? 'text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                style={active ? { backgroundColor: BRAND_GREEN } : {}}>
+                {label}
+              </button>
+            )
+          })}
+          {shareMsg && (
+            <span className="ml-auto text-[11px] font-semibold text-emerald-600">{shareMsg}</span>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -1942,28 +2203,30 @@ function LeaderboardTab() {
           <p className="text-xs mt-1">Data appears here once reps start sessions.</p>
         </div>
       ) : (
-        <div className="px-4 pt-4 pb-8 space-y-3">
-          {/* Sort chips */}
-          <div className="flex gap-2 flex-wrap">
-            <span className="text-xs text-gray-500 font-medium self-center mr-1">Sort by:</span>
-            {COLS.map(({ key, label }) => (
-              <button key={key} onClick={() => setSortBy(key)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${sortBy === key ? 'text-white' : 'bg-gray-100 text-gray-500'}`}
-                style={sortBy === key ? { backgroundColor: BRAND_GREEN } : {}}>
-                {label}
-              </button>
-            ))}
-          </div>
+        <div className="px-4 pt-4 pb-8 space-y-4">
+          {/* Team totals — collective headline for the period. */}
+          <TeamTotalsStrip team={team} closeRate={teamCloseRate} redact={redact} periodLabel={periodLabel} repCount={sorted.length} />
 
-          {/* Leaderboard rows */}
-          {sorted.map((rep, i) => {
-            const closeRate = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0'
-            const medal     = MEDALS[i]  // null for 4th place and beyond
+          {/* #1 spotlight — promoted hero card with animated revenue. */}
+          {top && (
+            <HeroCard
+              rep={top}
+              redact={redact}
+              prior={priorRankByRepId[top.id] ?? null}
+              periodLabel={periodLabel}
+              sortBy={sortBy}
+            />
+          )}
+
+          {/* Ranks 2..N */}
+          {restOfList.map((rep, idx) => {
+            const rank = idx + 2
+            const closeRate = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0.0'
+            const revPerDoor = rep.doors > 0 ? (rep.revenue / rep.doors) : 0
+            const medal     = MEDALS[rank - 1]   // gold/silver/bronze indexed by rank-1
             return (
               <div key={rep.id}
                 className={`relative rounded-2xl border p-4 ${medal ? medal.cardClass : 'border-gray-200 bg-white'}`}>
-                {/* Medal ribbon — pinned to the top-right corner of the card
-                    for 1st/2nd/3rd, purely decorative alongside the rank badge. */}
                 {medal && (
                   <div
                     className="absolute -top-2 -right-2 w-9 h-9 rounded-full grid place-items-center text-[18px] shadow-md border-2 border-white"
@@ -1975,20 +2238,52 @@ function LeaderboardTab() {
                   </div>
                 )}
                 <div className="flex items-center gap-3 mb-3">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${medal ? 'text-white' : 'bg-gray-100 text-gray-600'}`}
-                    style={medal ? { background: medal.gradient } : {}}>
-                    {i + 1}
+                  <div className="flex flex-col items-center shrink-0 w-9">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${medal ? 'text-white' : 'bg-gray-100 text-gray-600'}`}
+                      style={medal ? { background: medal.gradient } : {}}>
+                      {rank}
+                    </div>
+                    <div className="mt-0.5">
+                      <RankMovement current={rank} prior={priorRankByRepId[rep.id] ?? null} />
+                    </div>
                   </div>
+                  <Avatar name={rep.name} size={36} />
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-900 text-sm truncate">{rep.name}</p>
-                    <p className="text-xs text-gray-400">{rep.bookings} booking{rep.bookings !== 1 ? 's' : ''} · {closeRate}% close rate</p>
+                    <p className="font-bold text-gray-900 text-sm truncate flex items-center gap-1.5">
+                      {rep.name}
+                      {rep.streakDays >= 2 && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-700 text-[10px] font-bold">
+                          <Flame className="w-3 h-3" /> {rep.streakDays}
+                        </span>
+                      )}
+                      {rep.isPR && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-700 text-[10px] font-bold">
+                          <Award className="w-3 h-3" /> PR
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-400">{rep.bookings} booking{rep.bookings !== 1 ? 's' : ''} · {closeRate}% close · ${revPerDoor.toFixed(0)}/door</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-lg font-bold text-gray-900">${rep.revenue.toFixed(0)}</p>
+                    {redact ? (
+                      <p className="text-lg font-bold text-gray-300">—</p>
+                    ) : (
+                      <p className="text-lg font-bold text-gray-900">${formatCompact(rep.revenue)}</p>
+                    )}
                     <p className="text-xs text-gray-400">revenue</p>
                   </div>
                 </div>
+                {/* Pace bar — this rep's revenue as % of the leader. Acts as a
+                    visible "how far behind #1" cue until per-rep goals ship. */}
+                {top && top.revenue > 0 && !redact && (
+                  <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden mb-2">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${Math.min(100, (rep.revenue / top.revenue) * 100)}%`, background: BRAND_GREEN }}
+                    />
+                  </div>
+                )}
                 <div className="grid grid-cols-4 gap-2 pt-2 border-t border-gray-100">
                   <MicroStat label="Doors"   value={rep.doors}         />
                   <MicroStat label="Convos"  value={rep.conversations} />
@@ -2002,6 +2297,180 @@ function LeaderboardTab() {
       )}
     </div>
   )
+}
+
+// Skinny team-totals strip. One-row headline that sits above the hero so
+// screenshots always include a collective stat the manager can broadcast.
+function TeamTotalsStrip({ team, closeRate, redact, periodLabel, repCount }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 md:p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Users className="w-3.5 h-3.5 text-slate-500" />
+        <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500">Team total · {periodLabel} · {repCount} rep{repCount !== 1 ? 's' : ''}</p>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        <TeamStat label="Revenue"  value={redact ? '—' : `$${formatCompact(team.revenue)}`} muted={redact} />
+        <TeamStat label="Bookings" value={team.bookings} />
+        <TeamStat label="Doors"    value={team.doors} />
+        <TeamStat label="Close %"  value={`${closeRate}%`} />
+      </div>
+    </section>
+  )
+}
+function TeamStat({ label, value, muted }) {
+  return (
+    <div>
+      <p className={`text-lg md:text-xl font-extrabold leading-tight ${muted ? 'text-gray-300' : 'text-slate-900'}`}>{value}</p>
+      <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">{label}</p>
+    </div>
+  )
+}
+
+// Hero card — gold-trimmed treatment for the #1 spot. Big avatar + jumbo
+// animated revenue + verb-first callout chosen from the active sort metric.
+function HeroCard({ rep, redact, prior, periodLabel, sortBy }) {
+  const animatedRev = useCountUp(rep.revenue || 0)
+  const cr          = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0.0'
+  const revPerDoor  = rep.doors > 0 ? (rep.revenue / rep.doors).toFixed(0) : '0'
+
+  const callout = (() => {
+    if (sortBy === 'closeRate')     return `Top close rate at ${cr}%`
+    if (sortBy === 'revPerDoor')    return `Top efficiency at $${revPerDoor}/door`
+    if (sortBy === 'doors')         return `Most doors worked — ${rep.doors}`
+    if (sortBy === 'bookings')      return `Most booked — ${rep.bookings}`
+    if (sortBy === 'conversations') return `Most conversations — ${rep.conversations}`
+    return 'Leading the team in revenue'
+  })()
+
+  return (
+    <section
+      className="relative rounded-2xl border-2 p-4 md:p-5 overflow-hidden"
+      style={{
+        background: 'linear-gradient(135deg, #FFFBE6 0%, #FFF5C5 100%)',
+        borderColor: '#F5C542',
+      }}
+    >
+      <div className="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-[10px] font-bold shadow-sm"
+        style={{ background: 'linear-gradient(135deg, #F5C542 0%, #D4941E 100%)' }}>
+        <Crown className="w-3 h-3" /> #1 · {periodLabel}
+      </div>
+
+      <div className="flex items-center gap-3 mb-3">
+        <Avatar name={rep.name} size={56} ring />
+        <div className="min-w-0">
+          <p className="text-lg font-extrabold text-slate-900 truncate flex items-center gap-1.5">
+            {rep.name}
+            {rep.streakDays >= 2 && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold">
+                <Flame className="w-3 h-3" /> {rep.streakDays}-day
+              </span>
+            )}
+            {rep.isPR && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-bold">
+                <Award className="w-3 h-3" /> Personal Best
+              </span>
+            )}
+          </p>
+          <p className="text-xs text-slate-700 mt-0.5">{callout}</p>
+          <div className="mt-1">
+            <RankMovement current={1} prior={prior} />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div>
+          {redact ? (
+            <p className="text-3xl md:text-4xl font-black text-gray-300 leading-none">—</p>
+          ) : (
+            <p className="text-3xl md:text-4xl font-black text-slate-900 leading-none tabular-nums">
+              ${formatCompact(Math.round(animatedRev))}
+            </p>
+          )}
+          <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mt-1">Revenue · {periodLabel}</p>
+        </div>
+        <div className="grid grid-cols-4 gap-2 flex-1 min-w-[260px] max-w-md">
+          <MicroStat label="Booked"   value={rep.bookings}    />
+          <MicroStat label="Doors"    value={rep.doors}       />
+          <MicroStat label="Close %"  value={`${cr}%`}        />
+          <MicroStat label="$/Door"   value={redact ? '—' : `$${revPerDoor}`} />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── SVG share-card builder ─────────────────────────────────────────────────
+// Hand-rolled SVG so we don't need to ship html-to-image / html2canvas. Renders
+// a 1080-wide portrait card sized for Slack / iMessage / story shares. The
+// caller serializes this to a Blob, draws it onto a Canvas, exports a PNG.
+function buildLeaderboardShareSvg({ sorted, periodLabel, team, teamCloseRate, redact }) {
+  const W = 1080
+  const ROW_H = 130
+  const HEAD_H = 380
+  const top = sorted.slice(0, Math.min(5, sorted.length))
+  const H = HEAD_H + ROW_H * top.length + 90
+
+  const esc = (s) => String(s ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
+  const fmt$ = (v) => redact ? '—' : `$${formatCompact(v)}`
+  const medals = ['#F5C542', '#9AA5B3', '#D99363']
+
+  const rowsSvg = top.map((rep, i) => {
+    const y = HEAD_H + i * ROW_H
+    const cr = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(0) : '0'
+    const fill = colorForName(rep.name)
+    const medal = medals[i]
+    return `
+      <g transform="translate(40, ${y})">
+        <rect x="0" y="0" rx="20" ry="20" width="${W - 80}" height="${ROW_H - 16}" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" />
+        <circle cx="46" cy="${(ROW_H - 16) / 2}" r="22" fill="${medal || '#F3F4F6'}" />
+        <text x="46" y="${(ROW_H - 16) / 2 + 8}" font-family="system-ui, -apple-system, Inter, Arial" font-size="22" font-weight="800" fill="${medal ? '#FFFFFF' : '#374151'}" text-anchor="middle">${i + 1}</text>
+        <circle cx="110" cy="${(ROW_H - 16) / 2}" r="26" fill="${fill}" />
+        <text x="110" y="${(ROW_H - 16) / 2 + 9}" font-family="system-ui, -apple-system, Inter, Arial" font-size="22" font-weight="800" fill="#FFFFFF" text-anchor="middle">${esc(initialsFor(rep.name))}</text>
+        <text x="158" y="${(ROW_H - 16) / 2 - 4}" font-family="system-ui, -apple-system, Inter, Arial" font-size="28" font-weight="800" fill="#0F172A">${esc(rep.name)}</text>
+        <text x="158" y="${(ROW_H - 16) / 2 + 26}" font-family="system-ui, -apple-system, Inter, Arial" font-size="18" fill="#64748B">${rep.bookings} booked · ${rep.doors} doors · ${cr}% close${rep.streakDays >= 2 ? ` · 🔥${rep.streakDays}` : ''}${rep.isPR ? ' · ⭐PR' : ''}</text>
+        <text x="${W - 120}" y="${(ROW_H - 16) / 2 + 10}" font-family="system-ui, -apple-system, Inter, Arial" font-size="34" font-weight="900" fill="#0F172A" text-anchor="end">${esc(fmt$(rep.revenue))}</text>
+      </g>`
+  }).join('')
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#0F2C75" />
+        <stop offset="100%" stop-color="#1B4FCC" />
+      </linearGradient>
+    </defs>
+    <rect width="${W}" height="${H}" fill="#F8FAFC" />
+    <rect width="${W}" height="${HEAD_H - 20}" fill="url(#bg)" />
+    <text x="60" y="80" font-family="system-ui, -apple-system, Inter, Arial" font-size="28" font-weight="700" fill="#FFFFFF" opacity="0.85">🏆 KnockIQ Leaderboard</text>
+    <text x="60" y="150" font-family="system-ui, -apple-system, Inter, Arial" font-size="56" font-weight="900" fill="#FFFFFF">${esc(periodLabel)}</text>
+
+    <g transform="translate(60, 200)">
+      <rect width="${W - 120}" height="140" rx="20" fill="#FFFFFF" />
+      <g font-family="system-ui, -apple-system, Inter, Arial">
+        <g transform="translate(40, 40)">
+          <text font-size="14" fill="#64748B" font-weight="700">REVENUE</text>
+          <text y="42" font-size="36" font-weight="900" fill="#0F172A">${esc(fmt$(team.revenue))}</text>
+        </g>
+        <g transform="translate(280, 40)">
+          <text font-size="14" fill="#64748B" font-weight="700">BOOKED</text>
+          <text y="42" font-size="36" font-weight="900" fill="#0F172A">${team.bookings}</text>
+        </g>
+        <g transform="translate(520, 40)">
+          <text font-size="14" fill="#64748B" font-weight="700">DOORS</text>
+          <text y="42" font-size="36" font-weight="900" fill="#0F172A">${team.doors}</text>
+        </g>
+        <g transform="translate(760, 40)">
+          <text font-size="14" fill="#64748B" font-weight="700">CLOSE %</text>
+          <text y="42" font-size="36" font-weight="900" fill="#0F172A">${teamCloseRate}%</text>
+        </g>
+      </g>
+    </g>
+
+    ${rowsSvg}
+
+    <text x="${W / 2}" y="${H - 30}" font-family="system-ui, -apple-system, Inter, Arial" font-size="14" fill="#94A3B8" text-anchor="middle">KnockIQ · ${esc(new Date().toLocaleDateString())}</text>
+  </svg>`
 }
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
