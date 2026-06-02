@@ -811,26 +811,33 @@ export function ConversionFunnel({ stats, conv, estimateLabel = 'Estimates' }) {
   ]
 
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-gray-700 font-semibold text-sm flex items-center gap-1.5">
-          <Users className="w-4 h-4 text-gray-400" /> Conversion Funnel
+    // Conversion Funnel — the central diagnostic for "where am I leaking?"
+    // Sized generously on purpose: this is the data managers and reps both
+    // stare at to decide what to fix. Type and bar heights are bumped from
+    // the original compact styling so the numbers stay legible even at a
+    // glance on mobile.
+    <div className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
+      <div className="flex items-center justify-between mb-4 md:mb-5">
+        <p className="text-gray-800 font-semibold text-base md:text-lg flex items-center gap-2">
+          <Users className="w-5 h-5 text-gray-400" /> Conversion Funnel
         </p>
-        <p className="text-[11px] font-semibold text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+        <p className="text-xs md:text-sm font-semibold text-gray-600 bg-gray-50 px-3 py-1 rounded-full">
           {conv.overallClose.toFixed(1)}% close rate
         </p>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-4 md:space-y-5">
         {rows.map(r => (
           <div key={r.label}>
-            <div className="flex items-center justify-between text-[11px] mb-0.5">
-              <span className="font-semibold text-gray-700">{r.label}</span>
-              <span className="text-gray-500">
-                {r.count.toLocaleString()}
-                {r.pctLabel && <span className="ml-2 text-gray-400">· {r.pctLabel}</span>}
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-gray-800 text-sm md:text-base">{r.label}</span>
+              <span className="text-gray-700 text-sm md:text-base">
+                <span className="font-bold tabular-nums">{r.count.toLocaleString()}</span>
+                {r.pctLabel && (
+                  <span className="ml-2 text-xs md:text-sm text-gray-400 font-medium">· {r.pctLabel}</span>
+                )}
               </span>
             </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-3.5 md:h-4 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{ width: `${Math.max(r.pctOfTop, 2)}%`, backgroundColor: r.color }}

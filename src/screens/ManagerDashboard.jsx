@@ -358,6 +358,8 @@ export default function ManagerDashboard() {
                 closeRate={closeRate} revenuePerDoor={revenuePerDoor}
                 countLabel={countLabel}
                 repStats={repStats}
+                bookings={bookings}
+                onJumpToTab={setTab}
                 dateRange={dateRange} />
             )}
             {tab === 'live'        && <LiveTab allReps={reps} />}
@@ -377,7 +379,8 @@ export default function ManagerDashboard() {
 function OverviewTab({
   sessions, totalRevenue, totalDoors, totalBookings, totalEstimates,
   totalConversations = 0, closeRate, revenuePerDoor, countLabel = 'Estimates',
-  repStats = [], dateRange = '7',
+  repStats = [], bookings = [], onJumpToTab,
+  dateRange = '7',
 }) {
   const navigate = useNavigate()
   const totalHours     = sessions.reduce((sum, s) => {
@@ -624,36 +627,33 @@ function OverviewTab({
           ))}
         </div>
       </div>
-      {sessions.length > 0 && (
-        <div>
-          <p className="font-semibold text-gray-700 text-sm mb-2">Recent Sessions</p>
-          <div className="space-y-2">
-            {sessions.slice(0, 10).map((s) => (
-              <button
-                key={s.id}
-                onClick={() => navigate('/session/' + s.id)}
-                className="w-full bg-white rounded-xl px-4 py-3 border border-gray-100 text-left active:bg-gray-50 transition-colors">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-medium text-sm text-gray-900">{s.users?.full_name || 'Rep'}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{format(new Date(s.started_at), 'EEE MMM d, h:mm a')}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      <p className="font-bold text-gray-900">${(s.revenue_booked || 0).toFixed(0)}</p>
-                      <p className="text-xs text-gray-400">{s.doors_knocked || 0} doors</p>
-                    </div>
-                    <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
+      {/* ── Bottom 2×2 grid ───────────────────────────────────────────────
+         Four cards stacked on mobile, two-up on desktop. Pairing was chosen
+         to balance "look-back" panels (Recent Sessions, Top Areas) with
+         "look-forward / act-now" panels (Open Estimates, Bottleneck), so
+         each row reads as one backward + one forward signal. */}
+      {sessions.length > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+          <RecentSessionsCard
+            sessions={sessions}
+            onOpen={(id) => navigate('/session/' + id)}
+          />
+          <OpenEstimatesCard
+            bookings={bookings}
+            onJumpToBookings={() => onJumpToTab?.('bookings')}
+          />
+          <TopAreasCard sessions={sessions} />
+          <ConversionBottleneckCard
+            stats={{
+              doors:         totalDoors,
+              conversations: totalConversations,
+              estimates:     totalEstimates,
+              bookings:      totalBookings,
+            }}
+            countLabel={countLabel}
+          />
         </div>
-      )}
-      {sessions.length === 0 && (
+      ) : (
         <div className="text-center py-12 text-gray-400">
           <BarChart2 className="w-10 h-10 mx-auto mb-3 opacity-40" />
           <p className="font-medium">No sessions in this period</p>
@@ -2344,6 +2344,327 @@ function RepLeaderboard({ repStats = [] }) {
           )
         })}
       </ul>
+    </section>
+  )
+}
+
+// ─── Overview bottom-row cards ────────────────────────────────────────────────
+// All four follow the same shell: bg-white rounded-2xl border + 4–5 padding,
+// header row (title + subtitle), then the card-specific content. Kept as
+// peers so the 2×2 grid in OverviewTab can compose them in any order without
+// the cards knowing about each other.
+
+// Recent Sessions — the original "look-back" list, now wrapped in a card
+// shell so it sits cleanly next to the new cards in the half-width grid.
+// Trimmed to 8 rows (down from 10) so its visual height roughly matches
+// the Open Estimates card next to it.
+function RecentSessionsCard({ sessions = [], onOpen }) {
+  const visible = sessions.slice(0, 8)
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="text-sm font-semibold text-gray-900">Recent Sessions</p>
+        <p className="text-[11px] text-gray-500">Latest activity</p>
+      </div>
+      <ul className="space-y-2">
+        {visible.map((s) => (
+          <li key={s.id}>
+            <button
+              type="button"
+              onClick={() => onOpen?.(s.id)}
+              className="w-full text-left rounded-xl px-3 py-2.5 border border-gray-100 hover:bg-slate-50 hover:border-gray-200 transition-colors"
+            >
+              <div className="flex justify-between items-start gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm text-gray-900 truncate">{s.users?.full_name || 'Rep'}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{format(new Date(s.started_at), 'EEE MMM d, h:mm a')}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-right">
+                    <p className="font-bold text-gray-900 text-sm">${(s.revenue_booked || 0).toFixed(0)}</p>
+                    <p className="text-xs text-gray-400">{s.doors_knocked || 0} doors</p>
+                  </div>
+                  <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+// Open Estimates — unbooked estimate_requested interactions, sorted by
+// recency. This is the "forward-looking" peer to Recent Sessions: estimates
+// the team got but haven't converted yet. Each row routes to the Bookings
+// tab (filtered to Unbooked Estimates) so a manager can drill in fast.
+//
+// We deliberately surface estimated_value when present, since that's the
+// pipeline-dollars signal a manager cares about — total open $ becomes the
+// header KPI.
+function OpenEstimatesCard({ bookings = [], onJumpToBookings }) {
+  const open = bookings
+    .filter((b) => b.outcome === 'estimate_requested')
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  const totalValue = open.reduce((s, b) => s + (b.estimated_value || 0), 0)
+  const visible = open.slice(0, 5)
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
+      <div className="flex items-baseline justify-between mb-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">Open Estimates</p>
+          <p className="text-[11px] text-gray-500">
+            {open.length} unbooked
+            {totalValue > 0 && <> · ${formatCompact(totalValue)} in pipeline</>}
+          </p>
+        </div>
+        {open.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onJumpToBookings?.()}
+            className="text-[11px] font-semibold text-blue-600 hover:text-blue-700"
+          >
+            View all →
+          </button>
+        )}
+      </div>
+      {visible.length === 0 ? (
+        <div className="py-6 text-center">
+          <BookOpen className="w-6 h-6 mx-auto mb-2 text-gray-300" />
+          <p className="text-xs text-gray-500">No open estimates this period.</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">Estimates show up here until they're booked.</p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {visible.map((b) => {
+            const followUp = b.interactions?.follow_up || b.follow_up
+            return (
+              <li key={b.id}>
+                <button
+                  type="button"
+                  onClick={() => onJumpToBookings?.()}
+                  className="w-full text-left rounded-xl px-3 py-2.5 border border-amber-100 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-200 transition-colors"
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm text-gray-900 truncate">
+                        {b.contact_name || b.address || 'Unnamed estimate'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">
+                        {b.users?.full_name ? `${b.users.full_name} · ` : ''}
+                        {b.created_at ? format(new Date(b.created_at), 'MMM d, h:mm a') : ''}
+                        {followUp && <span className="ml-1 text-amber-700 font-semibold">· 🏴 follow up</span>}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      {b.estimated_value > 0 ? (
+                        <p className="font-bold text-amber-700 text-sm">${formatCompact(b.estimated_value)}</p>
+                      ) : (
+                        <p className="text-xs text-gray-400">no value</p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+// Top Areas — groups sessions by their `neighborhood` text field and ranks
+// by revenue. Neighborhoods are user-entered at session start, so we treat
+// blanks as "Untagged" rather than dropping them (better to show "you have
+// $14k from sessions with no area tagged" than to silently hide it).
+//
+// We show three stats per row — revenue, doors, and revenue-per-door —
+// because the same neighborhood can rank #1 by gross revenue and still be
+// a weak hunting ground per-door. RPD is the signal that tells a manager
+// "send more reps here."
+function TopAreasCard({ sessions = [] }) {
+  const buckets = {}
+  for (const s of sessions) {
+    const key = (s.neighborhood || '').trim() || 'Untagged'
+    if (!buckets[key]) buckets[key] = { name: key, revenue: 0, doors: 0, bookings: 0, sessions: 0 }
+    buckets[key].revenue  += s.revenue_booked || 0
+    buckets[key].doors    += s.doors_knocked  || 0
+    buckets[key].bookings += s.bookings       || 0
+    buckets[key].sessions += 1
+  }
+  const ranked = Object.values(buckets)
+    .filter((b) => b.revenue > 0 || b.doors > 0)
+    .sort((a, b) => b.revenue - a.revenue)
+  const top = ranked.slice(0, 5)
+  const max = Math.max(1, ...top.map((b) => b.revenue))
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="text-sm font-semibold text-gray-900">Top Areas</p>
+        <p className="text-[11px] text-gray-500">By revenue · per-door at right</p>
+      </div>
+      {top.length === 0 ? (
+        <div className="py-6 text-center">
+          <MapPin className="w-6 h-6 mx-auto mb-2 text-gray-300" />
+          <p className="text-xs text-gray-500">No neighborhood-tagged activity yet.</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">Reps can tag the area when starting a session.</p>
+        </div>
+      ) : (
+        <ul className="space-y-2.5">
+          {top.map((b, i) => {
+            const pct = (b.revenue / max) * 100
+            const rpd = b.doors > 0 ? b.revenue / b.doors : 0
+            return (
+              <li key={b.name}>
+                <div className="flex items-center gap-3">
+                  <span className="w-5 text-center text-xs font-extrabold text-gray-400">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-baseline gap-2">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{b.name}</p>
+                      <p className="text-sm font-extrabold text-gray-900 shrink-0">${formatCompact(b.revenue)}</p>
+                    </div>
+                    <div className="relative h-2 mt-1.5 rounded-full bg-slate-100 overflow-hidden">
+                      <span
+                        className="absolute inset-y-0 left-0 rounded-full"
+                        style={{ width: `${pct}%`, background: 'linear-gradient(90deg,#7ac943,#2757d7)' }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      {b.doors} doors · {b.bookings} jobs · ${rpd.toFixed(0)}/door
+                    </p>
+                  </div>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+// Conversion Bottleneck — finds the steepest drop in the team funnel and
+// names it, with a coaching nudge. Drops are computed as (lost ÷ entered)
+// so the % is intuitive ("we lose 92% of people between conversation and
+// estimate"). Tie-break favors earlier stages because losing 80% at "door
+// → conversation" is a bigger lever than losing 80% at "estimate → book"
+// (the upstream stage feeds everything downstream).
+//
+// `countLabel` mirrors the org's "estimates" vs "appointments" terminology
+// so the card reads in the manager's preferred verbiage.
+function ConversionBottleneckCard({ stats = {}, countLabel = 'Estimates' }) {
+  const { doors = 0, conversations = 0, estimates = 0, bookings = 0 } = stats
+  const estLabel = countLabel.toLowerCase()
+
+  // Build stages in order. `entered` = pool that reached this stage,
+  // `passed` = pool that advanced to the next stage. Drop% = (1 - passed/entered).
+  const stages = [
+    {
+      key:   'doors',
+      from:  'Doors',
+      to:    'Conversations',
+      entered: doors,
+      passed:  conversations,
+      tip:    'Reps are knocking but not getting people to talk. Reinforce opening lines and the "second knock" rule, and check whether they\'re hitting at the right times of day.',
+    },
+    {
+      key:   'convos',
+      from:  'Conversations',
+      to:    countLabel,
+      entered: conversations,
+      passed:  estimates,
+      tip:    `Reps are starting conversations but not landing ${estLabel}. Roleplay objection handling and tighten the value pitch — most ${estLabel} are won in the first 30 seconds.`,
+    },
+    {
+      key:   'estimates',
+      from:  countLabel,
+      to:    'Bookings',
+      entered: estimates,
+      passed:  bookings,
+      tip:    `${countLabel} aren't converting to booked jobs. Review the quoting flow with reps, check pricing competitiveness, and make sure follow-ups are happening within 24 hrs.`,
+    },
+  ]
+
+  // Only consider stages where someone actually reached the top of the
+  // funnel — a stage with `entered = 0` has an undefined drop rate.
+  const evaluable = stages
+    .map((s) => ({
+      ...s,
+      // dropPct: % of entered who did NOT advance. NaN-safe.
+      dropPct: s.entered > 0 ? (1 - s.passed / s.entered) * 100 : null,
+    }))
+    .filter((s) => s.dropPct != null)
+
+  // Worst = highest dropPct; tie-break to the earlier stage (lower index)
+  // since fixing an upstream leak compounds downstream.
+  let worst = null
+  for (const s of evaluable) {
+    if (!worst || s.dropPct > worst.dropPct) worst = s
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="text-sm font-semibold text-gray-900">Biggest Drop-Off</p>
+        <p className="text-[11px] text-gray-500">Where the funnel leaks most</p>
+      </div>
+      {!worst ? (
+        <div className="py-6 text-center">
+          <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-gray-300" />
+          <p className="text-xs text-gray-500">Not enough activity to find a bottleneck.</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">Need at least one door knocked.</p>
+        </div>
+      ) : (
+        <div>
+          {/* Headline — stage + drop %. Red wash on the chip echoes the
+             "leak" framing; the big number is what a manager remembers. */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex-1">
+              <p className="text-[11px] uppercase tracking-wide text-red-600 font-semibold">
+                {worst.from} → {worst.to}
+              </p>
+              <p className="text-3xl font-extrabold text-gray-900 leading-none mt-0.5">
+                {Math.round(worst.dropPct)}%
+              </p>
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                {worst.entered - worst.passed} of {worst.entered} dropped here
+              </p>
+            </div>
+          </div>
+          {/* Mini 3-stage drop-off bar — at a glance, where this stage
+             ranks against the other two so the manager has context. */}
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {evaluable.map((s) => {
+              const isWorst = s.key === worst.key
+              return (
+                <div key={s.key} className={`rounded-lg px-2 py-1.5 border ${isWorst ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+                  <p className="text-[9px] uppercase tracking-wide text-gray-500 font-semibold truncate">
+                    {s.from} → {s.to}
+                  </p>
+                  <p className={`text-sm font-extrabold ${isWorst ? 'text-red-700' : 'text-gray-700'}`}>
+                    {Math.round(s.dropPct)}%
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+          {/* Coaching nudge — stage-specific, hard-coded per leak. Keeps
+             the card from being a pure diagnostic; it should leave a
+             manager with one thing they could do this week. */}
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-0.5">
+              Suggested action
+            </p>
+            <p className="text-xs text-slate-700 leading-snug">{worst.tip}</p>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
