@@ -497,7 +497,10 @@ export default function InteractionModal({
       // the closer gets an email/SMS based on their pref. Best-effort —
       // we log failures but don't block the save. A future enhancement
       // could surface "couldn't notify Mike" inline.
-      if (payload.closer_id) {
+      // Phase 5: include email-only contact closers (closer_contact_id)
+      // — they need the email even more than platform users since they
+      // have no inbox to refresh.
+      if (payload.closer_id || payload.closer_contact_id) {
         notifyAssignedCloser(interactionId)
           .then((r) => { if (!r?.delivered) console.warn('[notify-closer] not delivered:', r) })
           .catch((e) => console.warn('[notify-closer] threw:', e))

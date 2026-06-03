@@ -1947,7 +1947,8 @@ function boundsOfPoints(pts) {
 export async function getAllDoorHistory() {
   const { data } = await supabase
     .from('interactions')
-    .select('id, lat, lng, outcome, address, created_at, rep_id, users ( full_name )')
+    // Same FK-ambiguity fix as getManagerMapData — pin to rep_id.
+    .select('id, lat, lng, outcome, address, created_at, rep_id, users!rep_id ( full_name )')
     .not('lat', 'is', null)
     .order('created_at', { ascending: false })
     .limit(2000)
@@ -1983,7 +1984,15 @@ export async function getManagerMapData(filters = {}) {
   if (!orgId) return []
   let query = supabase
     .from('interactions')
-    .select(`*, canvassing_sessions(neighborhood), users(full_name)`)
+    // PostgREST disambiguation: interactions has TWO foreign keys into
+    // users (rep_id AND closer_id, the latter added by the pipeline
+    // migration). A bare `users(...)` embed makes PostgREST return
+    // HTTP 300 / PGRST201 ("more than one relationship") and this
+    // helper silently returns `[]` — which manifested as a totally
+    // blank Map tab even when the org had thousands of interactions.
+    // Pin the embed to the rep_id FK, which is the relationship the
+    // Map popup actually needs ("who knocked this door").
+    .select(`*, canvassing_sessions(neighborhood), users!rep_id(full_name)`)
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false })
 
@@ -2695,7 +2704,8 @@ export async function getAllBookings(filters = {}) {
 
   let query = supabase
     .from('interactions')
-    .select('*, users(full_name)')
+    // Same FK-ambiguity fix as getManagerMapData — pin to rep_id.
+    .select('*, users!rep_id(full_name)')
     .order('created_at', { ascending: false })
     .limit(100)
 

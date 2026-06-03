@@ -26,7 +26,7 @@ import {
 import { PhotoThumb } from '../lib/photos.jsx'
 import {
   getAllClosersUnified, updateLeadStage, updateLeadPrice, updateLeadAppointment,
-  updateLeadContact, setLeadCloser,
+  updateLeadContact, setLeadCloser, notifyAssignedCloser,
 } from '../lib/supabase.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -110,6 +110,20 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
     if (err) {
       setError(err.message || "Couldn't update this lead — refresh and try again.")
       return
+    }
+    // Fire the lead-assigned email/SMS notification when we *assigned*
+    // (not when we cleared). Mirrors the InteractionModal door-flow
+    // behavior — best-effort, never blocks the UI. Without this hook the
+    // manager reassign dropdown was silently saving the FK but no email
+    // ever went out, which is what Zach hit while testing.
+    if (pick) {
+      notifyAssignedCloser(lead.id)
+        .then((r) => {
+          if (!r?.delivered) {
+            console.warn('[notify-closer] not delivered on reassign:', r)
+          }
+        })
+        .catch((e) => console.warn('[notify-closer] threw on reassign:', e))
     }
     onUpdate?.(row)
   }

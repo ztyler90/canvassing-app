@@ -49,6 +49,17 @@ const STAGE_COLUMNS = [
     desc: 'Won deals — job not yet completed.' },
 ]
 
+// "Quick Quote" orgs don't set appointments — closers price at the door.
+// Hide the Appt Scheduled column + the Next 10 Days calendar strip in that
+// mode so the pipeline reflects the workflow the org actually runs. Mixed
+// and appointment_based both keep the full layout.
+function visibleStageColumns(salesCycle) {
+  if (salesCycle === 'quick_quote') {
+    return STAGE_COLUMNS.filter((c) => c.id !== 'appt_scheduled')
+  }
+  return STAGE_COLUMNS
+}
+
 export default function PipelineTab() {
   const [org,              setOrg]              = useState(null)
   const [leads,            setLeads]            = useState([])
@@ -56,7 +67,15 @@ export default function PipelineTab() {
   const [appts,            setAppts]            = useState([])
   const [health,           setHealth]           = useState(null)
   const [closed,           setClosed]           = useState(null)
+  // Two-stage loading: `loading` only flips true on initial mount (so the
+  // page shows the spinner once); subsequent post-edit refreshes set
+  // `refreshing` instead, which doesn't unmount the modal underneath.
+  // Previously a single `loading` flag was toggled inside handleLeadUpdate
+  // → load(), which caused this whole component to swap to the spinner
+  // branch mid-edit and unmount LeadDetailModal — making manager reassigns
+  // look like "the page refreshed and nothing happened."
   const [loading,          setLoading]          = useState(true)
+  const [refreshing,       setRefreshing]       = useState(false)
   const [closedExpanded,   setClosedExpanded]   = useState(false)
   // The currently-opened lead, if any. null means no modal. Keyed by full
   // lead object (not just id) so the modal can render its drill-down
@@ -77,12 +96,24 @@ export default function PipelineTab() {
     // If the stage changed, the lead may have left the active-pipeline
     // tracked range. Simplest correct thing: trigger a soft refresh so
     // counts stay accurate. Action queue + health are derived from the
-    // same set so they refresh too.
-    load()
+    // same set so they refresh too. Uses { background: true } so the
+    // spinner branch doesn't unmount any open modal mid-edit.
+    load({ background: true }).then(() => {
+      // After the refresh, re-point openLead to the freshly-joined row
+      // so the modal's fields (closer name, stage, etc.) reflect what
+      // just changed. Fall back to the patched `updated` if RLS hides
+      // the row.
+      setOpenLead((prev) => {
+        if (!prev) return prev
+        if (prev.id !== updated.id) return prev
+        return { ...prev, ...updated }
+      })
+    })
   }
 
-  async function load() {
-    setLoading(true)
+  async function load({ background = false } = {}) {
+    if (background) setRefreshing(true)
+    else            setLoading(true)
     const [o, l, q, a, h, c] = await Promise.all([
       getMyOrganization(),
       getPipelineLeads(),
@@ -92,10 +123,26 @@ export default function PipelineTab() {
       getClosedSummary(30),
     ])
     setOrg(o); setLeads(l); setQueue(q); setAppts(a); setHealth(h); setClosed(c)
-    setLoading(false)
+    // After a background refresh, also patch openLead so the modal
+    // picks up server-fresh join data (closer name, setter name, etc.).
+    if (background) {
+      setOpenLead((prev) => {
+        if (!prev) return prev
+        const fresh = (l || []).find((x) => x.id === prev.id)
+        return fresh || prev
+      })
+    }
+    if (background) setRefreshing(false)
+    else            setLoading(false)
   }
 
-  const isPro = org?.tier === 'pro'
+  const isPro      = org?.tier === 'pro'
+  // 'quick_quote' orgs price at the door and don't track appointments.
+  // We hide the Appt Scheduled column and the Next 10 Days zone in that
+  // mode. Default to 'mixed' (full layout) until the org row arrives.
+  const salesCycle = org?.sales_cycle || 'mixed'
+  const isQuickQuote = salesCycle === 'quick_quote'
+  const stageColumns = visibleStageColumns(salesCycle)
 
   // Group active leads by stage so each kanban column renders from a small
   // local array rather than re-filtering on every render.
@@ -153,15 +200,19 @@ export default function PipelineTab() {
       </ProSection>
 
       {/* ── Zone 2: Next 10 Days (Pro) ───────────────────────────────── */}
-      <ProSection
-        isPro={isPro}
-        icon={<Calendar className="w-4 h-4" style={{ color: BRAND_BLUE }} />}
-        title="Next 10 Days"
-        subtitle={isPro && appts ? `${appts.reduce((a, d) => a + d.appts.length, 0)} scheduled · $${formatCompact(appts.reduce((a, d) => a + d.totalValue, 0))} on calendar` : null}
-        unlockBlurb="Spot the day your team is double-booked — or empty. Each card shows appointments + $ on the calendar."
-      >
-        <CalendarStrip days={appts} onDayClick={setOpenDay} />
-      </ProSection>
+      {/* Hidden entirely for Quick Quote orgs — they don't schedule
+          appointments, so a 10-day calendar strip is just noise. */}
+      {!isQuickQuote && (
+        <ProSection
+          isPro={isPro}
+          icon={<Calendar className="w-4 h-4" style={{ color: BRAND_BLUE }} />}
+          title="Next 10 Days"
+          subtitle={isPro && appts ? `${appts.reduce((a, d) => a + d.appts.length, 0)} scheduled · $${formatCompact(appts.reduce((a, d) => a + d.totalValue, 0))} on calendar` : null}
+          unlockBlurb="Spot the day your team is double-booked — or empty. Each card shows appointments + $ on the calendar."
+        >
+          <CalendarStrip days={appts} onDayClick={setOpenDay} />
+        </ProSection>
+      )}
 
       {/* ── Zone 3: Open Pipeline (FREE) ─────────────────────────────── */}
       {/* The kanban is unlocked on every tier — that's the basic experience
@@ -177,8 +228,10 @@ export default function PipelineTab() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {STAGE_COLUMNS.map((col) => (
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${
+          stageColumns.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'
+        }`}>
+          {stageColumns.map((col) => (
             <KanbanColumn
               key={col.id}
               col={col}
