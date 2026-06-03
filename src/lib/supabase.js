@@ -2540,58 +2540,22 @@ export async function ensureTeamConversation() {
 
 /**
  * Get or create a 1:1 DM conversation with another user in the same org.
- * Idempotent — if the DM already exists (or another tab raced us), we
- * fall through to the SELECT and return the existing id.
+ *
+ * Delegates to the chat_get_or_create_dm RPC so the conversation row +
+ * both participant rows are created in one transaction. We tried doing
+ * this client-side (insert → select-back → upsert participants) but ran
+ * into a chicken-and-egg with RLS: the post-insert SELECT couldn't see
+ * the new conversation because no participants existed yet, so the call
+ * silently returned null. The RPC is SECURITY DEFINER and atomic, so the
+ * caller just gets the conversation id back.
  */
 export async function getOrCreateDM(otherUserId) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user || !otherUserId || user.id === otherUserId) return null
-  const orgId = await getMyOrgId()
-  if (!orgId) return null
-  const key = dmKeyFor(user.id, otherUserId)
-
-  // Existing?
-  const { data: hit } = await supabase
-    .from('chat_conversations')
-    .select('id')
-    .eq('organization_id', orgId)
-    .eq('type', 'dm')
-    .eq('dm_key', key)
-    .maybeSingle()
-  if (hit?.id) return hit.id
-
-  // Create. The partial unique index swallows races; a 23505 here just
-  // means another tab beat us, so we re-select.
-  const { data: created, error: insertErr } = await supabase
-    .from('chat_conversations')
-    .insert({ organization_id: orgId, type: 'dm', dm_key: key })
-    .select('id')
-    .single()
-  let convId = created?.id
-  if (insertErr && insertErr.code === '23505') {
-    const { data: again } = await supabase
-      .from('chat_conversations')
-      .select('id')
-      .eq('organization_id', orgId)
-      .eq('type', 'dm')
-      .eq('dm_key', key)
-      .maybeSingle()
-    convId = again?.id || null
-  }
-  if (!convId) return null
-
-  // Both participants. Conflict-do-nothing covers the race where one of
-  // them was already attached from a prior partial run.
-  await supabase
-    .from('chat_participants')
-    .upsert(
-      [
-        { conversation_id: convId, user_id: user.id },
-        { conversation_id: convId, user_id: otherUserId },
-      ],
-      { onConflict: 'conversation_id,user_id', ignoreDuplicates: true }
-    )
-  return convId
+  const { data, error } = await supabase
+    .rpc('chat_get_or_create_dm', { p_other: otherUserId })
+  if (error) return null
+  return data || null
 }
 
 /**
