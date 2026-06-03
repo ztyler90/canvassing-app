@@ -360,8 +360,15 @@ function InboxList({ conversations, loading, onOpen, onNewDM }) {
   }
   // Pin team channel(s) on top, DMs below. Within each group we keep the
   // server's recency sort.
+  //
+  // DM filter — only render rows that actually have a message. Tapping a
+  // teammate creates the conversation row eagerly (so the DM thread can
+  // load), but a thread the user opened and abandoned without sending
+  // shouldn't litter the inbox. The empty row stays in the DB (and gets
+  // reused on next dm_key match — getOrCreateDM is idempotent), it just
+  // doesn't render until either side actually says something.
   const teamRows = conversations.filter((c) => c.type === 'team')
-  const dmRows   = conversations.filter((c) => c.type === 'dm')
+  const dmRows   = conversations.filter((c) => c.type === 'dm' && c.last_message)
 
   return (
     <div className="flex-1 overflow-y-auto">
