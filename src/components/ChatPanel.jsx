@@ -76,6 +76,11 @@ export default function ChatPanel({ open = false, onClose, compact = false }) {
   const [sending, setSending] = useState(false)
   const [teammates, setTeammates] = useState([])
   const [pickerFilter, setPickerFilter] = useState('')
+  // Tracks which teammate row is mid-DM-creation so the picker shows a
+  // spinner instead of silently doing nothing. Also surfaces any error
+  // message inline rather than swallowing it.
+  const [pickerBusyId, setPickerBusyId] = useState(null)
+  const [pickerError, setPickerError]   = useState('')
   const threadEndRef = useRef(null)
   const channelRef   = useRef(null)
 
@@ -172,8 +177,22 @@ export default function ChatPanel({ open = false, onClose, compact = false }) {
   }
 
   async function startDM(teammate) {
-    const convId = await getOrCreateDM(teammate.id)
-    if (!convId) return
+    if (!teammate?.id || pickerBusyId) return
+    setPickerError('')
+    setPickerBusyId(teammate.id)
+    const { id: convId, error } = await getOrCreateDM(teammate.id)
+    setPickerBusyId(null)
+    if (error || !convId) {
+      // Show the failure inline so the user isn't left wondering why the
+      // tap did nothing. The console.error in supabase.js carries the
+      // full error for DevTools; the UI just needs a human-readable nudge.
+      setPickerError(
+        error?.message
+          ? `Couldn't open conversation: ${error.message}`
+          : "Couldn't open conversation. Try again in a moment."
+      )
+      return
+    }
     await refreshInbox()
     setActiveConvId(convId)
     setView('thread')
@@ -321,6 +340,8 @@ export default function ChatPanel({ open = false, onClose, compact = false }) {
             filter={pickerFilter}
             setFilter={setPickerFilter}
             onPick={startDM}
+            busyId={pickerBusyId}
+            errorMessage={pickerError}
           />
         )}
       </div>
@@ -497,7 +518,11 @@ function ThreadView({
 }
 
 // ─── Picker view ───────────────────────────────────────────────────────────
-function PickerView({ teammates, filter, setFilter, onPick }) {
+// `busyId` is the teammate id currently mid-DM-creation. We swap that row's
+// trailing affordance for a spinner so a slow round-trip looks like a slow
+// round-trip — not a dead tap. `errorMessage` surfaces any RPC failure
+// inline; the full error lives in DevTools (logged from supabase.js).
+function PickerView({ teammates, filter, setFilter, onPick, busyId, errorMessage }) {
   return (
     <>
       <div className="px-3 py-2 border-b border-gray-100">
@@ -510,6 +535,11 @@ function PickerView({ teammates, filter, setFilter, onPick }) {
             className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
+        {errorMessage && (
+          <p className="mt-2 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-md px-2.5 py-1.5 leading-snug">
+            {errorMessage}
+          </p>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto">
         {teammates.length === 0 ? (
@@ -517,22 +547,32 @@ function PickerView({ teammates, filter, setFilter, onPick }) {
             <p className="text-xs text-gray-500">No teammates found.</p>
           </div>
         ) : (
-          teammates.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onPick(t)}
-              className="w-full text-left px-3 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors border-b border-gray-100"
-            >
-              <div className="w-9 h-9 rounded-full grid place-items-center text-xs font-bold bg-slate-200 text-slate-700">
-                {initials(t.full_name || t.email)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm text-gray-900 truncate">{t.full_name || t.email}</p>
-                <p className="text-[11px] text-gray-500 capitalize">{t.role || 'member'}</p>
-              </div>
-            </button>
-          ))
+          teammates.map((t) => {
+            const isBusy = busyId === t.id
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onPick(t)}
+                disabled={isBusy || (busyId && busyId !== t.id)}
+                className="w-full text-left px-3 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors border-b border-gray-100 disabled:opacity-60"
+              >
+                <div className="w-9 h-9 rounded-full grid place-items-center text-xs font-bold bg-slate-200 text-slate-700">
+                  {initials(t.full_name || t.email)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-gray-900 truncate">{t.full_name || t.email}</p>
+                  <p className="text-[11px] text-gray-500 capitalize">{t.role || 'member'}</p>
+                </div>
+                {isBusy && (
+                  <span
+                    aria-hidden="true"
+                    className="shrink-0 w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"
+                  />
+                )}
+              </button>
+            )
+          })
         )}
       </div>
     </>

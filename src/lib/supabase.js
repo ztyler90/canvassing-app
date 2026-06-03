@@ -2548,14 +2548,33 @@ export async function ensureTeamConversation() {
  * the new conversation because no participants existed yet, so the call
  * silently returned null. The RPC is SECURITY DEFINER and atomic, so the
  * caller just gets the conversation id back.
+ *
+ * Returns { id, error } so callers can surface the failure mode instead
+ * of swallowing it silently — the "nothing happens when I tap a name"
+ * bug was caused by us discarding the error on the client.
  */
 export async function getOrCreateDM(otherUserId) {
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user || !otherUserId || user.id === otherUserId) return null
+  if (!user) {
+    return { id: null, error: new Error('Not signed in') }
+  }
+  if (!otherUserId || user.id === otherUserId) {
+    return { id: null, error: new Error('Invalid recipient') }
+  }
   const { data, error } = await supabase
     .rpc('chat_get_or_create_dm', { p_other: otherUserId })
-  if (error) return null
-  return data || null
+  if (error) {
+    // Useful breadcrumb for DevTools. Without this the failure mode was
+    // invisible — startDM would early-return and the picker would do
+    // nothing on tap.
+    // eslint-disable-next-line no-console
+    console.error('[chat] chat_get_or_create_dm failed', error)
+    return { id: null, error }
+  }
+  if (!data) {
+    return { id: null, error: new Error('No conversation id returned') }
+  }
+  return { id: data, error: null }
 }
 
 /**
