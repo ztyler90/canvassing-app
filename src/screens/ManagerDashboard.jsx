@@ -3093,8 +3093,331 @@ function GoalTrackerCard({
           )}
         </p>
       </div>
+
+      {/* Suggestions — fills the bottom of the card with context-aware
+          callouts. Behind: corrective actions quoting specific data.
+          On pace: reinforcement + small optimization. Goal hit:
+          recognition + buffer math + raise-the-bar nudge. See
+          buildGoalSuggestions for the rules. */}
+      <GoalSuggestionsBlock
+        status={status}
+        suggestions={buildGoalSuggestions({
+          sessions, isRevenue, dailyGoal, periodGoal, periodDays,
+          remainingDays, actual, currentRate, pluralNoun,
+          fmtTotal, fmtPerDay,
+        })}
+      />
     </section>
   )
+}
+
+/**
+ * Renders the suggestions list at the bottom of the GoalTrackerCard.
+ * Stays empty if no suggestions fire — better to leave whitespace than
+ * to invent generic filler.
+ */
+function GoalSuggestionsBlock({ status, suggestions }) {
+  if (!suggestions || suggestions.length === 0) return null
+  const heading =
+    status === 'behind' || status === 'missed' ? 'Try this'  :
+    status === 'goal hit 🎉'                  ? 'Wins'      :
+                                                'Keep going'
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100">
+      <p className="text-[10px] uppercase tracking-wide font-bold text-gray-400 mb-2">
+        {heading}
+      </p>
+      <ul className="space-y-2">
+        {suggestions.slice(0, 3).map((s, i) => (
+          <li key={i} className="flex items-start gap-2.5">
+            <span className="text-[14px] leading-5 shrink-0" aria-hidden="true">{s.icon}</span>
+            <p className="text-xs md:text-sm text-gray-700 leading-snug">
+              <span className="font-semibold text-gray-900">{s.headline}</span>
+              {s.detail && <span className="text-gray-600"> — {s.detail}</span>}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/**
+ * Build a small ranked list of suggestions for the GoalTrackerCard.
+ *
+ * Rules are evaluated against the same sessions array the rest of the
+ * card uses, so callouts cite real names + numbers from the team. Each
+ * rule returns null if its preconditions aren't met (e.g. no clear
+ * lagging rep, no day-of-week pattern); the dispatcher prunes nulls and
+ * caps the list at 3 so the card never feels noisy.
+ *
+ * Mode selection mirrors the status pill: behind → corrective rules,
+ * goal-hit → recognition + buffer math, on-pace → reinforcement + one
+ * optimization. The pure helpers below (topRep, bestDay, etc.) are kept
+ * separate so they're trivially testable and reusable.
+ */
+function buildGoalSuggestions(ctx) {
+  const {
+    sessions, isRevenue, dailyGoal, periodGoal, periodDays,
+    remainingDays, actual, currentRate, pluralNoun,
+    fmtTotal, fmtPerDay,
+  } = ctx
+  if (!sessions || sessions.length === 0) return []
+
+  // Choose the metric we suggest against — for revenue goals everything
+  // is dollars; for count goals it's estimates/appointments. Centralized
+  // so a new rule doesn't have to re-derive this.
+  const metricFn = (s) => isRevenue
+    ? Number(s.revenue_booked || 0)
+    : Number(s.estimates || 0)
+
+  const status =
+    actual >= periodGoal                          ? 'hit'      :
+    currentRate != null && currentRate >= dailyGoal ? 'on_pace' :
+    currentRate != null && currentRate >= dailyGoal * 0.9 ? 'on_pace' :
+                                                    'behind'
+
+  const out = []
+
+  // ── BEHIND ──────────────────────────────────────────────────────────
+  if (status === 'behind') {
+    const lagging = laggingRep(sessions, metricFn)
+    if (lagging) {
+      out.push({
+        icon: '🎯',
+        headline: `${lagging.name} is at ${fmtPerDay(lagging.theirRate)}/session`,
+        detail: `team avg ${fmtPerDay(lagging.teamRate)}/session — a 1:1 could unlock them`,
+      })
+    }
+    const day = bestDayOfWeek(sessions, metricFn)
+    if (day) {
+      out.push({
+        icon: '📅',
+        headline: `${day.name}s are your strongest day`,
+        detail: `${day.upliftPct.toFixed(0)}% above other weekdays — schedule extra sessions then`,
+      })
+    }
+    const hood = topNeighborhood(sessions)
+    if (hood) {
+      out.push({
+        icon: '🏘️',
+        headline: `${hood.name} has ${hood.rpdMultiplier.toFixed(1)}× the revenue per door`,
+        detail: `try concentrating reps there next session`,
+      })
+    }
+    const convo = conversationBottleneck(sessions)
+    if (convo && out.length < 3) {
+      out.push({
+        icon: '🚪',
+        headline: `Only ${convo.pct.toFixed(0)}% of doors lead to a conversation`,
+        detail: `door-opening is the lever — not closing`,
+      })
+    }
+    const trend = recentTrendDip(sessions, metricFn)
+    if (trend && out.length < 3) {
+      out.push({
+        icon: '📉',
+        headline: `Last 3 days averaged ${fmtPerDay(trend.recent)}/session`,
+        detail: `down from ${fmtPerDay(trend.prior)} — check rep availability`,
+      })
+    }
+  }
+
+  // ── GOAL HIT ────────────────────────────────────────────────────────
+  if (status === 'hit') {
+    const mvp = topRep(sessions, metricFn)
+    if (mvp) {
+      out.push({
+        icon: '🏆',
+        headline: `MVP: ${mvp.name}`,
+        detail: `${fmtTotal(mvp.total)}${!isRevenue ? ` ${pluralNoun?.(mvp.total) || ''}` : ''} this period`,
+      })
+    }
+    const buffer = actual - periodGoal
+    if (buffer > 0 && currentRate) {
+      const daysBanked = buffer / dailyGoal
+      out.push({
+        icon: '💰',
+        headline: `${fmtTotal(buffer)}${!isRevenue ? ` ${pluralNoun?.(buffer) || ''}` : ''} over goal`,
+        detail: `that's ~${daysBanked.toFixed(1)} day${daysBanked >= 1.5 ? 's' : ''} banked toward next period`,
+      })
+    }
+    if (currentRate && currentRate >= dailyGoal * 1.15) {
+      const suggested = Math.round(currentRate * 0.95 / 100) * 100
+      out.push({
+        icon: '⬆️',
+        headline: 'Consider raising the daily goal',
+        detail: `pace is ${((currentRate / dailyGoal - 1) * 100).toFixed(0)}% above target — try ${fmtTotal(suggested)}/day`,
+      })
+    }
+    const hood = topNeighborhood(sessions)
+    if (hood && out.length < 3) {
+      out.push({
+        icon: '🏘️',
+        headline: `Strongest area: ${hood.name}`,
+        detail: `${fmtTotal(hood.rpd)}/door — repeat that pattern`,
+      })
+    }
+  }
+
+  // ── ON PACE ─────────────────────────────────────────────────────────
+  if (status === 'on_pace') {
+    const mvp = topRep(sessions, metricFn)
+    if (mvp) {
+      out.push({
+        icon: '⭐',
+        headline: `${mvp.name} is anchoring this`,
+        detail: `${fmtTotal(mvp.total)}${!isRevenue ? ` ${pluralNoun?.(mvp.total) || ''}` : ''} so far`,
+      })
+    }
+    if (currentRate && remainingDays > 0) {
+      const projected = actual + (currentRate * remainingDays)
+      const overPct = ((projected / periodGoal - 1) * 100)
+      if (projected >= periodGoal) {
+        out.push({
+          icon: '📈',
+          headline: `On track to close at ${fmtTotal(projected)}`,
+          detail: `${overPct >= 0 ? '+' : ''}${overPct.toFixed(0)}% vs period goal`,
+        })
+      }
+    }
+    const day = bestDayOfWeek(sessions, metricFn)
+    if (day && out.length < 3) {
+      out.push({
+        icon: '📅',
+        headline: `${day.name}s are gold`,
+        detail: `${day.upliftPct.toFixed(0)}% above other weekdays`,
+      })
+    }
+  }
+
+  return out
+}
+
+/* ── Pure helpers for the rules above ─────────────────────────────────── */
+
+// Aggregate sessions by rep name. Returns { name, total } records.
+function aggregateByRep(sessions, metricFn) {
+  const by = {}
+  for (const s of sessions) {
+    const name = s.users?.full_name || 'Unknown'
+    by[name] = (by[name] || 0) + metricFn(s)
+  }
+  return Object.entries(by).map(([name, total]) => ({ name, total }))
+}
+
+function topRep(sessions, metricFn) {
+  const reps = aggregateByRep(sessions, metricFn)
+  if (reps.length === 0) return null
+  reps.sort((a, b) => b.total - a.total)
+  if (reps[0].total === 0) return null
+  return reps[0]
+}
+
+// Identify a lagging rep: lowest performer whose RATE is < 50% of team avg
+// AND who has at least 3 sessions (so we don't slander a brand-new hire).
+function laggingRep(sessions, metricFn) {
+  const counts = {}
+  for (const s of sessions) {
+    const name = s.users?.full_name || 'Unknown'
+    counts[name] = (counts[name] || 0) + 1
+  }
+  const reps = aggregateByRep(sessions, metricFn).map((r) => ({
+    ...r,
+    sessions: counts[r.name] || 0,
+    rate:     (counts[r.name] ? r.total / counts[r.name] : 0),
+  })).filter((r) => r.sessions >= 3)
+  if (reps.length < 2) return null
+  const teamRate = reps.reduce((a, r) => a + r.rate, 0) / reps.length
+  reps.sort((a, b) => a.rate - b.rate)
+  const lo = reps[0]
+  if (teamRate <= 0) return null
+  if (lo.rate >= teamRate * 0.5) return null
+  return { name: lo.name, theirRate: lo.rate, teamRate }
+}
+
+// Best day of week by avg per-session metric. Requires at least 2 distinct
+// weekdays represented + a 15%+ uplift for the top day vs the rest.
+function bestDayOfWeek(sessions, metricFn) {
+  const byDay = {} // dayName → { total, count }
+  for (const s of sessions) {
+    if (!s.started_at) continue
+    const d = new Date(s.started_at)
+    const name = d.toLocaleDateString('en-US', { weekday: 'long' })
+    if (!byDay[name]) byDay[name] = { total: 0, count: 0 }
+    byDay[name].total += metricFn(s)
+    byDay[name].count += 1
+  }
+  const arr = Object.entries(byDay)
+    .map(([name, v]) => ({ name, rate: v.count ? v.total / v.count : 0 }))
+    .filter((x) => x.rate > 0)
+  if (arr.length < 2) return null
+  arr.sort((a, b) => b.rate - a.rate)
+  const top = arr[0]
+  const restRate = arr.slice(1).reduce((a, x) => a + x.rate, 0) / (arr.length - 1)
+  if (restRate <= 0) return null
+  const upliftPct = (top.rate / restRate - 1) * 100
+  if (upliftPct < 15) return null
+  return { name: top.name, upliftPct, rate: top.rate, restRate }
+}
+
+// Top neighborhood by revenue-per-door. Requires at least 2 areas with
+// ≥ 20 doors each and a 50%+ RPD gap to surface.
+function topNeighborhood(sessions) {
+  const by = {} // name → { revenue, doors }
+  for (const s of sessions) {
+    const name = (s.neighborhood || '').trim() || null
+    if (!name) continue
+    if (!by[name]) by[name] = { revenue: 0, doors: 0 }
+    by[name].revenue += Number(s.revenue_booked || 0)
+    by[name].doors   += Number(s.doors_knocked  || 0)
+  }
+  const arr = Object.entries(by)
+    .map(([name, v]) => ({ name, rpd: v.doors ? v.revenue / v.doors : 0, doors: v.doors }))
+    .filter((x) => x.doors >= 20)
+  if (arr.length < 2) return null
+  arr.sort((a, b) => b.rpd - a.rpd)
+  const top  = arr[0]
+  const restRpd = arr.slice(1).reduce((a, x) => a + x.rpd, 0) / (arr.length - 1)
+  if (restRpd <= 0 || top.rpd < restRpd * 1.5) return null
+  return { name: top.name, rpd: top.rpd, rpdMultiplier: top.rpd / restRpd }
+}
+
+// Door → conversation conversion rate across the period. Returns the pct
+// only when it's below 12% (otherwise it's not the bottleneck).
+function conversationBottleneck(sessions) {
+  let doors = 0, conv = 0
+  for (const s of sessions) {
+    doors += Number(s.doors_knocked || 0)
+    conv  += Number(s.conversations  || 0)
+  }
+  if (doors < 50) return null
+  const pct = (conv / doors) * 100
+  if (pct >= 12) return null
+  return { pct, doors, conv }
+}
+
+// Last-3-days avg per session vs the trailing 7 days before that. Surfaces
+// only if the recent run is 25%+ below prior.
+function recentTrendDip(sessions, metricFn) {
+  if (sessions.length < 6) return null
+  const sorted = [...sessions].sort((a, b) =>
+    new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+  )
+  const now = Date.now()
+  const recent = sorted.filter((s) =>
+    (now - new Date(s.started_at).getTime()) / 86_400_000 <= 3
+  )
+  const prior = sorted.filter((s) => {
+    const days = (now - new Date(s.started_at).getTime()) / 86_400_000
+    return days > 3 && days <= 10
+  })
+  if (recent.length < 2 || prior.length < 3) return null
+  const recentRate = recent.reduce((a, s) => a + metricFn(s), 0) / recent.length
+  const priorRate  = prior.reduce((a, s) => a + metricFn(s), 0) / prior.length
+  if (priorRate <= 0) return null
+  if (recentRate >= priorRate * 0.75) return null
+  return { recent: recentRate, prior: priorRate }
 }
 
 // Top Areas — groups sessions by their `neighborhood` text field and ranks
