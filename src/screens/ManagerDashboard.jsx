@@ -3168,8 +3168,18 @@ function RecentSessionsCard({ sessions = [], onOpen, countLabel = 'estimates' })
 }
 
 // Goal Tracker — pace-vs-target for the period currently filtered on the
-// overview. Multiplies the org's daily goal by the number of days in the
-// selected period to derive a period goal, then compares actual against it.
+// overview.
+//
+// Period-goal sourcing (in priority order):
+//   1. For the month view, use org.monthly_goal_value when the manager
+//      has set one. This is the most accurate source because it accounts
+//      for team size and how often the team actually canvasses — facts
+//      the system can't infer reliably from a per-rep daily target.
+//   2. Otherwise, fall back to daily_goal_value × periodDays. This is a
+//      rough heuristic that assumes one rep canvassing every day, so it
+//      tends to overshoot for solo orgs and teams that don't work daily.
+//      We surface the source ("manager-set" vs "auto") inline so the
+//      manager knows when to override it.
 //
 // Supports BOTH goal types the org settings expose:
 //   • revenue → headline = totalRevenue, formatted as $X.Xk
@@ -3177,9 +3187,10 @@ function RecentSessionsCard({ sessions = [], onOpen, countLabel = 'estimates' })
 //               noun (estimates / appointments — driven by count_goal_label)
 //
 // The status pill ("on pace" / "behind" / "ahead") is driven by whether
-// the rate-to-date is keeping up with the daily goal — not just whether
-// the period total has been hit — so a team early in the month sees
-// something meaningful instead of always reading "behind" until the end.
+// the rate-to-date is keeping up with the *effective* daily goal (period
+// goal ÷ period days) — not just whether the period total has been hit —
+// so a team early in the month sees something meaningful instead of
+// always reading "behind" until the end.
 function GoalTrackerCard({
   totalRevenue = 0, totalEstimates = 0, countLabel = 'Estimates',
   sessions = [], org = null, dateRange = 'month',
@@ -3205,6 +3216,13 @@ function GoalTrackerCard({
 
   const goalType   = org?.daily_goal_type  || 'revenue'
   const dailyGoal  = Number(org?.daily_goal_value) || 0
+  // Manager-set monthly override. Only applies to the month view because
+  // the number's stated as a monthly figure — using it as the week or
+  // today target would be wrong. null/0 means "no override".
+  const monthlyOverride =
+    dateRange === 'month' && Number(org?.monthly_goal_value) > 0
+      ? Number(org.monthly_goal_value)
+      : null
 
   // Per-goal-type plumbing. Everything downstream branches on `isRevenue`
   // through these formatters and the `actual` value — no `if (revenue) ...
@@ -3238,7 +3256,9 @@ function GoalTrackerCard({
 
   // Bail-out: only "all time" view (no fixed window) and missing goal
   // config kick us out. We no longer fall through for count goals.
-  if (!dailyGoal || periodDays == null) {
+  // If a manager-set monthly override exists, we don't require dailyGoal
+  // to render — the override stands on its own.
+  if ((!dailyGoal && !monthlyOverride) || periodDays == null) {
     return (
       <section className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-4 md:mb-5">
@@ -3264,7 +3284,20 @@ function GoalTrackerCard({
     )
   }
 
-  const periodGoal    = dailyGoal * periodDays
+  // Period goal: manager-set monthly value when present (month view only),
+  // otherwise daily × periodDays. Track which source was used so we can
+  // label it for the manager.
+  const periodGoal    = monthlyOverride != null
+    ? monthlyOverride
+    : dailyGoal * periodDays
+  const goalSource    = monthlyOverride != null ? 'manager' : 'auto'
+  // Pace target: when the manager set a monthly number directly, the
+  // per-day yardstick is goal ÷ days, NOT the per-rep daily goal — those
+  // measure different things (team-wide vs. per-rep). Falls back to the
+  // per-rep daily goal only when we're auto-calculating.
+  const paceTarget    = monthlyOverride != null
+    ? monthlyOverride / periodDays
+    : dailyGoal
   const remainingDays = Math.max(periodDays - daysElapsed, 0)
   const pctOfGoal     = Math.min((actual / periodGoal) * 100, 999)
   const pctClamped    = Math.min(pctOfGoal, 100)
@@ -3276,17 +3309,17 @@ function GoalTrackerCard({
   // the period goal. If the period is over, this isn't actionable.
   const requiredRate  = remainingDays > 0 ? remainingGoal / remainingDays : null
 
-  // Status framing — "ahead" when current pace ≥ daily goal, "behind" when
+  // Status framing — "ahead" when current pace ≥ pace target, "behind" when
   // below 90% of it, "on pace" in between. The 90% band keeps a team that's
   // a hair under target from getting whiplashed by the indicator.
   let status, statusColor
   if (currentRate == null) {
     status      = 'no data yet'
     statusColor = 'text-slate-600 bg-slate-100'
-  } else if (currentRate >= dailyGoal) {
+  } else if (currentRate >= paceTarget) {
     status      = actual >= periodGoal ? 'goal hit 🎉' : 'on pace'
     statusColor = 'text-green-700 bg-green-100'
-  } else if (currentRate >= dailyGoal * 0.9) {
+  } else if (currentRate >= paceTarget * 0.9) {
     status      = 'on pace'
     statusColor = 'text-green-700 bg-green-100'
   } else {
@@ -3355,12 +3388,26 @@ function GoalTrackerCard({
         />
       </div>
 
+      {/* Source line — tells the manager whether the period number came
+         from their own monthly override or our auto-calculation. Helpful
+         context when the % feels off so they know where to go fix it. */}
+      <p className="text-[10px] text-gray-400 mt-1.5">
+        {goalSource === 'manager'
+          ? `Period goal set by you in Settings → Monthly Team Goal.`
+          : `Auto-calc: ${fmtTotal(dailyGoal)}${!isRevenue ? ` ${pluralNoun(dailyGoal)}` : ''}/day × ${periodDays} days. Set a monthly goal in Settings for a more accurate target.`}
+      </p>
+
       {/* Pace stats — three columns mirroring the Bottleneck card's chips
          so this row stays visually aligned across the 2-col grid. */}
       <div className="grid grid-cols-3 gap-2 mt-4 md:mt-5">
         <div className="rounded-lg px-2 py-2 border border-gray-200 bg-gray-50">
-          <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Daily goal</p>
-          <p className="text-base font-extrabold text-gray-700 tabular-nums">{fmtTotal(dailyGoal)}</p>
+          <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">
+            {goalSource === 'manager' ? 'Pace target' : 'Daily goal'}
+          </p>
+          <p className="text-base font-extrabold text-gray-700 tabular-nums">
+            {fmtPerDay(paceTarget)}
+            <span className="text-[10px] font-medium text-gray-400">/day</span>
+          </p>
         </div>
         <div className="rounded-lg px-2 py-2 border border-gray-200 bg-gray-50">
           <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Current pace</p>
@@ -3390,11 +3437,11 @@ function GoalTrackerCard({
           ) : remainingDays === 0 ? (
             <>Period closed {fmtTotal(remainingGoal)}{!isRevenue && <> {pluralNoun(remainingGoal)}</>} short. Look at which days didn't run sessions.</>
           ) : daysElapsed === 0 ? (
-            <>No active days yet. Daily goal is {fmtTotal(dailyGoal)}{!isRevenue && <> {pluralNoun(dailyGoal)}</>} over {periodDays} days.</>
+            <>No active days yet. Target is {fmtPerDay(paceTarget)}{!isRevenue && <> {pluralNoun(paceTarget)}</>}/day over {periodDays} days.</>
           ) : (
             <>
-              {currentRate >= dailyGoal ? (
-                <>Pace is above the {fmtTotal(dailyGoal)}{!isRevenue && <> {pluralNoun(dailyGoal)}</>}/day target. Stay on it — {fmtTotal(remainingGoal)}{!isRevenue && <> {pluralNoun(remainingGoal)}</>} left across {remainingDays} day{remainingDays === 1 ? '' : 's'}.</>
+              {currentRate >= paceTarget ? (
+                <>Pace is above the {fmtPerDay(paceTarget)}{!isRevenue && <> {pluralNoun(paceTarget)}</>}/day target. Stay on it — {fmtTotal(remainingGoal)}{!isRevenue && <> {pluralNoun(remainingGoal)}</>} left across {remainingDays} day{remainingDays === 1 ? '' : 's'}.</>
               ) : (
                 <>
                   Team needs{' '}
@@ -3417,7 +3464,7 @@ function GoalTrackerCard({
       <GoalSuggestionsBlock
         status={status}
         suggestions={buildGoalSuggestions({
-          sessions, isRevenue, dailyGoal, periodGoal, periodDays,
+          sessions, isRevenue, dailyGoal: paceTarget, periodGoal, periodDays,
           remainingDays, actual, currentRate, pluralNoun,
           fmtTotal, fmtPerDay,
         })}

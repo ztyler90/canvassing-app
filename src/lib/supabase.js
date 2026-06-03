@@ -553,11 +553,22 @@ export async function updateOrganizationName(orgId, name) {
  *
  * RLS: only the org owner or a super-admin can update this row.
  */
-export async function updateOrganizationGoal(orgId, { type, value, countLabel }) {
+export async function updateOrganizationGoal(orgId, { type, value, countLabel, monthlyGoal }) {
   const patch = {}
-  if (type       !== undefined) patch.daily_goal_type  = type
-  if (value      !== undefined) patch.daily_goal_value = value
-  if (countLabel !== undefined) patch.count_goal_label = countLabel
+  if (type        !== undefined) patch.daily_goal_type    = type
+  if (value       !== undefined) patch.daily_goal_value   = value
+  if (countLabel  !== undefined) patch.count_goal_label   = countLabel
+  // Optional manager-set monthly team target. Independent of the daily
+  // goal — the daily goal is a per-rep yardstick, while monthly_goal_value
+  // is the team-wide number to hit. Pass null to clear and fall back to
+  // the auto-calculated (daily × periodDays) heuristic. Why we added this:
+  // multiplying the per-rep daily goal by 30 over-counts for solo orgs or
+  // teams that don't canvass every day — the manager knows the right
+  // monthly number better than any extrapolation we can do.
+  if (monthlyGoal !== undefined) {
+    patch.monthly_goal_value =
+      monthlyGoal === null || monthlyGoal === '' ? null : Number(monthlyGoal)
+  }
   const { data, error } = await supabase
     .from('organizations')
     .update(patch)

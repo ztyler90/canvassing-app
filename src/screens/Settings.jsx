@@ -57,6 +57,12 @@ export default function Settings() {
   const [goalType,     setGoalType]     = useState('revenue')  // 'revenue' | 'count'
   const [goalValue,    setGoalValue]    = useState('1000')
   const [countLabel,   setCountLabel]   = useState('estimates') // 'estimates' | 'appointments'
+  // Optional manager-set monthly team goal. Empty string means "no
+  // override — auto-derive from daily goal × team size × pace". When set,
+  // GoalTrackerCard uses this number directly instead of multiplying
+  // per-rep daily goal × period days (which over-counted for solo orgs
+  // and teams that don't canvass every day).
+  const [monthlyGoal,  setMonthlyGoal]  = useState('')
   const [savingGoal,   setSavingGoal]   = useState(false)
 
   // Shareable invite link — owner generates one URL their reps can sign
@@ -132,6 +138,7 @@ export default function Settings() {
       setGoalType(myOrg.daily_goal_type || 'revenue')
       setGoalValue(String(myOrg.daily_goal_value ?? 1000))
       setCountLabel(myOrg.count_goal_label || 'estimates')
+      setMonthlyGoal(myOrg.monthly_goal_value != null ? String(myOrg.monthly_goal_value) : '')
     }
     const url = await getWebhookUrl()
     if (url) {
@@ -319,18 +326,31 @@ export default function Settings() {
     if (!Number.isFinite(num) || num < 0) {
       showToast('Enter a valid non-negative number', 'error'); return
     }
+    // Empty string → null (clear the override). Anything else must parse
+    // as a non-negative number — same rules as the daily goal.
+    let monthlyPatch
+    if (monthlyGoal === '' || monthlyGoal == null) {
+      monthlyPatch = null
+    } else {
+      const m = Number(monthlyGoal)
+      if (!Number.isFinite(m) || m < 0) {
+        showToast('Enter a valid monthly goal, or leave it blank to auto-calculate', 'error'); return
+      }
+      monthlyPatch = m
+    }
     setSavingGoal(true)
     const { data, error } = await updateOrganizationGoal(org.id, {
-      type:       goalType,
-      value:      num,
-      countLabel: countLabel,
+      type:        goalType,
+      value:       num,
+      countLabel:  countLabel,
+      monthlyGoal: monthlyPatch,
     })
     setSavingGoal(false)
     if (error) {
       showToast('Could not save goal: ' + error.message, 'error')
     } else {
       setOrg(data)
-      showToast('Daily goal updated')
+      showToast('Goals updated')
     }
   }
 
@@ -1107,6 +1127,41 @@ export default function Settings() {
                 {goalType === 'revenue'
                   ? 'Reps see their revenue booked today vs. this target.'
                   : `Reps see their ${countLabel} booked today vs. this target.`}
+              </p>
+            </div>
+
+            {/* Monthly team goal — optional override for the Overview's Goal
+                Tracker. Without this set, the tracker auto-derives the
+                period goal from daily goal × number of days, which doesn't
+                account for team size or how many days the team actually
+                canvasses. Manager-entered numbers always win. */}
+            <div>
+              <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 mb-1.5">
+                Monthly Team Goal <span className="text-gray-400 normal-case font-medium">(optional)</span>
+              </p>
+              <div className="flex items-center gap-2">
+                {goalType === 'revenue' && (
+                  <span className="text-gray-500 text-sm font-semibold">$</span>
+                )}
+                <input
+                  type="number"
+                  min="0"
+                  step={goalType === 'revenue' ? '500' : '10'}
+                  value={monthlyGoal}
+                  onChange={(e) => setMonthlyGoal(e.target.value)}
+                  className="flex-1 px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-blue-400 focus:outline-none"
+                  placeholder={goalType === 'revenue' ? 'e.g. 50000' : 'e.g. 200'}
+                />
+                <span className="text-gray-500 text-sm font-medium whitespace-nowrap">
+                  {goalType === 'revenue'
+                    ? 'per month'
+                    : `${countLabel === 'appointments' ? 'appts' : 'ests'}/mo`}
+                </span>
+              </div>
+              <p className="text-gray-400 text-[11px] mt-1.5">
+                Drives the Overview's Goal Tracker. Leave blank to auto-calculate
+                from your daily target. Setting it directly is the better
+                fit when team size or working cadence varies.
               </p>
             </div>
 
