@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay, differenceInCalendarDays } from 'date-fns'
-import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight, Target, Flame, Share2, Copy, Eye, EyeOff, Award, Minus } from 'lucide-react'
+import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight, Target, Flame, Share2, Copy, Eye, EyeOff, Award, Minus, MessageSquare } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllSessions, getAllReps, getManagerMapData, signOut,
@@ -16,6 +16,7 @@ import { ConversionFunnel } from './RepHome.jsx'
 import MapView from '../components/MapView.jsx'
 import TerritoryMap from '../components/TerritoryMap.jsx'
 import PipelineTab from '../components/PipelineTab.jsx'
+import ChatPanel   from '../components/ChatPanel.jsx'
 import ChatLauncher from '../components/ChatLauncher.jsx'
 import { PhotoThumb } from '../lib/photos.jsx'
 import {
@@ -1709,13 +1710,17 @@ function LiveTab({ allReps }) {
   // Drives a soft highlight on the card so the manager remembers what
   // they're looking at on the map.
   const [focusedRepId, setFocusedRepId] = useState(null)
+  // Phase 6: rep id the manager wants to DM. When set, ChatPanel mounts
+  // open and points at that user. Null = chat panel closed.
+  const [dmRepId, setDmRepId] = useState(null)
   // Ref to the MapView so list clicks can drive map.flyTo without a
   // full re-render or prop-drilling a moving target into MapView.
   const mapRef = useRef(null)
 
-  // Pan + zoom the map onto a rep when their list card is tapped.
-  // 18.25 keeps just enough block context around the pin to read the
-  // street pattern; the 0.75s flyTo duration we get from MapView itself.
+  // Pan + zoom the map onto a rep when their list card is tapped OR
+  // their pin is tapped on the map. 18.25 keeps just enough block
+  // context around the pin to read the street pattern; the 0.75s flyTo
+  // duration we get from MapView itself.
   const focusRep = (rep) => {
     if (!rep || rep.lat == null || rep.lng == null) return
     mapRef.current?.flyTo(rep.lat, rep.lng, 18.25)
@@ -1764,6 +1769,35 @@ function LiveTab({ allReps }) {
       return next
     })
 
+  // Team-wide live totals — summed across every active session right
+  // now. Pure derivation; no extra fetch needed. Kept inline (not
+  // memoized) because the slice is tiny and `activeReps` rebuilds on
+  // every 10s poll anyway.
+  const teamTotals = annotatedReps.reduce(
+    (acc, r) => {
+      const s = r.session
+      if (!s) return acc
+      acc.doors        += Number(s.doors_knocked  || 0)
+      acc.conversations+= Number(s.conversations  || 0)
+      acc.estimates    += Number(s.estimates      || 0)
+      acc.bookings     += Number(s.bookings       || 0)
+      acc.revenue      += Number(s.revenue_booked || 0)
+      return acc
+    },
+    { doors: 0, conversations: 0, estimates: 0, bookings: 0, revenue: 0 }
+  )
+  const topRepNow = annotatedReps.reduce(
+    (best, r) => {
+      const rev = Number(r.session?.revenue_booked || 0)
+      const doors = Number(r.session?.doors_knocked || 0)
+      // Prefer revenue when there is any; fall back to doors so an
+      // early-in-the-day team still surfaces a leader.
+      const score = rev > 0 ? rev : doors
+      return score > best.score ? { rep: r, score, by: rev > 0 ? 'revenue' : 'doors' } : best
+    },
+    { rep: null, score: 0, by: null }
+  )
+
   return (
     <div className="flex flex-col h-full max-w-7xl mx-auto w-full">
       {/* Status bar */}
@@ -1779,9 +1813,8 @@ function LiveTab({ allReps }) {
         </button>
       </div>
 
-      {/* SLA alarm banner — surfaces reps whose session looks stalled. Tapping
-          "I've checked in" mutes the banner + red ring for that rep until the
-          manager reloads the page. */}
+      {/* SLA alarm banner — surfaces reps whose session looks stalled.
+          Sits above both columns since the alert applies team-wide. */}
       {stalledCount > 0 && (
         <div className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 flex items-center gap-3">
           <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
@@ -1796,7 +1829,8 @@ function LiveTab({ allReps }) {
         </div>
       )}
 
-      {/* Live map */}
+      {/* Live map — stays full-width above the two-column body so the
+          manager always has spatial context while scanning rep details. */}
       <div style={{ height: '380px' }} className={stalledCount > 0 ? 'mt-3' : ''}>
         {loading ? (
           <div className="flex items-center justify-center h-full bg-gray-50">
@@ -1804,107 +1838,271 @@ function LiveTab({ allReps }) {
               style={{ borderWidth: 3, borderStyle: 'solid', borderColor: `${BRAND_GREEN} transparent transparent transparent` }} />
           </div>
         ) : (
-          <MapView ref={mapRef} repLocations={annotatedReps} className="w-full h-full" followUser={false} />
+          <MapView
+            ref={mapRef}
+            repLocations={annotatedReps}
+            onRepClick={focusRep}
+            className="w-full h-full"
+            followUser={false}
+          />
         )}
       </div>
 
-      {/* Active rep cards */}
-      <div className="px-4 pt-3 pb-1">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Active Reps</p>
-      </div>
-      {activeReps.length === 0 && (
-        <div className="text-center py-6 text-gray-400 px-4">
-          <Radio className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          <p className="text-sm font-medium">No reps are currently active</p>
-          <p className="text-xs mt-1">Rep pins appear here when a session is in progress.</p>
-        </div>
-      )}
-      <div className="px-4 pb-3 space-y-2">
-        {annotatedReps.map((rep, idx) => {
-          const color   = REP_COLORS[idx % REP_COLORS.length]
-          const sess    = rep.session
-          const focused = focusedRepId === rep.rep_id
-          // Card styling priority: stalled (red) > focused (blue ring) > default.
-          // Stalled wins because that signal is more urgent than "you clicked me."
-          const cardCls = rep.stalled
-            ? 'bg-red-50 border-2 border-red-300'
-            : focused
-              ? 'bg-blue-50 border-2 border-blue-400 ring-2 ring-blue-100'
-              : 'bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-          return (
-            <button
-              key={rep.rep_id}
-              type="button"
-              onClick={() => focusRep(rep)}
-              className={`block w-full text-left rounded-xl px-4 py-3 transition-colors ${cardCls}`}
-              title="Zoom map to this rep"
-            >
-              <div className="flex items-center gap-3">
-                <div className="relative flex-shrink-0">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                    style={{ backgroundColor: color }}>
-                    {repInitials(rep.user?.full_name)}
+      {/* Two-column body: rep cards on the left, team-wide live metrics
+          on the right. Stacks vertically on small screens. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-4 pt-4 pb-6">
+        {/* ── Left column: active reps ─────────────────────────────── */}
+        <section>
+          <div className="flex items-center gap-2 mb-2">
+            <Radio className="w-3.5 h-3.5 text-gray-400" />
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Active Reps
+            </p>
+            <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+              {activeReps.length}
+            </span>
+          </div>
+          {activeReps.length === 0 ? (
+            <div className="text-center py-6 text-gray-400 rounded-xl border border-dashed border-gray-200 bg-white">
+              <Radio className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm font-medium">No reps active right now</p>
+              <p className="text-xs mt-1">Rep cards appear here when a session is in progress.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {annotatedReps.map((rep, idx) => (
+                <ActiveRepCard
+                  key={rep.rep_id}
+                  rep={rep}
+                  color={REP_COLORS[idx % REP_COLORS.length]}
+                  focused={focusedRepId === rep.rep_id}
+                  onFocus={() => focusRep(rep)}
+                  onAck={() => ackRep(rep.rep_id)}
+                  onChat={() => setDmRepId(rep.rep_id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Inactive reps — collapsed to chips below the active list */}
+          {inactiveReps.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Not Active</p>
+              <div className="flex flex-wrap gap-2">
+                {inactiveReps.map((rep) => (
+                  <div key={rep.id} className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1">
+                    <div className="w-2 h-2 rounded-full bg-gray-300" />
+                    <span className="text-xs text-gray-500">{rep.full_name || rep.email}</span>
                   </div>
-                  {rep.stalled && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 border-2 border-white flex items-center justify-center">
-                      <span className="block w-1 h-1 rounded-full bg-white" />
-                    </span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-semibold text-gray-900 text-sm truncate">{rep.user?.full_name || 'Rep'}</p>
-                    {rep.stalled && (
-                      <span className="text-[10px] uppercase tracking-wide bg-red-500 text-white font-bold px-1.5 py-0.5 rounded">
-                        stalled
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-400">{elapsedSince(sess?.started_at)} elapsed</p>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-right flex-shrink-0">
-                  <span className="text-xs text-gray-400">Doors</span>
-                  <span className="text-xs font-bold text-gray-900">{sess?.doors_knocked ?? '—'}</span>
-                  <span className="text-xs text-gray-400">Estimates</span>
-                  <span className="text-xs font-bold text-gray-900">{sess?.estimates ?? '—'}</span>
-                  <span className="text-xs text-gray-400">Revenue</span>
-                  <span className="text-xs font-bold text-green-600">
-                    {sess?.revenue_booked != null ? `$${sess.revenue_booked.toFixed(0)}` : '—'}
-                  </span>
-                </div>
+                ))}
               </div>
-              {rep.stalled && (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => { e.stopPropagation(); ackRep(rep.rep_id) }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); ackRep(rep.rep_id) }
-                  }}
-                  className="mt-2.5 inline-block w-full text-center py-1.5 rounded-lg bg-white border border-red-300 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors cursor-pointer"
-                >
-                  I've checked in
-                </span>
-              )}
-            </button>
-          )
-        })}
+            </div>
+          )}
+        </section>
+
+        {/* ── Right column: team-wide live metrics ─────────────────── */}
+        <section>
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="w-3.5 h-3.5 text-gray-400" />
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Team Live Metrics
+            </p>
+          </div>
+          <TeamLiveMetrics
+            totals={teamTotals}
+            activeCount={activeReps.length}
+            stalledCount={stalledCount}
+            topRepNow={topRepNow}
+          />
+        </section>
       </div>
 
-      {/* Inactive reps */}
-      {inactiveReps.length > 0 && (
-        <div className="px-4 pt-2 pb-6">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Not Active</p>
-          <div className="flex flex-wrap gap-2">
-            {inactiveReps.map((rep) => (
-              <div key={rep.id} className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1">
-                <div className="w-2 h-2 rounded-full bg-gray-300" />
-                <span className="text-xs text-gray-500">{rep.full_name || rep.email}</span>
-              </div>
-            ))}
+      {/* Chat panel — opens via the in-card message button. Mounts only
+          when a rep is targeted so we don't carry an extra subscription
+          when nobody's actively chatting. */}
+      {dmRepId && (
+        <ChatPanel
+          open={!!dmRepId}
+          initialDmUserId={dmRepId}
+          onClose={() => setDmRepId(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * Single active-rep card in the LiveTab left column. Kept as its own
+ * component because the new chat button + stalled state + click-to-
+ * focus interactions add enough complexity that inlining hurt
+ * readability. The card stays a <div> (not a <button>) so the inner
+ * chat button can capture its own clicks without an event-stop dance.
+ */
+function ActiveRepCard({ rep, color, focused, onFocus, onAck, onChat }) {
+  const sess = rep.session
+  // Card styling priority: stalled (red) > focused (blue ring) > default.
+  // Stalled wins because that signal is more urgent than "you clicked me."
+  const cardCls = rep.stalled
+    ? 'bg-red-50 border-2 border-red-300'
+    : focused
+      ? 'bg-blue-50 border-2 border-blue-400 ring-2 ring-blue-100'
+      : 'bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onFocus}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFocus() } }}
+      className={`rounded-xl px-3.5 py-3 transition-colors cursor-pointer ${cardCls}`}
+      title="Zoom map to this rep"
+    >
+      <div className="flex items-center gap-3">
+        <div className="relative shrink-0">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
+            style={{ backgroundColor: color }}
+          >
+            {repInitials(rep.user?.full_name)}
+          </div>
+          {rep.stalled && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 border-2 border-white flex items-center justify-center">
+              <span className="block w-1 h-1 rounded-full bg-white" />
+            </span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p className="font-semibold text-gray-900 text-sm truncate">
+              {rep.user?.full_name || 'Rep'}
+            </p>
+            {rep.stalled && (
+              <span className="text-[10px] uppercase tracking-wide bg-red-500 text-white font-bold px-1.5 py-0.5 rounded">
+                stalled
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-400">{elapsedSince(sess?.started_at)} elapsed</p>
+        </div>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-right shrink-0">
+          <span className="text-[10px] text-gray-400 uppercase tracking-wider">Doors</span>
+          <span className="text-xs font-bold text-gray-900 tabular-nums">{sess?.doors_knocked ?? '—'}</span>
+          <span className="text-[10px] text-gray-400 uppercase tracking-wider">Est</span>
+          <span className="text-xs font-bold text-gray-900 tabular-nums">{sess?.estimates ?? '—'}</span>
+          <span className="text-[10px] text-gray-400 uppercase tracking-wider">Rev</span>
+          <span className="text-xs font-bold text-green-600 tabular-nums">
+            {sess?.revenue_booked != null ? `$${sess.revenue_booked.toFixed(0)}` : '—'}
+          </span>
+        </div>
+        {/* Chat button — opens a DM with this rep through the existing
+            ChatPanel. stopPropagation so a tap on the icon doesn't
+            zoom the map to the rep's location at the same time. */}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onChat() }}
+          title="Message this rep"
+          className="shrink-0 p-2 rounded-lg text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors"
+        >
+          <MessageSquare className="w-4 h-4" />
+        </button>
+      </div>
+      {rep.stalled && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onAck() }}
+          className="mt-2.5 block w-full text-center py-1.5 rounded-lg bg-white border border-red-300 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors"
+        >
+          I've checked in
+        </button>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Team Live Metrics — the right-column content. Five small tiles + a
+ * top-performer callout. Numbers are sums across active sessions only
+ * (not historical), so they read as the team's current snapshot rather
+ * than "today so far."
+ */
+function TeamLiveMetrics({ totals, activeCount, stalledCount, topRepNow }) {
+  // Conversion derived from the live totals. If nobody's knocked yet
+  // we render an em-dash rather than 0% so the manager doesn't read a
+  // false "0% close rate" before the team has had a chance.
+  const closeRate = totals.estimates > 0
+    ? ((totals.bookings / totals.estimates) * 100).toFixed(0) + '%'
+    : '—'
+  const convoRate = totals.doors > 0
+    ? ((totals.conversations / totals.doors) * 100).toFixed(0) + '%'
+    : '—'
+  return (
+    <div className="space-y-3">
+      {/* Top tile — health summary */}
+      <div className="bg-white rounded-xl border border-gray-200 p-3.5">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">
+            Right now
+          </p>
+          {stalledCount > 0 && (
+            <span className="text-[10px] uppercase tracking-wide bg-red-500 text-white font-bold px-1.5 py-0.5 rounded">
+              {stalledCount} stalled
+            </span>
+          )}
+        </div>
+        <div className="flex items-baseline gap-2">
+          <p className="text-3xl font-extrabold text-gray-900 tabular-nums">{activeCount}</p>
+          <p className="text-sm font-semibold text-gray-500">active session{activeCount === 1 ? '' : 's'}</p>
+        </div>
+      </div>
+
+      {/* 2×2 metric tiles */}
+      <div className="grid grid-cols-2 gap-2">
+        <LiveMetricTile label="Doors knocked"  value={totals.doors.toLocaleString()} />
+        <LiveMetricTile label="Conversations"  value={totals.conversations.toLocaleString()}
+                        hint={convoRate !== '—' ? `${convoRate} of doors` : null} />
+        <LiveMetricTile label="Estimates"      value={totals.estimates.toLocaleString()} />
+        <LiveMetricTile label="Bookings"       value={totals.bookings.toLocaleString()}
+                        hint={closeRate !== '—' ? `${closeRate} of estimates` : null} />
+      </div>
+
+      {/* Revenue — full-width emphasis since dollars are the headline */}
+      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200 p-3.5">
+        <p className="text-[10px] uppercase font-bold tracking-wider text-green-700">
+          Revenue this shift
+        </p>
+        <p className="text-3xl font-extrabold text-green-700 tabular-nums leading-none mt-1">
+          ${totals.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+        </p>
+      </div>
+
+      {/* Top performer callout */}
+      {topRepNow.rep && (
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-3.5 flex items-center gap-3">
+          <span className="text-2xl">🏆</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] uppercase font-bold tracking-wider text-amber-700">
+              Leading right now
+            </p>
+            <p className="text-sm font-bold text-gray-900 truncate">
+              {topRepNow.rep.user?.full_name || 'Rep'}
+            </p>
+            <p className="text-[11px] text-amber-700">
+              {topRepNow.by === 'revenue'
+                ? `$${Number(topRepNow.score).toFixed(0)} booked`
+                : `${topRepNow.score} doors`}
+            </p>
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function LiveMetricTile({ label, value, hint }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-3">
+      <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">{label}</p>
+      <p className="text-2xl font-extrabold text-gray-900 tabular-nums leading-none mt-1">{value}</p>
+      {hint && <p className="text-[10px] text-gray-500 mt-0.5">{hint}</p>}
     </div>
   )
 }

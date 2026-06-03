@@ -64,7 +64,7 @@ function titleOf(conv) {
   return conv.other_user?.full_name || conv.other_user?.email || 'Direct Message'
 }
 
-export default function ChatPanel({ open = false, onClose, compact = false }) {
+export default function ChatPanel({ open = false, onClose, compact = false, initialDmUserId = null }) {
   const { user } = useAuth()
   const [view, setView] = useState('inbox')        // 'inbox' | 'thread' | 'picker'
   const [conversations, setConversations] = useState([])
@@ -110,6 +110,28 @@ export default function ChatPanel({ open = false, onClose, compact = false }) {
     refreshInbox()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
+
+  // When a caller opens the panel pointing at a specific user (e.g. the
+  // LiveTab "chat with rep" button), skip the inbox and jump straight
+  // into the DM thread. getOrCreateDM is idempotent so re-opening doesn't
+  // create a duplicate conversation. We reset back to inbox view when
+  // the panel closes so the next open starts from the normal entry.
+  useEffect(() => {
+    if (!open || !initialDmUserId) return
+    let cancelled = false
+    ;(async () => {
+      const conv = await getOrCreateDM(initialDmUserId)
+      if (cancelled || !conv?.id) return
+      setActiveConvId(conv.id)
+      setView('thread')
+      // Background-refresh the inbox so the conversation row exists when
+      // the user navigates back. Failures don't matter — the inbox will
+      // catch up on the next open.
+      refreshInbox().catch(() => {})
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialDmUserId])
 
   // ── Thread load + realtime subscription ────────────────────────────────
   useEffect(() => {

@@ -142,7 +142,7 @@ function elapsedLabel(startedAt) {
  * @param {Array}   props.repLocations  - [{ rep_id, lat, lng, user, session }] live rep positions
  * @param {Function} props.onInteractionClick - (interaction) => void   Tap an existing pin to edit
  */
-const MapView = forwardRef(function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, autoFit = false }, ref) {
+const MapView = forwardRef(function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, onRepClick = null, autoFit = false }, ref) {
   const containerRef       = useRef(null)
   const mapRef             = useRef(null)
   const trailRef           = useRef(null)
@@ -438,6 +438,17 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
           </div>
         </div>
       `, { maxWidth: 220 })
+
+      // Phase 6: live-tab rep pin click → fly to + notify caller. Used
+      // by LiveTab so a single tap on a pin highlights the rep's card
+      // and zooms the map in. Popup still binds separately so a slow
+      // map-pan doesn't swallow the tap.
+      if (onRepClick) {
+        marker.on('click', () => {
+          mapRef.current?.flyTo([rep.lat, rep.lng], 18.25, { duration: 0.75 })
+          onRepClick(rep)
+        })
+      }
 
       marker.addTo(mapRef.current)
       repMarkersRef.current.push(marker)
