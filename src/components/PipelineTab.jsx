@@ -63,6 +63,11 @@ export default function PipelineTab() {
   // immediately without re-querying. After an update, we patch the local
   // leads array so the kanban re-renders without a full reload.
   const [openLead,         setOpenLead]         = useState(null)
+  // Day-drill modal state. Holds the full { date, appts, totalValue }
+  // tuple straight from getUpcomingAppointments so the day modal can
+  // render without re-fetching. Lead click inside the day modal sets
+  // openLead, which stacks the lead modal on top.
+  const [openDay,          setOpenDay]          = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -155,7 +160,7 @@ export default function PipelineTab() {
         subtitle={isPro && appts ? `${appts.reduce((a, d) => a + d.appts.length, 0)} scheduled · $${formatCompact(appts.reduce((a, d) => a + d.totalValue, 0))} on calendar` : null}
         unlockBlurb="Spot the day your team is double-booked — or empty. Each card shows appointments + $ on the calendar."
       >
-        <CalendarStrip days={appts} />
+        <CalendarStrip days={appts} onDayClick={setOpenDay} />
       </ProSection>
 
       {/* ── Zone 3: Open Pipeline (FREE) ─────────────────────────────── */}
@@ -258,6 +263,21 @@ export default function PipelineTab() {
         )}
       </ProSection>
 
+      {/* Day-drill modal — opens when a calendar-strip cell is clicked.
+          Lists every appointment on that day with full appointment-time
+          + customer + closer + $ details. Each row stacks the LeadDetailModal
+          on top so the manager can drill from "what's on Thursday" all the
+          way into a single lead's notes/photos in two clicks. Stacks
+          below the lead modal in z-order so the lead modal stays visible
+          when both are open. */}
+      {openDay && (
+        <DayDetailModal
+          day={openDay}
+          onClose={() => setOpenDay(null)}
+          onLeadClick={(lead) => setOpenLead(lead)}
+        />
+      )}
+
       {/* Drill-down modal — opens when any card is clicked. Renders
           outside the section grid so its overlay covers the whole tab.
           Closes on backdrop click or X; updates patch the local leads
@@ -358,27 +378,38 @@ function ActionCard({ item, onClick }) {
   )
 }
 
-function CalendarStrip({ days }) {
+function CalendarStrip({ days, onDayClick }) {
   if (!days || days.length === 0) return null
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-3 shadow-sm overflow-x-auto">
       <div className="flex gap-2 min-w-max">
-        {days.map((d) => <DayCell key={d.date.toISOString()} day={d} />)}
+        {days.map((d) => <DayCell key={d.date.toISOString()} day={d} onClick={() => onDayClick?.(d)} />)}
       </div>
     </div>
   )
 }
 
-function DayCell({ day }) {
+function DayCell({ day, onClick }) {
   const isWeekend = day.date.getDay() === 0 || day.date.getDay() === 6
   const today = isToday(day.date)
+  const hasAppts = day.appts.length > 0
   const wrap  = today
     ? 'border-2 border-blue-600 bg-blue-50'
     : isWeekend
       ? 'border border-gray-200 bg-gray-50'
       : 'border border-gray-200 bg-white'
+  // Empty days aren't clickable — nothing to drill into. Days with at
+  // least one appointment become buttons. The "+N more" affordance lives
+  // inside the same button surface so any tap on the cell drills in.
+  const interactive = hasAppts
+    ? 'hover:border-blue-400 hover:shadow active:scale-[0.99] cursor-pointer transition-all'
+    : 'cursor-default'
   return (
-    <div className={`w-[124px] rounded-xl ${wrap} p-2.5 flex flex-col gap-1.5`}>
+    <button
+      type="button"
+      onClick={hasAppts ? onClick : undefined}
+      disabled={!hasAppts}
+      className={`w-[124px] rounded-xl ${wrap} ${interactive} p-2.5 flex flex-col gap-1.5 text-left`}>
       <div className={`text-[10px] font-bold uppercase tracking-wider ${today ? 'text-blue-700' : 'text-gray-400'}`}>
         {today ? 'Today' : format(day.date, 'EEE')}
       </div>
@@ -404,6 +435,104 @@ function DayCell({ day }) {
       {day.appts.length > 3 && (
         <div className="text-[10px] text-gray-500">+{day.appts.length - 3} more</div>
       )}
+    </button>
+  )
+}
+
+/**
+ * DayDetailModal — drill-down for a single day in the calendar strip.
+ *
+ * Renders the full appointment list for the selected day, sorted
+ * chronologically by appointment_at. Clicking any row stacks the
+ * LeadDetailModal on top so the manager can go from "what's on
+ * Thursday?" to "Rick Stevens' notes" in two taps.
+ *
+ * Kept self-contained (no data fetch, no helpers) since the parent
+ * already has the day's appts in memory from getUpcomingAppointments.
+ */
+function DayDetailModal({ day, onClose, onLeadClick }) {
+  const today = isToday(day.date)
+  const heading = today ? 'Today' : format(day.date, 'EEEE')
+  return (
+    <div
+      className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full md:max-w-xl md:rounded-2xl rounded-t-3xl shadow-xl max-h-[85vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-3 flex items-center justify-between z-10">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">
+              {heading}
+            </p>
+            <h2 className="text-lg font-bold text-gray-900">
+              {format(day.date, 'EEEE, MMM d')}
+            </h2>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {day.appts.length} appointment{day.appts.length === 1 ? '' : 's'} ·{' '}
+              <span className="font-semibold text-gray-700">${formatCompact(day.totalValue)}</span> on calendar
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-gray-100 shrink-0"
+            aria-label="Close"
+          >
+            <span className="text-xl text-gray-600">×</span>
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-2">
+          {day.appts.length === 0 ? (
+            <p className="text-center text-sm text-gray-400 py-6">No appointments scheduled.</p>
+          ) : (
+            day.appts.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => onLeadClick(a)}
+                className="w-full text-left bg-white border border-gray-200 rounded-xl px-3.5 py-3 hover:border-blue-400 hover:shadow-sm transition-all"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="text-center shrink-0 w-14">
+                    <p className="text-[10px] uppercase font-bold tracking-wider text-purple-600">
+                      {format(new Date(a.appointment_at), 'h:mm')}
+                    </p>
+                    <p className="text-[10px] font-bold text-purple-700">
+                      {format(new Date(a.appointment_at), 'a')}
+                    </p>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 truncate">
+                      {a.contact_name || '—'}
+                    </p>
+                    {a.address && (
+                      <p className="text-[11px] text-gray-500 truncate flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        {a.address}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+                      {a.closer?.full_name
+                        ? `Closer: ${a.closer.full_name}`
+                        : a.setter?.full_name
+                          ? `Setter: ${a.setter.full_name}`
+                          : 'Unassigned'}
+                    </p>
+                  </div>
+                  {a.estimated_value > 0 && (
+                    <span className="text-sm font-extrabold text-gray-900 shrink-0">
+                      ${formatCompact(a.estimated_value)}
+                    </span>
+                  )}
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   )
 }

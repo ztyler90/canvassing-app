@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { PhotoThumb } from '../lib/photos.jsx'
 import {
-  getAllClosers, updateLeadStage, updateLeadPrice,
+  getAllClosers, updateLeadStage, updateLeadPrice, updateLeadAppointment,
 } from '../lib/supabase.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -68,6 +68,16 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
     lead.estimated_value != null ? String(lead.estimated_value) : ''
   )
   const [savingPrice,  setSavingPrice]  = useState(false)
+  // Same inline-edit pattern for the appointment date/time. The native
+  // datetime-local input gives a calendar + clock picker on every
+  // platform without us shipping a custom widget. Stored locally as a
+  // tz-naive "YYYY-MM-DDTHH:MM" string while editing, then converted to
+  // ISO on save so the DB column stays canonical UTC.
+  const [editingAppt, setEditingAppt] = useState(false)
+  const [apptDraft,   setApptDraft]   = useState(
+    lead.appointment_at ? isoToLocalInput(lead.appointment_at) : ''
+  )
+  const [savingAppt,  setSavingAppt]  = useState(false)
 
   useEffect(() => {
     getAllClosers().then(setClosers).catch(() => setClosers([]))
@@ -123,6 +133,22 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
     setSavingPrice(false)
     if (error) { setError(error.message || 'Price save failed'); return }
     setEditingPrice(false)
+    onUpdate?.(data)
+  }
+
+  async function commitAppt() {
+    const original = lead.appointment_at ? isoToLocalInput(lead.appointment_at) : ''
+    if (apptDraft === original) { setEditingAppt(false); return }
+    const iso = apptDraft ? localInputToIso(apptDraft) : null
+    if (apptDraft && !iso) {
+      setError('Invalid date/time')
+      return
+    }
+    setSavingAppt(true); setError('')
+    const { data, error } = await updateLeadAppointment(lead.id, iso)
+    setSavingAppt(false)
+    if (error) { setError(error.message || 'Appointment save failed'); return }
+    setEditingAppt(false)
     onUpdate?.(data)
   }
 
@@ -225,12 +251,65 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
                 {savingPrice && <Loader2 className="w-4 h-4 animate-spin text-green-700" />}
               </div>
             )}
-            {lead.appointment_at && (
-              <div className="flex items-center gap-2 bg-purple-50 text-purple-700 px-3 py-1.5 rounded-full">
+            {/* Click-to-edit appointment time. Mirrors the price edit
+                pattern. If no appointment is set, the pill becomes a
+                "Set appointment time…" button — same surface for both
+                rescheduling and first-time scheduling. Saving from a
+                Hot Lead also promotes the stage (helper handles that). */}
+            {!editingAppt ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setApptDraft(lead.appointment_at ? isoToLocalInput(lead.appointment_at) : '')
+                  setEditingAppt(true)
+                }}
+                className={`group flex items-center gap-2 px-3 py-1.5 rounded-full transition-colors ${
+                  lead.appointment_at
+                    ? 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                }`}
+                title={lead.appointment_at ? 'Click to reschedule' : 'Click to set appointment'}
+              >
                 <Calendar className="w-4 h-4" />
                 <span className="text-sm font-bold">
-                  {format(new Date(lead.appointment_at), 'EEE MMM d · h:mm a')}
+                  {lead.appointment_at
+                    ? format(new Date(lead.appointment_at), 'EEE MMM d · h:mm a')
+                    : 'Set appointment time…'}
                 </span>
+                <span className="text-[10px] uppercase font-bold tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">
+                  edit
+                </span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-full border-2 border-purple-400">
+                <Calendar className="w-4 h-4 text-purple-700 shrink-0" />
+                <input
+                  type="datetime-local"
+                  autoFocus
+                  value={apptDraft}
+                  onChange={(e) => setApptDraft(e.target.value)}
+                  onBlur={commitAppt}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.currentTarget.blur() }
+                    if (e.key === 'Escape') {
+                      setApptDraft(lead.appointment_at ? isoToLocalInput(lead.appointment_at) : '')
+                      setEditingAppt(false)
+                    }
+                  }}
+                  className="text-sm font-bold text-purple-900 bg-transparent outline-none"
+                />
+                {apptDraft && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => { setApptDraft(''); /* commit on blur */ }}
+                    className="text-[10px] uppercase font-bold tracking-wider text-purple-700 hover:text-purple-900"
+                    title="Clear appointment"
+                  >
+                    clear
+                  </button>
+                )}
+                {savingAppt && <Loader2 className="w-4 h-4 animate-spin text-purple-700" />}
               </div>
             )}
             {lead.follow_up && (
@@ -452,4 +531,22 @@ function TimelineRow({ label, age, done }) {
       <span className={`text-[11px] tabular-nums ${done ? 'text-gray-500' : 'text-gray-300'}`}>{age}</span>
     </div>
   )
+}
+
+// ── Timezone helpers ─────────────────────────────────────────────────────
+// datetime-local inputs use a tz-naive YYYY-MM-DDTHH:MM string interpreted
+// as local time. The DB column is canonical UTC ISO. These convert back
+// and forth so the manager sees local times in the picker but we always
+// persist UTC.
+function isoToLocalInput(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+function localInputToIso(localStr) {
+  if (!localStr) return null
+  const d = new Date(localStr)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
 }

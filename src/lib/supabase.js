@@ -1145,6 +1145,39 @@ export async function updateLeadPrice(leadId, value) {
 }
 
 /**
+ * Update the appointment date/time on a single lead. Called from the
+ * Pipeline tab's drill-down modal when a manager reschedules.
+ *
+ * If the lead is currently a Hot Lead and we're SETTING an appointment
+ * (not clearing it), also promote stage → 'appt_scheduled' so the kanban
+ * reflects the change in the same write. Other stages keep their
+ * current stage — a manager editing the time on an already-booked deal
+ * shouldn't unbook it.
+ *
+ *   leadId  : interactions.id
+ *   isoOrNull : ISO timestamp string, or null to clear the appointment
+ */
+export async function updateLeadAppointment(leadId, isoOrNull) {
+  // Fetch the current stage to decide whether to auto-promote.
+  const { data: current } = await supabase
+    .from('interactions')
+    .select('stage')
+    .eq('id', leadId)
+    .single()
+  const patch = { appointment_at: isoOrNull || null }
+  if (isoOrNull && current?.stage === 'hot_lead') {
+    patch.stage = 'appt_scheduled'
+  }
+  const { data, error } = await supabase
+    .from('interactions')
+    .update(patch)
+    .eq('id', leadId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+/**
  * Closer-facing helper to advance a lead through the pipeline. Used by
  * the Closer Inbox to mark "estimate sent" / "booked" / "lost". RLS lets
  * closers update only rows where closer_id = auth.uid().
