@@ -1122,6 +1122,29 @@ export async function pickRoundRobinCloser() {
 }
 
 /**
+ * Update the quoted price (estimated_value) on a single lead. Called from
+ * the Pipeline tab's drill-down modal when a manager revises the number
+ * after a closer's actual quote comes back. Manager RLS allows this in
+ * their own org; closers can only update via updateLeadStage above.
+ *
+ *   leadId : interactions.id
+ *   value  : numeric dollar amount, or null to clear
+ */
+export async function updateLeadPrice(leadId, value) {
+  const v = value === null || value === '' ? null : Number(value)
+  if (v !== null && (Number.isNaN(v) || v < 0)) {
+    return { data: null, error: new Error('Invalid price') }
+  }
+  const { data, error } = await supabase
+    .from('interactions')
+    .update({ estimated_value: v })
+    .eq('id', leadId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+/**
  * Closer-facing helper to advance a lead through the pipeline. Used by
  * the Closer Inbox to mark "estimate sent" / "booked" / "lost". RLS lets
  * closers update only rows where closer_id = auth.uid().

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay, differenceInCalendarDays } from 'date-fns'
-import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight, Target, Flame, Share2, Copy, Eye, EyeOff, Award, Crown, Minus } from 'lucide-react'
+import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight, Target, Flame, Share2, Copy, Eye, EyeOff, Award, Minus } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllSessions, getAllReps, getManagerMapData, signOut,
@@ -1960,27 +1960,6 @@ function RankMovement({ current, prior }) {
   )
 }
 
-// Animated count-up — ease-out cubic from previous to next over ~600ms.
-function useCountUp(value, durationMs = 600) {
-  const [display, setDisplay] = useState(value)
-  const startRef = useRef({ from: value, t0: 0 })
-  useEffect(() => {
-    startRef.current = { from: display, t0: performance.now() }
-    let raf
-    const tick = (now) => {
-      const t = Math.min(1, (now - startRef.current.t0) / durationMs)
-      const eased = 1 - Math.pow(1 - t, 3)
-      const v = startRef.current.from + (value - startRef.current.from) * eased
-      setDisplay(v)
-      if (t < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value])
-  return display
-}
-
 const PERIOD_OPTIONS = [
   { value: 'today', label: 'Today' },
   { value: 'week',  label: 'This Week' },
@@ -2062,8 +2041,12 @@ function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
     revenue:       acc.revenue       + (r.revenue       || 0),
     doors:         acc.doors         + (r.doors         || 0),
     bookings:      acc.bookings      + (r.bookings      || 0),
+    // For setter teams "estimates" IS the appointment count — we keep summing
+    // it under the same key so downstream renderers stay simple, and label-
+    // swap at display time.
+    estimates:     acc.estimates     + Math.max(r.estimates || 0, r.bookings || 0),
     conversations: acc.conversations + (r.conversations || 0),
-  }), { revenue: 0, doors: 0, bookings: 0, conversations: 0 })
+  }), { revenue: 0, doors: 0, bookings: 0, estimates: 0, conversations: 0 })
   const teamCloseRate = team.doors > 0 ? ((team.bookings / team.doors) * 100).toFixed(1) : '0.0'
 
   const periodLabel = PERIOD_OPTIONS.find((p) => p.value === period)?.label || 'Today'
@@ -2071,7 +2054,9 @@ function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
   async function copyAsText() {
     const lines = []
     lines.push(`🏆 KnockIQ Leaderboard — ${periodLabel}`)
-    lines.push(`Team: ${team.bookings} bookings · ${team.doors} doors · ${teamCloseRate}% close${redact ? '' : ` · $${formatCompact(team.revenue)}`}`)
+    // Lead with appointments (estimates) since that's the setter KPI; revenue
+    // tags on at the end only when "Show $" is enabled.
+    lines.push(`Team: ${team.estimates} ${countLabel.toLowerCase()} · ${team.bookings} booked · ${team.doors} doors · ${teamCloseRate}% close${redact ? '' : ` · $${formatCompact(team.revenue)}`}`)
     lines.push('')
     sorted.slice(0, 10).forEach((r, i) => {
       const medal = ['🥇', '🥈', '🥉'][i] || `${i + 1}.`
@@ -2079,7 +2064,8 @@ function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
       const $$    = redact ? '' : ` · $${formatCompact(r.revenue)}`
       const streak = r.streakDays > 1 ? ` 🔥${r.streakDays}` : ''
       const pr     = r.isPR ? ' ⭐PR' : ''
-      lines.push(`${medal} ${r.name} — ${r.bookings} booked · ${r.doors} doors · ${cr}%${$$}${streak}${pr}`)
+      const apt    = Math.max(r.estimates || 0, r.bookings || 0)
+      lines.push(`${medal} ${r.name} — ${apt} ${countLabel.toLowerCase()} · ${r.bookings} booked · ${r.doors} doors · ${cr}%${$$}${streak}${pr}`)
     })
     try {
       await navigator.clipboard.writeText(lines.join('\n'))
@@ -2091,7 +2077,7 @@ function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
   }
 
   async function downloadAsPng() {
-    const svg = buildLeaderboardShareSvg({ sorted, periodLabel, team, teamCloseRate, redact })
+    const svg = buildLeaderboardShareSvg({ sorted, periodLabel, team, teamCloseRate, redact, countLabel })
     const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
     const url  = URL.createObjectURL(blob)
     const img  = new Image()
@@ -2119,8 +2105,9 @@ function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
     img.src = url
   }
 
+  // Leader on the active sort metric — drives the pace-bar denominator in
+  // each row so "% of leader" stays honest no matter what we're sorting by.
   const top = sorted[0]
-  const restOfList = sorted.slice(1)
 
   return (
     <div className="flex flex-col max-w-7xl mx-auto w-full">
@@ -2191,7 +2178,7 @@ function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
 
         <div className="px-4 pb-3 flex gap-2 flex-wrap items-center">
           <span className="text-[11px] text-slate-500 font-medium uppercase tracking-wide mr-1">Sort by</span>
-          {SORT_OPTIONS.map(({ key, label }) => {
+          {sortOptions.map(({ key, label }) => {
             const active = sortBy === key
             return (
               <button key={key} onClick={() => setSortBy(key)}
@@ -2219,27 +2206,32 @@ function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
           <p className="text-xs mt-1">Data appears here once reps start sessions.</p>
         </div>
       ) : (
-        <div className="px-4 pt-4 pb-8 space-y-4">
-          {/* Team totals — collective headline for the period. */}
-          <TeamTotalsStrip team={team} closeRate={teamCloseRate} redact={redact} periodLabel={periodLabel} repCount={sorted.length} />
+        <div className="px-4 pt-4 pb-8 space-y-3">
+          {/* Team totals — collective headline for the period. Leads with the
+              count metric ("Appointments" / "Estimates") since that's the KPI
+              for setter teams. */}
+          <TeamTotalsStrip team={team} closeRate={teamCloseRate} redact={redact} periodLabel={periodLabel} repCount={sorted.length} countLabel={countLabel} />
 
-          {/* #1 spotlight — promoted hero card with animated revenue. */}
-          {top && (
-            <HeroCard
-              rep={top}
-              redact={redact}
-              prior={priorRankByRepId[top.id] ?? null}
-              periodLabel={periodLabel}
-              sortBy={sortBy}
-            />
-          )}
-
-          {/* Ranks 2..N */}
-          {restOfList.map((rep, idx) => {
-            const rank = idx + 2
-            const closeRate = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0.0'
+          {/* Unified row list — every rank (including #1) uses the same row
+              shape so the eye scans the full board without re-orienting. #1's
+              card still gets the gold medal corner + tint via MEDALS[0], but
+              the layout itself is identical to every other row. */}
+          {sorted.map((rep, idx) => {
+            const rank = idx + 1
+            const closeRate  = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0.0'
             const revPerDoor = rep.doors > 0 ? (rep.revenue / rep.doors) : 0
-            const medal     = MEDALS[rank - 1]   // gold/silver/bronze indexed by rank-1
+            // For setter teams a booking is always an appointment too — mirror
+            // the funnel math used elsewhere so a historical session with raw
+            // estimates < bookings doesn't display a smaller appointment count
+            // than its booked count.
+            const apt        = Math.max(rep.estimates || 0, rep.bookings || 0)
+            const medal      = MEDALS[rank - 1]   // gold/silver/bronze for ranks 1-3
+            // Pace bar denominator: leader's value on the *active* sort metric
+            // (appointments by default). Keeps the "% of leader" cue honest no
+            // matter what the manager is sorting on.
+            const topVal     = projectSortValue(top, sortBy)
+            const myVal      = projectSortValue(rep, sortBy)
+            const pacePct    = topVal > 0 ? Math.min(100, (myVal / topVal) * 100) : 0
             return (
               <div key={rep.id}
                 className={`relative rounded-2xl border p-4 ${medal ? medal.cardClass : 'border-gray-200 bg-white'}`}>
@@ -2279,32 +2271,34 @@ function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-gray-400">{rep.bookings} booking{rep.bookings !== 1 ? 's' : ''} · {closeRate}% close · ${revPerDoor.toFixed(0)}/door</p>
+                    <p className="text-xs text-gray-400">
+                      {rep.bookings} booked · {closeRate}% close
+                      {!redact && rep.revenue > 0 ? ` · $${formatCompact(rep.revenue)}` : ''}
+                    </p>
                   </div>
+                  {/* Primary right-side metric is now the count KPI
+                      (appointments / estimates) — the headline number a setter
+                      manager actually cares about. Revenue moves to the sub-
+                      line above so it's still visible without dominating. */}
                   <div className="text-right flex-shrink-0">
-                    {redact ? (
-                      <p className="text-lg font-bold text-gray-300">—</p>
-                    ) : (
-                      <p className="text-lg font-bold text-gray-900">${formatCompact(rep.revenue)}</p>
-                    )}
-                    <p className="text-xs text-gray-400">revenue</p>
+                    <p className="text-lg font-bold text-gray-900 tabular-nums">{apt}</p>
+                    <p className="text-xs text-gray-400 lowercase">{countLabel}</p>
                   </div>
                 </div>
-                {/* Pace bar — this rep's revenue as % of the leader. Acts as a
-                    visible "how far behind #1" cue until per-rep goals ship. */}
-                {top && top.revenue > 0 && !redact && (
+                {/* Pace bar — % of leader on the active sort metric. */}
+                {topVal > 0 && (
                   <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden mb-2">
                     <div
                       className="h-full rounded-full transition-all"
-                      style={{ width: `${Math.min(100, (rep.revenue / top.revenue) * 100)}%`, background: BRAND_GREEN }}
+                      style={{ width: `${pacePct}%`, background: BRAND_GREEN }}
                     />
                   </div>
                 )}
                 <div className="grid grid-cols-4 gap-2 pt-2 border-t border-gray-100">
                   <MicroStat label="Doors"   value={rep.doors}         />
                   <MicroStat label="Convos"  value={rep.conversations} />
-                  <MicroStat label="Estims"  value={rep.estimates}     />
                   <MicroStat label="Booked"  value={rep.bookings}      />
+                  <MicroStat label="$/Door"  value={redact ? '—' : (rep.doors > 0 ? `$${revPerDoor.toFixed(0)}` : '$0')} />
                 </div>
               </div>
             )
@@ -2315,9 +2309,12 @@ function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
   )
 }
 
-// Skinny team-totals strip. One-row headline that sits above the hero so
+// Skinny team-totals strip. One-row headline that sits above the list so
 // screenshots always include a collective stat the manager can broadcast.
-function TeamTotalsStrip({ team, closeRate, redact, periodLabel, repCount }) {
+// Leads with the count metric (appointments / estimates) — that's the KPI
+// for setter-driven teams. Revenue is the rightmost slot and gets muted when
+// the manager is in "Hide $" mode.
+function TeamTotalsStrip({ team, closeRate, redact, periodLabel, repCount, countLabel = 'Estimates' }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 md:p-4">
       <div className="flex items-center gap-2 mb-2">
@@ -2325,10 +2322,11 @@ function TeamTotalsStrip({ team, closeRate, redact, periodLabel, repCount }) {
         <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-500">Team total · {periodLabel} · {repCount} rep{repCount !== 1 ? 's' : ''}</p>
       </div>
       <div className="grid grid-cols-4 gap-2">
-        <TeamStat label="Revenue"  value={redact ? '—' : `$${formatCompact(team.revenue)}`} muted={redact} />
-        <TeamStat label="Bookings" value={team.bookings} />
-        <TeamStat label="Doors"    value={team.doors} />
-        <TeamStat label="Close %"  value={`${closeRate}%`} />
+        <TeamStat label={countLabel} value={team.estimates} />
+        <TeamStat label="Booked"     value={team.bookings} />
+        <TeamStat label="Doors"      value={team.doors} />
+        <TeamStat label={redact ? 'Close %' : 'Revenue'}
+          value={redact ? `${closeRate}%` : `$${formatCompact(team.revenue)}`} />
       </div>
     </section>
   )
@@ -2342,85 +2340,11 @@ function TeamStat({ label, value, muted }) {
   )
 }
 
-// Hero card — gold-trimmed treatment for the #1 spot. Big avatar + jumbo
-// animated revenue + verb-first callout chosen from the active sort metric.
-function HeroCard({ rep, redact, prior, periodLabel, sortBy }) {
-  const animatedRev = useCountUp(rep.revenue || 0)
-  const cr          = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0.0'
-  const revPerDoor  = rep.doors > 0 ? (rep.revenue / rep.doors).toFixed(0) : '0'
-
-  const callout = (() => {
-    if (sortBy === 'closeRate')     return `Top close rate at ${cr}%`
-    if (sortBy === 'revPerDoor')    return `Top efficiency at $${revPerDoor}/door`
-    if (sortBy === 'doors')         return `Most doors worked — ${rep.doors}`
-    if (sortBy === 'bookings')      return `Most booked — ${rep.bookings}`
-    if (sortBy === 'conversations') return `Most conversations — ${rep.conversations}`
-    return 'Leading the team in revenue'
-  })()
-
-  return (
-    <section
-      className="relative rounded-2xl border-2 p-4 md:p-5 overflow-hidden"
-      style={{
-        background: 'linear-gradient(135deg, #FFFBE6 0%, #FFF5C5 100%)',
-        borderColor: '#F5C542',
-      }}
-    >
-      <div className="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-[10px] font-bold shadow-sm"
-        style={{ background: 'linear-gradient(135deg, #F5C542 0%, #D4941E 100%)' }}>
-        <Crown className="w-3 h-3" /> #1 · {periodLabel}
-      </div>
-
-      <div className="flex items-center gap-3 mb-3">
-        <Avatar name={rep.name} size={56} ring />
-        <div className="min-w-0">
-          <p className="text-lg font-extrabold text-slate-900 truncate flex items-center gap-1.5">
-            {rep.name}
-            {rep.streakDays >= 2 && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold">
-                <Flame className="w-3 h-3" /> {rep.streakDays}-day
-              </span>
-            )}
-            {rep.isPR && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-bold">
-                <Award className="w-3 h-3" /> Personal Best
-              </span>
-            )}
-          </p>
-          <p className="text-xs text-slate-700 mt-0.5">{callout}</p>
-          <div className="mt-1">
-            <RankMovement current={1} prior={prior} />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-end justify-between gap-3 flex-wrap">
-        <div>
-          {redact ? (
-            <p className="text-3xl md:text-4xl font-black text-gray-300 leading-none">—</p>
-          ) : (
-            <p className="text-3xl md:text-4xl font-black text-slate-900 leading-none tabular-nums">
-              ${formatCompact(Math.round(animatedRev))}
-            </p>
-          )}
-          <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mt-1">Revenue · {periodLabel}</p>
-        </div>
-        <div className="grid grid-cols-4 gap-2 flex-1 min-w-[260px] max-w-md">
-          <MicroStat label="Booked"   value={rep.bookings}    />
-          <MicroStat label="Doors"    value={rep.doors}       />
-          <MicroStat label="Close %"  value={`${cr}%`}        />
-          <MicroStat label="$/Door"   value={redact ? '—' : `$${revPerDoor}`} />
-        </div>
-      </div>
-    </section>
-  )
-}
-
 // ─── SVG share-card builder ─────────────────────────────────────────────────
 // Hand-rolled SVG so we don't need to ship html-to-image / html2canvas. Renders
 // a 1080-wide portrait card sized for Slack / iMessage / story shares. The
 // caller serializes this to a Blob, draws it onto a Canvas, exports a PNG.
-function buildLeaderboardShareSvg({ sorted, periodLabel, team, teamCloseRate, redact }) {
+function buildLeaderboardShareSvg({ sorted, periodLabel, team, teamCloseRate, redact, countLabel = 'Estimates' }) {
   const W = 1080
   const ROW_H = 130
   const HEAD_H = 380
@@ -2428,7 +2352,6 @@ function buildLeaderboardShareSvg({ sorted, periodLabel, team, teamCloseRate, re
   const H = HEAD_H + ROW_H * top.length + 90
 
   const esc = (s) => String(s ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
-  const fmt$ = (v) => redact ? '—' : `$${formatCompact(v)}`
   const medals = ['#F5C542', '#9AA5B3', '#D99363']
 
   const rowsSvg = top.map((rep, i) => {
@@ -2436,6 +2359,11 @@ function buildLeaderboardShareSvg({ sorted, periodLabel, team, teamCloseRate, re
     const cr = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(0) : '0'
     const fill = colorForName(rep.name)
     const medal = medals[i]
+    // Right-side headline is the count metric (appointments / estimates);
+    // revenue moves into the sub-line so it's still visible without taking
+    // the lead position.
+    const apt = Math.max(rep.estimates || 0, rep.bookings || 0)
+    const revBit = redact ? '' : (rep.revenue > 0 ? ` · $${formatCompact(rep.revenue)}` : '')
     return `
       <g transform="translate(40, ${y})">
         <rect x="0" y="0" rx="20" ry="20" width="${W - 80}" height="${ROW_H - 16}" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1" />
@@ -2444,10 +2372,27 @@ function buildLeaderboardShareSvg({ sorted, periodLabel, team, teamCloseRate, re
         <circle cx="110" cy="${(ROW_H - 16) / 2}" r="26" fill="${fill}" />
         <text x="110" y="${(ROW_H - 16) / 2 + 9}" font-family="system-ui, -apple-system, Inter, Arial" font-size="22" font-weight="800" fill="#FFFFFF" text-anchor="middle">${esc(initialsFor(rep.name))}</text>
         <text x="158" y="${(ROW_H - 16) / 2 - 4}" font-family="system-ui, -apple-system, Inter, Arial" font-size="28" font-weight="800" fill="#0F172A">${esc(rep.name)}</text>
-        <text x="158" y="${(ROW_H - 16) / 2 + 26}" font-family="system-ui, -apple-system, Inter, Arial" font-size="18" fill="#64748B">${rep.bookings} booked · ${rep.doors} doors · ${cr}% close${rep.streakDays >= 2 ? ` · 🔥${rep.streakDays}` : ''}${rep.isPR ? ' · ⭐PR' : ''}</text>
-        <text x="${W - 120}" y="${(ROW_H - 16) / 2 + 10}" font-family="system-ui, -apple-system, Inter, Arial" font-size="34" font-weight="900" fill="#0F172A" text-anchor="end">${esc(fmt$(rep.revenue))}</text>
+        <text x="158" y="${(ROW_H - 16) / 2 + 26}" font-family="system-ui, -apple-system, Inter, Arial" font-size="18" fill="#64748B">${rep.bookings} booked · ${rep.doors} doors · ${cr}% close${revBit}${rep.streakDays >= 2 ? ` · 🔥${rep.streakDays}` : ''}${rep.isPR ? ' · ⭐PR' : ''}</text>
+        <text x="${W - 120}" y="${(ROW_H - 16) / 2 - 2}" font-family="system-ui, -apple-system, Inter, Arial" font-size="38" font-weight="900" fill="#0F172A" text-anchor="end">${apt}</text>
+        <text x="${W - 120}" y="${(ROW_H - 16) / 2 + 26}" font-family="system-ui, -apple-system, Inter, Arial" font-size="14" font-weight="700" fill="#64748B" text-anchor="end">${esc(countLabel.toUpperCase())}</text>
       </g>`
   }).join('')
+
+  // Team total tiles — appointments leads, revenue moves to last and is
+  // hidden when redacted (the close % takes its slot in that mode).
+  const tiles = redact
+    ? [
+        { l: countLabel.toUpperCase(), v: String(team.estimates) },
+        { l: 'BOOKED', v: String(team.bookings) },
+        { l: 'DOORS',  v: String(team.doors) },
+        { l: 'CLOSE %', v: `${teamCloseRate}%` },
+      ]
+    : [
+        { l: countLabel.toUpperCase(), v: String(team.estimates) },
+        { l: 'BOOKED',  v: String(team.bookings) },
+        { l: 'DOORS',   v: String(team.doors) },
+        { l: 'REVENUE', v: `$${formatCompact(team.revenue)}` },
+      ]
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <defs>
@@ -2464,22 +2409,11 @@ function buildLeaderboardShareSvg({ sorted, periodLabel, team, teamCloseRate, re
     <g transform="translate(60, 200)">
       <rect width="${W - 120}" height="140" rx="20" fill="#FFFFFF" />
       <g font-family="system-ui, -apple-system, Inter, Arial">
-        <g transform="translate(40, 40)">
-          <text font-size="14" fill="#64748B" font-weight="700">REVENUE</text>
-          <text y="42" font-size="36" font-weight="900" fill="#0F172A">${esc(fmt$(team.revenue))}</text>
-        </g>
-        <g transform="translate(280, 40)">
-          <text font-size="14" fill="#64748B" font-weight="700">BOOKED</text>
-          <text y="42" font-size="36" font-weight="900" fill="#0F172A">${team.bookings}</text>
-        </g>
-        <g transform="translate(520, 40)">
-          <text font-size="14" fill="#64748B" font-weight="700">DOORS</text>
-          <text y="42" font-size="36" font-weight="900" fill="#0F172A">${team.doors}</text>
-        </g>
-        <g transform="translate(760, 40)">
-          <text font-size="14" fill="#64748B" font-weight="700">CLOSE %</text>
-          <text y="42" font-size="36" font-weight="900" fill="#0F172A">${teamCloseRate}%</text>
-        </g>
+        ${tiles.map((t, i) => `
+          <g transform="translate(${40 + i * 240}, 40)">
+            <text font-size="14" fill="#64748B" font-weight="700">${esc(t.l)}</text>
+            <text y="42" font-size="36" font-weight="900" fill="#0F172A">${esc(t.v)}</text>
+          </g>`).join('')}
       </g>
     </g>
 

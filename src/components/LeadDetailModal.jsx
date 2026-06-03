@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { PhotoThumb } from '../lib/photos.jsx'
 import {
-  getAllClosers, updateLeadStage,
+  getAllClosers, updateLeadStage, updateLeadPrice,
 } from '../lib/supabase.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -58,6 +58,16 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
   const [lostNotes,    setLostNotes]    = useState('')
   const [reassigning,  setReassigning]  = useState(false)
   const [error,        setError]        = useState('')
+  // Inline price editor — managers revise the quoted value here when a
+  // closer's actual estimate comes back different from what the setter
+  // logged at the door. Click the $ amount to enter edit mode; blur or
+  // Enter commits; Escape reverts. Saving is optimistic so the kanban
+  // card behind the modal updates immediately on close.
+  const [editingPrice, setEditingPrice] = useState(false)
+  const [priceDraft,   setPriceDraft]   = useState(
+    lead.estimated_value != null ? String(lead.estimated_value) : ''
+  )
+  const [savingPrice,  setSavingPrice]  = useState(false)
 
   useEffect(() => {
     getAllClosers().then(setClosers).catch(() => setClosers([]))
@@ -100,6 +110,20 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
       lost_reason_notes: lostNotes || null,
       lost_at:           new Date().toISOString(),
     })
+  }
+
+  async function commitPrice() {
+    // Original lead value + the local draft are both stringified to compare
+    // — saves a round trip when the manager opens the editor but doesn't
+    // change anything.
+    const original = lead.estimated_value != null ? String(lead.estimated_value) : ''
+    if (priceDraft === original) { setEditingPrice(false); return }
+    setSavingPrice(true); setError('')
+    const { data, error } = await updateLeadPrice(lead.id, priceDraft === '' ? null : priceDraft)
+    setSavingPrice(false)
+    if (error) { setError(error.message || 'Price save failed'); return }
+    setEditingPrice(false)
+    onUpdate?.(data)
   }
 
   const stageIdx     = STAGE_ORDER.findIndex((s) => s.id === lead.stage)
@@ -146,14 +170,59 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
         {/* Body */}
         <div className="px-5 py-4 space-y-5">
 
-          {/* Top-line: $ value + appt time */}
+          {/* Top-line: $ value + appt time.
+              The $ amount is click-to-edit so a manager can revise the
+              quoted price when the closer's actual estimate comes in
+              different from what the setter logged at the door. The
+              "Edit price" affordance shows on hover or whenever the value
+              is missing entirely, so this also doubles as a "set initial
+              price" surface for leads logged without one. */}
           <div className="flex items-center gap-4 flex-wrap">
-            {lead.estimated_value > 0 && (
-              <div className="flex items-center gap-2">
+            {!editingPrice ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPriceDraft(lead.estimated_value != null ? String(lead.estimated_value) : '')
+                  setEditingPrice(true)
+                }}
+                className="group flex items-center gap-2 rounded-lg px-2 py-1 -ml-2 hover:bg-green-50 transition-colors"
+                title="Click to edit price"
+              >
                 <DollarSign className="w-5 h-5 text-green-700" />
-                <span className="text-2xl font-extrabold text-gray-900">
-                  ${Number(lead.estimated_value).toLocaleString()}
+                {lead.estimated_value > 0 ? (
+                  <span className="text-2xl font-extrabold text-gray-900">
+                    ${Number(lead.estimated_value).toLocaleString()}
+                  </span>
+                ) : (
+                  <span className="text-sm font-semibold text-gray-400 italic">Set price…</span>
+                )}
+                <span className="text-[10px] uppercase font-bold tracking-wider text-green-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                  edit
                 </span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 bg-green-50 rounded-lg px-2 py-1 -ml-2 border-2 border-green-400">
+                <DollarSign className="w-5 h-5 text-green-700 shrink-0" />
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="100"
+                  autoFocus
+                  value={priceDraft}
+                  onChange={(e) => setPriceDraft(e.target.value)}
+                  onBlur={commitPrice}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.currentTarget.blur() }
+                    if (e.key === 'Escape') {
+                      setPriceDraft(lead.estimated_value != null ? String(lead.estimated_value) : '')
+                      setEditingPrice(false)
+                    }
+                  }}
+                  className="text-2xl font-extrabold text-gray-900 bg-transparent outline-none w-32 tabular-nums"
+                  placeholder="0"
+                />
+                {savingPrice && <Loader2 className="w-4 h-4 animate-spin text-green-700" />}
               </div>
             )}
             {lead.appointment_at && (

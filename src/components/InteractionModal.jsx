@@ -51,10 +51,17 @@ const DOOR_LOST_REASONS = [
 // Outcome → pipeline stage. Drives the new `stage` column added in
 // 20260602_pipeline_phase1. no_answer doors don't enter the pipeline
 // (they have no homeowner contact), so they get a null stage.
-function outcomeToStage(outcome) {
+//
+// For 'estimate_requested' outcomes the stage depends on whether the rep
+// also captured an appointment date — if they did, the deal jumps straight
+// from the door into the Appt Scheduled column. This is the common case
+// for appointment_based orgs (roofing/solar): the rep books the closer's
+// visit at the door, and the kanban should reflect that immediately
+// rather than parking the deal in Hot Lead.
+function outcomeToStage(outcome, { hasAppointment = false } = {}) {
   switch (outcome) {
     case 'booked':             return 'booked'
-    case 'estimate_requested': return 'hot_lead'
+    case 'estimate_requested': return hasAppointment ? 'appt_scheduled' : 'hot_lead'
     case 'not_interested':     return 'closed_not_interested'
     default:                   return null
   }
@@ -388,7 +395,9 @@ export default function InteractionModal({
       // Mapping is deterministic from outcome — we don't ask the rep,
       // we just translate. Pipeline tab reads `stage`; legacy code still
       // reads `outcome` so we write both.
-      stage: outcomeToStage(outcome),
+      // Pass appointment context so an estimate_requested outcome with a
+      // booked appointment lands in 'appt_scheduled' rather than 'hot_lead'.
+      stage: outcomeToStage(outcome, { hasAppointment: !!(appointmentAt || extras.appointment_at) }),
     }
 
     // Hot-lead and lost-at timestamps land on the payload so the Pipeline
