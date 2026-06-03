@@ -1873,6 +1873,76 @@ export async function unmarkTerritoryCompleted(territoryId, repId) {
   return { error }
 }
 
+/**
+ * Compute the org's "home region" for use as a map fallback when the active
+ * date-filter returns no markers (e.g., a fresh demo open on the manager's
+ * Map tab). RLS scopes both reads to the caller's org, so no explicit
+ * organization_id filter is needed here.
+ *
+ * Resolution order:
+ *   1. Bounding box of the most recent 200 interactions ever (no date
+ *      filter). This is the strongest signal — wherever the org has
+ *      actually canvassed. Returns { bounds: [[swLat,swLng],[neLat,neLng]] }.
+ *   2. Centroid + bounding box of all territory polygons.
+ *   3. null — caller falls back to a wide continental-US view.
+ */
+export async function getOrgRegionFallback() {
+  // 1. Recent interactions with lat/lng
+  const { data: ints } = await supabase
+    .from('interactions')
+    .select('lat, lng')
+    .not('lat', 'is', null)
+    .not('lng', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(200)
+  if (ints && ints.length > 0) {
+    const bb = boundsOfPoints(ints.map((i) => [i.lat, i.lng]))
+    if (bb) return { bounds: bb }
+  }
+  // 2. Territory polygons — fall back to the union of every drawn zone.
+  const { data: terrs } = await supabase
+    .from('territories')
+    .select('polygon')
+  if (terrs && terrs.length > 0) {
+    const flat = []
+    for (const t of terrs) {
+      // Polygon shape in this app is [[lat,lng], ...]. Some legacy rows may
+      // store [[lng,lat], ...]; guard against that by clamping to plausible
+      // lat/lng ranges before accepting a point.
+      if (!Array.isArray(t.polygon)) continue
+      for (const p of t.polygon) {
+        if (!Array.isArray(p) || p.length < 2) continue
+        const [a, b] = p
+        if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
+          flat.push([a, b])
+        } else if (Math.abs(b) <= 90 && Math.abs(a) <= 180) {
+          flat.push([b, a])
+        }
+      }
+    }
+    const bb = boundsOfPoints(flat)
+    if (bb) return { bounds: bb }
+  }
+  return null
+}
+
+// Tiny shared helper — sweep a list of [lat,lng] points and return a
+// [[swLat,swLng],[neLat,neLng]] pair, or null if the list was empty.
+function boundsOfPoints(pts) {
+  if (!pts || pts.length === 0) return null
+  let minLat =  Infinity, maxLat = -Infinity
+  let minLng =  Infinity, maxLng = -Infinity
+  for (const [lat, lng] of pts) {
+    if (typeof lat !== 'number' || typeof lng !== 'number') continue
+    if (lat < minLat) minLat = lat
+    if (lat > maxLat) maxLat = lat
+    if (lng < minLng) minLng = lng
+    if (lng > maxLng) maxLng = lng
+  }
+  if (!Number.isFinite(minLat) || !Number.isFinite(minLng)) return null
+  return [[minLat, minLng], [maxLat, maxLng]]
+}
+
 /** All interactions ever (no date filter) for territory door-history overlay */
 export async function getAllDoorHistory() {
   const { data } = await supabase

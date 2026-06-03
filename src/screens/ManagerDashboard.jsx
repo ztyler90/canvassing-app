@@ -9,7 +9,7 @@ import {
   setTerritoryAssignments, getAllDoorHistory, getDoNotKnockList,
   addDoNotKnock, removeDoNotKnock,
   getActiveRepLocations, getLeaderboardData, getAllBookings,
-  getMyOrganization,
+  getMyOrganization, getOrgRegionFallback,
 } from '../lib/supabase.js'
 import { computeConversion } from '../lib/repStats.js'
 import { ConversionFunnel } from './RepHome.jsx'
@@ -1087,6 +1087,16 @@ const MAP_OUTCOMES = [
 function MapTab({ interactions }) {
   const counts = interactions.reduce((acc, i) => { acc[i.outcome] = (acc[i.outcome] || 0) + 1; return acc }, {})
   const mapRef = useRef(null)
+  // Org "home region" — used as the initial viewport when the current date
+  // filter returned zero markers. Fetched once on mount (RLS-scoped to the
+  // caller's org so the result is the right region for whichever org the
+  // manager belongs to — Arizona for Apex, etc., never a hardcoded Tampa).
+  const [regionFallback, setRegionFallback] = useState(null)
+  useEffect(() => {
+    let alive = true
+    getOrgRegionFallback().then((r) => { if (alive) setRegionFallback(r) })
+    return () => { alive = false }
+  }, [])
 
   // Per-outcome visibility toggles. Default: all on. Clicking a chip
   // removes that outcome from the rendered set without refetching.
@@ -1158,6 +1168,7 @@ function MapTab({ interactions }) {
           className="w-full h-full"
           followUser={false}
           autoFit
+          regionFallback={regionFallback}
         />
       </div>
     </div>

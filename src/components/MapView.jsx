@@ -141,8 +141,13 @@ function elapsedLabel(startedAt) {
  * @param {Array}   props.heatmapCells  - [{ bbox, bucket, count }] block coverage heatmap cells
  * @param {Array}   props.repLocations  - [{ rep_id, lat, lng, user, session }] live rep positions
  * @param {Function} props.onInteractionClick - (interaction) => void   Tap an existing pin to edit
+ * @param {object}  props.regionFallback - { bounds?: [[lat,lng],[lat,lng]], center?: [lat,lng], zoom?: number }
+ *                                         Used as the initial viewport when
+ *                                         `interactions` is empty so the map
+ *                                         lands on the org's actual region
+ *                                         instead of a hardcoded city.
  */
-const MapView = forwardRef(function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, onRepClick = null, autoFit = false }, ref) {
+const MapView = forwardRef(function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, onRepClick = null, autoFit = false, regionFallback = null }, ref) {
   const containerRef       = useRef(null)
   const mapRef             = useRef(null)
   const trailRef           = useRef(null)
@@ -165,11 +170,10 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
       if (!mapRef.current || lat == null || lng == null) return
       mapRef.current.flyTo([lat, lng], zoom, { duration: 0.75 })
     },
-    // Tighter defaults: 20px padding (was 40) and maxZoom 18.5 so a
-    // small cluster of pins frames to individual-house detail rather
-    // than block-wide. Single-pin case no longer artificially caps at
-    // 17 — it uses the full maxZoom.
-    fitToInteractions(pad = 20, maxZoom = 18.5) {
+    // Tightest reasonable fit: 12px padding and maxZoom 19 so a small
+    // cluster of pins frames to individual-house detail. Single-pin case
+    // uses the full maxZoom too.
+    fitToInteractions(pad = 12, maxZoom = 19) {
       if (!mapRef.current) return
       const pts = (interactions || []).filter((i) => i.lat && i.lng).map((i) => [i.lat, i.lng])
       if (pts.length === 0) return
@@ -208,16 +212,39 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
 
     mapRef.current = map
 
-    // Default center: Tampa, FL. Zoom 17.75 ≈ 1.75× the detail of the
-    // previous default (15) — close enough that reps see individual
-    // houses as soon as Start Canvassing opens the map, before GPS
-    // arrives and re-centers on them.
-    map.setView([27.9506, -82.4572], 17.75)
+    // Initial viewport priority:
+    //   1. If we already have interactions on first render, fit to them.
+    //      (Most common path on Manager Map — data has loaded by the time
+    //      MapView mounts.)
+    //   2. Else if the parent gave us a regionFallback (org's known service
+    //      area, derived from historical interactions or territories), use
+    //      that. This is the fix for the "demo opens on Tampa instead of
+    //      the org's actual region" bug — Tampa is no longer the universal
+    //      default.
+    //   3. Else fall back to a wide continental-US view. Brief flash for
+    //      the rep-side Start-Canvassing screen until GPS arrives, but
+    //      it's correct-for-everyone instead of correct-for-Tampa.
+    const seedPts = (interactions || []).filter((i) => i.lat && i.lng).map((i) => [i.lat, i.lng])
+    if (seedPts.length >= 2) {
+      map.fitBounds(seedPts, { padding: [20, 20], maxZoom: 18.5 })
+      autoFitDoneRef.current = true
+    } else if (seedPts.length === 1) {
+      map.setView(seedPts[0], 18)
+      autoFitDoneRef.current = true
+    } else if (regionFallback?.bounds && regionFallback.bounds.length >= 2) {
+      map.fitBounds(regionFallback.bounds, { padding: [40, 40], maxZoom: 14 })
+    } else if (regionFallback?.center) {
+      map.setView(regionFallback.center, regionFallback.zoom ?? 11)
+    } else {
+      // Continental US — chosen so no org sees a wrong-coast bias.
+      map.setView([39.5, -98.35], 4)
+    }
 
     return () => {
       map.remove()
       mapRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Update GPS trail
@@ -470,8 +497,10 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
 
   // Auto-fit to interactions on first render where `autoFit` is true and
   // we actually have data. Zooms as tight as the activity allows (up to
-  // 18.5 — individual-house detail) with 20px padding instead of 40 so
-  // pins frame closer to the street they're on.
+  // 19 — individual-house detail) with 12px padding so pins frame as
+  // close to the street as Leaflet can get without clipping the outermost
+  // markers. maxZoom 19 (raised from 18.5) lets tight clusters of pins
+  // — a single block of doors — zoom in fully instead of capping early.
   useEffect(() => {
     if (!autoFit || !mapRef.current) return
     if (autoFitDoneRef.current) return
@@ -480,10 +509,25 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
     if (pts.length === 1) {
       mapRef.current.setView(pts[0], 18)
     } else {
-      mapRef.current.fitBounds(pts, { padding: [20, 20], maxZoom: 18.5 })
+      mapRef.current.fitBounds(pts, { padding: [12, 12], maxZoom: 19 })
     }
     autoFitDoneRef.current = true
   }, [autoFit, interactions])
+
+  // Apply a late-arriving regionFallback. If the parent fetched the org's
+  // region asynchronously (network-bound), the prop arrives after the init
+  // effect ran. We honor it only if no interactions ever rendered AND the
+  // current view is still the wide-US default — never override a user pan.
+  useEffect(() => {
+    if (!mapRef.current || !regionFallback) return
+    if (autoFitDoneRef.current) return
+    if ((interactions || []).some((i) => i.lat && i.lng)) return
+    if (regionFallback.bounds && regionFallback.bounds.length >= 2) {
+      mapRef.current.fitBounds(regionFallback.bounds, { padding: [40, 40], maxZoom: 14 })
+    } else if (regionFallback.center) {
+      mapRef.current.setView(regionFallback.center, regionFallback.zoom ?? 11)
+    }
+  }, [regionFallback, interactions])
 
   return (
     <div ref={containerRef} className={`w-full ${className}`} style={{ minHeight: '200px' }} />
