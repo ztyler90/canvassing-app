@@ -16,6 +16,7 @@ import { ConversionFunnel } from './RepHome.jsx'
 import MapView from '../components/MapView.jsx'
 import TerritoryMap from '../components/TerritoryMap.jsx'
 import PipelineTab from '../components/PipelineTab.jsx'
+import ChatLauncher from '../components/ChatLauncher.jsx'
 import { PhotoThumb } from '../lib/photos.jsx'
 import {
   RichStatCard, MiniSparkArea, MiniSparkBars, RadialGauge,
@@ -224,6 +225,11 @@ export default function ManagerDashboard() {
                   <Shield className="w-5 h-5 text-white" />
                 </button>
               )}
+              {/* Team Chat — sits just before the gear so reps and managers
+                  reach for it in the same place. Owns its own panel + unread
+                  badge; nothing else in the header needs to know about chat. */}
+              <ChatLauncher />
+
               {/* Gear icon — gets a pulsing lime ring + small dot when the
                   org still needs setup, so a new owner has an obvious
                   visual breadcrumb pointing them to Settings. The ring

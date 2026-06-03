@@ -29,6 +29,7 @@ import {
   computeCloseRateDiagnostic, computeLevelUpProximity, computeTeamPulse,
 } from '../lib/callouts.js'
 import RepCallouts from '../components/RepCallouts.jsx'
+import ChatLauncher from '../components/ChatLauncher.jsx'
 import { StoragePhoto } from '../lib/photos.jsx'
 import {
   RichStatCard, MiniSparkArea, MiniSparkBars,
@@ -392,6 +393,10 @@ export default function RepHome() {
               </span>
             )}
           </button>
+          {/* Team Chat — placed just before the Settings gear so reps
+              reach for chat in the same spot the manager does. Owns its
+              own panel + unread badge. */}
+          <ChatLauncher />
           <button
             onClick={() => navigate('/profile')}
             className="p-2 rounded-full bg-white/20 active:bg-white/30 shrink-0"

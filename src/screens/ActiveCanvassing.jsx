@@ -15,6 +15,7 @@ import {
 } from '../lib/repStats.js'
 import MapView from '../components/MapView.jsx'
 import InteractionModal from '../components/InteractionModal.jsx'
+import InSessionChatBubble from '../components/InSessionChatBubble.jsx'
 
 // How long a "Log this door" pill stays on screen when auto-open is off.
 // After this the pending knock is cleared; the rep can still log manually.
@@ -756,6 +757,12 @@ export default function ActiveCanvassing() {
           </div>
         </div>
       )}
+
+      {/* In-session chat bubble — floats over the layout in the lower-right,
+          completely independent of the session lifecycle. Tapping it
+          neither pauses GPS, ends the session, nor interrupts the door-
+          knock detector; it just overlays a compact ChatPanel. */}
+      <InSessionChatBubble />
     </div>
   )
 }

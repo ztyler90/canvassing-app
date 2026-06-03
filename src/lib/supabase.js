@@ -2488,3 +2488,319 @@ export async function deleteOrgService(id) {
     .eq('id', id)
   return { error }
 }
+
+// ─── Team Chat ───────────────────────────────────────────────────────────────
+//
+// All chat reads/writes go through the public.chat_* tables (see
+// 20260603_team_chat.sql). RLS handles org/participant scoping — the
+// helpers below never need to filter by organization themselves.
+//
+// Three tables:
+//   chat_conversations  — one row per thread (team channel + each DM)
+//   chat_participants   — who's in a thread + per-user last_read_at
+//   chat_messages       — message rows; realtime publication is on this one
+//
+// Inbox-style reads (listMyConversations) intentionally fan out into a few
+// small client-side queries instead of an RPC, so the surface stays
+// readable. Org sizes are small (typically < 50 users) so the round-trip
+// math holds; revisit when a team starts pushing 500+ conversations.
+
+/**
+ * Compute the deterministic DM dedupe key for a pair of user ids.
+ * Mirrors the partial unique index on chat_conversations.dm_key —
+ * if both clients try to create the same DM at the same time, one
+ * write wins and the loser falls through to the SELECT below.
+ */
+function dmKeyFor(a, b) {
+  return [String(a), String(b)].sort().join('|')
+}
+
+/**
+ * Resolve the org's team conversation id, creating it if missing.
+ * The DB trigger seeds one on org insert, but we keep the lazy path
+ * here in case an older org somehow slipped through the backfill.
+ */
+export async function ensureTeamConversation() {
+  const orgId = await getMyOrgId()
+  if (!orgId) return null
+  const { data: existing } = await supabase
+    .from('chat_conversations')
+    .select('id')
+    .eq('organization_id', orgId)
+    .eq('type', 'team')
+    .maybeSingle()
+  if (existing?.id) return existing.id
+  // Lazy bootstrap — call the DB function so the team-channel + members
+  // get seeded atomically. Returns the conversation id.
+  const { data, error } = await supabase
+    .rpc('chat_ensure_team_conversation_for_org', { p_org: orgId })
+  if (error) return null
+  return data
+}
+
+/**
+ * Get or create a 1:1 DM conversation with another user in the same org.
+ * Idempotent — if the DM already exists (or another tab raced us), we
+ * fall through to the SELECT and return the existing id.
+ */
+export async function getOrCreateDM(otherUserId) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || !otherUserId || user.id === otherUserId) return null
+  const orgId = await getMyOrgId()
+  if (!orgId) return null
+  const key = dmKeyFor(user.id, otherUserId)
+
+  // Existing?
+  const { data: hit } = await supabase
+    .from('chat_conversations')
+    .select('id')
+    .eq('organization_id', orgId)
+    .eq('type', 'dm')
+    .eq('dm_key', key)
+    .maybeSingle()
+  if (hit?.id) return hit.id
+
+  // Create. The partial unique index swallows races; a 23505 here just
+  // means another tab beat us, so we re-select.
+  const { data: created, error: insertErr } = await supabase
+    .from('chat_conversations')
+    .insert({ organization_id: orgId, type: 'dm', dm_key: key })
+    .select('id')
+    .single()
+  let convId = created?.id
+  if (insertErr && insertErr.code === '23505') {
+    const { data: again } = await supabase
+      .from('chat_conversations')
+      .select('id')
+      .eq('organization_id', orgId)
+      .eq('type', 'dm')
+      .eq('dm_key', key)
+      .maybeSingle()
+    convId = again?.id || null
+  }
+  if (!convId) return null
+
+  // Both participants. Conflict-do-nothing covers the race where one of
+  // them was already attached from a prior partial run.
+  await supabase
+    .from('chat_participants')
+    .upsert(
+      [
+        { conversation_id: convId, user_id: user.id },
+        { conversation_id: convId, user_id: otherUserId },
+      ],
+      { onConflict: 'conversation_id,user_id', ignoreDuplicates: true }
+    )
+  return convId
+}
+
+/**
+ * Inbox: every conversation the user is in, with last-message preview,
+ * unread count, and (for DMs) the other participant's profile.
+ *
+ * Shape:
+ *   [{
+ *     id, type, name, last_message_at,
+ *     last_message: { body, sender_id, created_at } | null,
+ *     unread,                         // integer
+ *     other_user: { id, full_name, email } | null,   // DMs only
+ *     participant_count,
+ *   }]
+ *
+ * Sorted by last_message_at desc so the inbox reads as a recency feed.
+ */
+export async function listMyConversations() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  // My participation rows + the conversation columns we need.
+  const { data: myParts } = await supabase
+    .from('chat_participants')
+    .select('conversation_id, last_read_at, chat_conversations ( id, type, name, last_message_at, organization_id )')
+    .eq('user_id', user.id)
+  const rows = (myParts || [])
+    .map((p) => ({
+      conversation_id: p.conversation_id,
+      last_read_at:    p.last_read_at,
+      conv:            p.chat_conversations,
+    }))
+    .filter((r) => r.conv)
+  if (rows.length === 0) return []
+
+  const convIds = rows.map((r) => r.conversation_id)
+
+  // All participant rows for those conversations — we need them for DM
+  // "other user" + member counts. One read, then group in JS.
+  const { data: allParts } = await supabase
+    .from('chat_participants')
+    .select('conversation_id, user_id, users ( id, full_name, email )')
+    .in('conversation_id', convIds)
+  const partsByConv = {}
+  for (const p of allParts || []) {
+    if (!partsByConv[p.conversation_id]) partsByConv[p.conversation_id] = []
+    partsByConv[p.conversation_id].push(p)
+  }
+
+  // Last-message preview for each conversation. We pull the most recent
+  // ~120 messages across the user's conversations in one read and pick
+  // the head per conversation in JS. Beats a per-conversation request
+  // and still costs one round-trip.
+  const { data: recentMsgs } = await supabase
+    .from('chat_messages')
+    .select('id, conversation_id, sender_id, body, created_at')
+    .in('conversation_id', convIds)
+    .order('created_at', { ascending: false })
+    .limit(Math.max(120, convIds.length * 3))
+  const lastByConv = {}
+  for (const m of recentMsgs || []) {
+    if (!lastByConv[m.conversation_id]) lastByConv[m.conversation_id] = m
+  }
+
+  // Unread counts — one read per conversation but parallelized. We use
+  // head:true so the request only returns the count, not rows. This
+  // could be batched with a SQL function later; for now it stays simple.
+  const unreadByConv = {}
+  await Promise.all(rows.map(async (r) => {
+    let q = supabase
+      .from('chat_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', r.conversation_id)
+      // Don't count my own messages as "unread" — that's annoying when I
+      // just sent something.
+      .neq('sender_id', user.id)
+    if (r.last_read_at) q = q.gt('created_at', r.last_read_at)
+    const { count } = await q
+    unreadByConv[r.conversation_id] = count || 0
+  }))
+
+  return rows
+    .map((r) => {
+      const allFor = partsByConv[r.conversation_id] || []
+      const others = allFor.filter((p) => p.user_id !== user.id)
+      return {
+        id:              r.conv.id,
+        type:            r.conv.type,
+        name:            r.conv.name,
+        last_message_at: r.conv.last_message_at,
+        last_message:    lastByConv[r.conversation_id] || null,
+        unread:          unreadByConv[r.conversation_id] || 0,
+        other_user:      r.conv.type === 'dm' && others[0] ? others[0].users : null,
+        participant_count: allFor.length,
+      }
+    })
+    .sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at))
+}
+
+/**
+ * Fetch messages in a conversation, newest-first, paginated.
+ * Caller can page back by passing `before` (created_at ISO) to load older.
+ */
+export async function getChatMessages(conversationId, { limit = 50, before = null } = {}) {
+  if (!conversationId) return []
+  let q = supabase
+    .from('chat_messages')
+    .select('id, conversation_id, sender_id, body, created_at, users:sender_id ( full_name, email )')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (before) q = q.lt('created_at', before)
+  const { data } = await q
+  // UI rendering is easier oldest→newest, so reverse before returning.
+  return (data || []).reverse()
+}
+
+/**
+ * Send a message. Body is trimmed; empty/whitespace-only sends are a no-op.
+ * Returns the inserted row so the client can echo without waiting for the
+ * realtime broadcast to fan out.
+ */
+export async function sendChatMessage(conversationId, body) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { data: null, error: new Error('Not signed in') }
+  const trimmed = (body || '').trim()
+  if (!trimmed) return { data: null, error: new Error('Message is empty') }
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .insert({ conversation_id: conversationId, sender_id: user.id, body: trimmed })
+    .select('id, conversation_id, sender_id, body, created_at, users:sender_id ( full_name, email )')
+    .single()
+  return { data, error }
+}
+
+/**
+ * Bump the user's last_read_at to now() for a conversation. Drives the
+ * unread badge on next inbox refresh / realtime tick.
+ */
+export async function markChatRead(conversationId) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || !conversationId) return
+  await supabase
+    .from('chat_participants')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', user.id)
+}
+
+/**
+ * Realtime subscription to new messages in a single conversation.
+ * Returns the channel — caller MUST call supabase.removeChannel(channel)
+ * on unmount or the connection leaks.
+ *
+ * Filter is server-side (conversation_id = ?) so other conversations'
+ * traffic never touches this socket.
+ */
+export function subscribeToChatMessages(conversationId, onInsert) {
+  if (!conversationId) return null
+  const channel = supabase
+    .channel(`chat:${conversationId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'chat_messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      (payload) => onInsert?.(payload.new)
+    )
+    .subscribe()
+  return channel
+}
+
+/**
+ * Realtime subscription that fires when a message lands in ANY
+ * conversation the user is in. Used by the header chat icon to update
+ * the unread badge without a poll. Server-side filter on the table is
+ * impossible (we don't know the participant set at filter time), so
+ * the callback receives every new message and the caller decides
+ * whether it affects them — cheap because chat traffic is low volume.
+ */
+export function subscribeToChatInbox(onChange) {
+  const channel = supabase
+    .channel('chat:inbox')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+      (payload) => onChange?.(payload.new)
+    )
+    .subscribe()
+  return channel
+}
+
+/**
+ * Roster for the "new DM" picker — everyone in the user's org except
+ * themselves. Sorted by name. Returns minimal columns.
+ */
+export async function listOrgTeammates() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
+  const { data } = await supabase
+    .from('users')
+    .select('id, full_name, email, role')
+    .eq('organization_id', orgId)
+    .neq('id', user.id)
+    .order('full_name', { ascending: true, nullsFirst: false })
+  return data || []
+}
