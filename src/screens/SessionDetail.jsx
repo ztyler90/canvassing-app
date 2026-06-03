@@ -10,18 +10,25 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ChevronLeft, Edit2, Check, X, MapPin, Clock, DollarSign, Home, MessageSquare, Save } from 'lucide-react'
-import { getSessionWithInteractions, updateInteraction, updateSession } from '../lib/supabase.js'
+import { getSessionWithInteractions, updateInteraction, updateSession, getMyOrganization } from '../lib/supabase.js'
 import { PhotoThumb } from '../lib/photos.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
 
-const OUTCOMES = [
-  { value: 'no_answer',          label: 'No Answer',       color: '#9CA3AF' },
-  { value: 'not_interested',     label: 'Not Interested',  color: '#EF4444' },
-  { value: 'estimate_requested', label: 'Estimate',        color: '#F59E0B' },
-  { value: 'booked',             label: 'Booked ✓',        color: '#10B981' },
-]
+// Outcome dropdown labels. The estimate_requested label swaps to
+// "Appointment" when the org has opted into appointment-setter terminology
+// under Settings → Daily Goal. Built per-render via the helper below so the
+// label updates as soon as org config loads.
+function buildOutcomes(countLabel) {
+  const isAppt = countLabel === 'appointments'
+  return [
+    { value: 'no_answer',          label: 'No Answer',                       color: '#9CA3AF' },
+    { value: 'not_interested',     label: 'Not Interested',                  color: '#EF4444' },
+    { value: 'estimate_requested', label: isAppt ? 'Appointment' : 'Estimate', color: '#F59E0B' },
+    { value: 'booked',             label: 'Booked ✓',                        color: '#10B981' },
+  ]
+}
 
 export default function SessionDetail() {
   const { id } = useParams()
@@ -37,6 +44,19 @@ export default function SessionDetail() {
   const [interactionDraft, setInteractionDraft] = useState({})
   const [savingInteraction, setSavingInteraction] = useState(false)
   const [toast, setToast] = useState(null)
+  // Org-configured count noun. Determines whether the per-session
+  // headers + outcome dropdown say "Estimates" or "Appointments". Lower-
+  // case to match the raw org column value; capitalize at render time.
+  const [countLabel, setCountLabel] = useState('estimates')
+  useEffect(() => {
+    let alive = true
+    getMyOrganization().then((org) => {
+      if (alive && org?.count_goal_label) setCountLabel(org.count_goal_label)
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [])
+  const countSingular = countLabel === 'appointments' ? 'Appointment' : 'Estimate'
+  const countPlural   = countLabel === 'appointments' ? 'Appointments' : 'Estimates'
 
   useEffect(() => { loadData() }, [id])
 
@@ -164,7 +184,7 @@ export default function SessionDetail() {
               {[
                 ['doors_knocked',  'Doors Knocked', 'number'],
                 ['conversations',  'Conversations', 'number'],
-                ['estimates',      'Estimates',     'number'],
+                ['estimates',      countPlural,     'number'],
                 ['bookings',       'Bookings',      'number'],
                 ['revenue_booked', 'Revenue ($)',   'decimal'],
               ].map(([key, label, type]) => (
@@ -215,7 +235,7 @@ export default function SessionDetail() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <StatPill label="Conversations" value={session.conversations || 0} />
-              <StatPill label="Estimates"     value={session.estimates      || 0} />
+              <StatPill label={countPlural}   value={session.estimates      || 0} />
               <StatPill label="Bookings"      value={session.bookings       || 0} color={BRAND_LIME} />
             </div>
             <div className="mt-3 flex items-center gap-1.5">
@@ -247,6 +267,7 @@ export default function SessionDetail() {
             isEditing={editingInteractionId === interaction.id}
             draft={interactionDraft}
             saving={savingInteraction}
+            countLabel={countLabel}
             onEdit={() => startEditInteraction(interaction)}
             onCancel={cancelEditInteraction}
             onSave={() => saveInteraction(interaction.id)}
@@ -267,7 +288,8 @@ function StatPill({ label, value, color }) {
   )
 }
 
-function InteractionCard({ interaction, isEditing, draft, saving, onEdit, onCancel, onSave, onDraftChange }) {
+function InteractionCard({ interaction, isEditing, draft, saving, countLabel = 'estimates', onEdit, onCancel, onSave, onDraftChange }) {
+  const OUTCOMES = buildOutcomes(countLabel)
   const outcome = OUTCOMES.find(o => o.value === interaction.outcome) || OUTCOMES[0]
 
   if (isEditing) {

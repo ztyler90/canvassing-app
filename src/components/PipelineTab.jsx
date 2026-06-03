@@ -31,6 +31,7 @@ import {
   getPipelineHealth, getClosedSummary, getMyOrganization,
   ACTIVE_PIPELINE_STAGES,
 } from '../lib/supabase.js'
+import LeadDetailModal from './LeadDetailModal.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
 
@@ -57,8 +58,23 @@ export default function PipelineTab() {
   const [closed,           setClosed]           = useState(null)
   const [loading,          setLoading]          = useState(true)
   const [closedExpanded,   setClosedExpanded]   = useState(false)
+  // The currently-opened lead, if any. null means no modal. Keyed by full
+  // lead object (not just id) so the modal can render its drill-down
+  // immediately without re-querying. After an update, we patch the local
+  // leads array so the kanban re-renders without a full reload.
+  const [openLead,         setOpenLead]         = useState(null)
 
   useEffect(() => { load() }, [])
+
+  function handleLeadUpdate(updated) {
+    if (!updated) return
+    setLeads((prev) => prev.map((l) => l.id === updated.id ? { ...l, ...updated } : l))
+    // If the stage changed, the lead may have left the active-pipeline
+    // tracked range. Simplest correct thing: trigger a soft refresh so
+    // counts stay accurate. Action queue + health are derived from the
+    // same set so they refresh too.
+    load()
+  }
 
   async function load() {
     setLoading(true)
@@ -126,7 +142,7 @@ export default function PipelineTab() {
             text="Nothing urgent right now. Nice work." />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-            {queue.slice(0, 5).map((q, i) => <ActionCard key={q.lead.id + i} item={q} />)}
+            {queue.slice(0, 5).map((q, i) => <ActionCard key={q.lead.id + i} item={q} onClick={() => setOpenLead(q.lead)} />)}
           </div>
         )}
       </ProSection>
@@ -163,6 +179,7 @@ export default function PipelineTab() {
               col={col}
               leads={byStage[col.id]}
               total={totals.byStage[col.id]}
+              onCardClick={setOpenLead}
             />
           ))}
         </div>
@@ -240,6 +257,18 @@ export default function PipelineTab() {
           </div>
         )}
       </ProSection>
+
+      {/* Drill-down modal — opens when any card is clicked. Renders
+          outside the section grid so its overlay covers the whole tab.
+          Closes on backdrop click or X; updates patch the local leads
+          array so the kanban refreshes without a full network round-trip. */}
+      {openLead && (
+        <LeadDetailModal
+          lead={openLead}
+          onClose={() => setOpenLead(null)}
+          onUpdate={handleLeadUpdate}
+        />
+      )}
     </div>
   )
 }
@@ -297,13 +326,16 @@ function LockedTeaser({ blurb }) {
   )
 }
 
-function ActionCard({ item }) {
+function ActionCard({ item, onClick }) {
   const { reason, urgency, lead } = item
   const borderColor = urgency === 'red' ? 'border-l-red-500' : 'border-l-amber-500'
   const dotColor    = urgency === 'red' ? 'bg-red-500'       : 'bg-amber-500'
   const tagColor    = urgency === 'red' ? 'text-red-600'     : 'text-amber-700'
   return (
-    <div className={`bg-white rounded-2xl border-l-4 ${borderColor} border-y border-r border-gray-200 p-3.5 shadow-sm`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`bg-white rounded-2xl border-l-4 ${borderColor} border-y border-r border-gray-200 p-3.5 shadow-sm w-full text-left hover:shadow-md active:scale-[0.99] transition-all`}>
       <div className="flex items-center gap-1.5 mb-2">
         <span className={`w-2 h-2 rounded-full ${dotColor}`} />
         <span className={`text-[10px] font-bold uppercase tracking-wide ${tagColor}`}>{reason}</span>
@@ -322,7 +354,7 @@ function ActionCard({ item }) {
           </span>
         )}
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -376,7 +408,7 @@ function DayCell({ day }) {
   )
 }
 
-function KanbanColumn({ col, leads, total }) {
+function KanbanColumn({ col, leads, total, onCardClick }) {
   return (
     <div className={`${col.bg} rounded-2xl p-3 min-h-[400px]`}>
       <div className="flex items-center gap-1.5 mb-1 px-1">
@@ -392,7 +424,7 @@ function KanbanColumn({ col, leads, total }) {
         {leads.length === 0 ? (
           <div className="text-center py-6 text-[11px] text-gray-400">Empty</div>
         ) : (
-          leads.slice(0, 8).map((l) => <LeadCard key={l.id} lead={l} stage={col.id} />)
+          leads.slice(0, 8).map((l) => <LeadCard key={l.id} lead={l} stage={col.id} onClick={() => onCardClick?.(l)} />)
         )}
         {leads.length > 8 && (
           <p className="text-center text-[11px] font-semibold text-gray-500 py-1">
@@ -409,7 +441,7 @@ function KanbanColumn({ col, leads, total }) {
  * drills into the full lead by clicking through; the card itself shows
  * only the at-a-glance signals needed to scan a column.
  */
-function LeadCard({ lead, stage }) {
+function LeadCard({ lead, stage, onClick }) {
   const aging = computeAging(lead, stage)
   const dotClass = aging.color === 'red'   ? 'bg-red-500'
                  : aging.color === 'amber' ? 'bg-amber-500'
@@ -419,7 +451,10 @@ function LeadCard({ lead, stage }) {
   const borderClass = isUnassignedAppt ? 'border-2 border-red-300' : 'border border-gray-200'
 
   return (
-    <div className={`bg-white rounded-xl ${borderClass} p-2.5 shadow-sm`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`bg-white rounded-xl ${borderClass} p-2.5 shadow-sm w-full text-left hover:border-blue-400 hover:shadow active:scale-[0.99] transition-all`}>
       <div className="flex items-start gap-2 mb-1.5">
         <span className={`w-1.5 h-1.5 rounded-full ${dotClass} mt-1.5`} />
         <div className="flex-1 min-w-0">
@@ -457,7 +492,7 @@ function LeadCard({ lead, stage }) {
               : `${(lead.setter?.full_name || '—').split(' ')[0]} · ${aging.label}`}
         </span>
       </div>
-    </div>
+    </button>
   )
 }
 

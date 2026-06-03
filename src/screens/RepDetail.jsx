@@ -290,7 +290,7 @@ export default function RepDetail() {
             </div>
             <div className="space-y-2">
               {allSessions.slice(0, 8).map((s) => (
-                <SessionRow key={s.id} session={s} onClick={() => navigate('/session/' + s.id)} />
+                <SessionRow key={s.id} session={s} countLabel={goalCfg.count_goal_label} onClick={() => navigate('/session/' + s.id)} />
               ))}
             </div>
           </section>

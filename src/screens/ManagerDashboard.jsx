@@ -376,7 +376,7 @@ export default function ManagerDashboard() {
                 dateRange={dateRange} />
             )}
             {tab === 'live'        && <LiveTab allReps={reps} />}
-            {tab === 'leaderboard' && <LeaderboardTab territories={territoriesLite} />}
+            {tab === 'leaderboard' && <LeaderboardTab territories={territoriesLite} countLabel={countLabel} />}
             {tab === 'reps'        && <RepsTab repStats={repStats} allReps={reps} sessions={sessions} dateRange={dateRange} />}
             {tab === 'pipeline'    && <PipelineTab />}
             {tab === 'map'         && <MapTab interactions={mapData} />}
@@ -663,6 +663,7 @@ function OverviewTab({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
           <RecentSessionsCard
             sessions={sessions}
+            countLabel={countLabel}
             onOpen={(id) => navigate('/session/' + id)}
           />
           <GoalTrackerCard
@@ -1985,14 +1986,21 @@ const PERIOD_OPTIONS = [
   { value: 'week',  label: 'This Week' },
   { value: 'month', label: 'This Month' },
 ]
-const SORT_OPTIONS = [
-  { key: 'revenue',       label: 'Revenue' },
-  { key: 'bookings',      label: 'Booked'  },
-  { key: 'doors',         label: 'Doors'   },
-  { key: 'conversations', label: 'Convos'  },
-  { key: 'closeRate',     label: 'Close %' },
-  { key: 'revPerDoor',    label: '$/Door'  },
-]
+// Sort options are built dynamically so the count metric (estimates) wears
+// the org's preferred label ("Estimates" or "Appointments"). Order matters:
+// the count metric leads because for setter-driven teams it's the KPI; we
+// keep Revenue available but demote it down the row.
+function buildSortOptions(countLabel) {
+  return [
+    { key: 'estimates',     label: countLabel || 'Estimates' },
+    { key: 'bookings',      label: 'Booked'  },
+    { key: 'doors',         label: 'Doors'   },
+    { key: 'conversations', label: 'Convos'  },
+    { key: 'closeRate',     label: 'Close %' },
+    { key: 'revenue',       label: 'Revenue' },
+    { key: 'revPerDoor',    label: '$/Door'  },
+  ]
+}
 function projectSortValue(rep, key) {
   if (!rep) return 0
   if (key === 'closeRate')  return rep.doors > 0 ? (rep.bookings / rep.doors) : 0
@@ -2000,9 +2008,14 @@ function projectSortValue(rep, key) {
   return rep[key] || 0
 }
 
-function LeaderboardTab({ territories = [] }) {
+function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
+  // Default sort is the count metric ("Estimates" / "Appointments") because for
+  // setter-driven teams (solar, roofing, pest, etc.) booked appointments is the
+  // headline KPI — revenue lands later as a back-of-pipeline indicator. The
+  // sort list itself is rebuilt with the org's preferred label.
+  const sortOptions = buildSortOptions(countLabel)
   const [period,    setPeriod]    = useState('today')
-  const [sortBy,    setSortBy]    = useState('revenue')
+  const [sortBy,    setSortBy]    = useState('estimates')
   const [rows,      setRows]      = useState([])
   const [loading,   setLoading]   = useState(true)
   // "Share view" — hides revenue $ so the board can be posted publicly
@@ -2852,8 +2865,16 @@ function RepLeaderboard({ repStats = [] }) {
 // shell so it sits cleanly next to the new cards in the half-width grid.
 // Trimmed to 8 rows (down from 10) so its visual height roughly matches
 // the Open Estimates card next to it.
-function RecentSessionsCard({ sessions = [], onOpen }) {
+function RecentSessionsCard({ sessions = [], onOpen, countLabel = 'estimates' }) {
   const visible = sessions.slice(0, 8)
+  // For appointment-setter orgs the per-session "estimates" count is the
+  // primary signal — many setters never see revenue land on their session
+  // because the closer books the job later. We surface both: revenue
+  // stays the top-right number for continuity, and the secondary line
+  // shows the count using the org-configured noun. Normalize to lower
+  // since callers pass either "Estimates"/"Appointments" (capitalized,
+  // display style) or the raw lowercase org setting.
+  const noun = String(countLabel || 'estimates').toLowerCase() === 'appointments' ? 'appt' : 'est'
   return (
     <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
       <div className="flex items-baseline justify-between mb-3">
@@ -2861,31 +2882,37 @@ function RecentSessionsCard({ sessions = [], onOpen }) {
         <p className="text-[11px] text-gray-500">Latest activity</p>
       </div>
       <ul className="space-y-2">
-        {visible.map((s) => (
-          <li key={s.id}>
-            <button
-              type="button"
-              onClick={() => onOpen?.(s.id)}
-              className="w-full text-left rounded-xl px-3 py-2.5 border border-gray-100 hover:bg-slate-50 hover:border-gray-200 transition-colors"
-            >
-              <div className="flex justify-between items-start gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium text-sm text-gray-900 truncate">{s.users?.full_name || 'Rep'}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{format(new Date(s.started_at), 'EEE MMM d, h:mm a')}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="text-right">
-                    <p className="font-bold text-gray-900 text-sm">${(s.revenue_booked || 0).toFixed(0)}</p>
-                    <p className="text-xs text-gray-400">{s.doors_knocked || 0} doors</p>
+        {visible.map((s) => {
+          const countN  = s.estimates || 0
+          const doorsN  = s.doors_knocked || 0
+          return (
+            <li key={s.id}>
+              <button
+                type="button"
+                onClick={() => onOpen?.(s.id)}
+                className="w-full text-left rounded-xl px-3 py-2.5 border border-gray-100 hover:bg-slate-50 hover:border-gray-200 transition-colors"
+              >
+                <div className="flex justify-between items-start gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm text-gray-900 truncate">{s.users?.full_name || 'Rep'}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{format(new Date(s.started_at), 'EEE MMM d, h:mm a')}</p>
                   </div>
-                  <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="text-right">
+                      <p className="font-bold text-gray-900 text-sm">${(s.revenue_booked || 0).toFixed(0)}</p>
+                      <p className="text-xs text-gray-400">
+                        {countN} {countN === 1 ? noun : noun + 's'} · {doorsN} doors
+                      </p>
+                    </div>
+                    <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
                 </div>
-              </div>
-            </button>
-          </li>
-        ))}
+              </button>
+            </li>
+          )
+        })}
       </ul>
     </section>
   )

@@ -22,12 +22,21 @@ import {
 } from '../lib/supabase.js'
 import { reverseGeocodeCandidates } from '../lib/geocoding.js'
 
-const OUTCOMES = [
-  { id: 'no_answer',          label: 'No Answer',       emoji: '🚪', color: '#9CA3AF', bg: '#F9FAFB' },
-  { id: 'not_interested',     label: 'Not Interested',  emoji: '✋', color: '#EF4444', bg: '#FEF2F2' },
-  { id: 'estimate_requested', label: 'Estimate',        emoji: '📋', color: '#F59E0B', bg: '#FFFBEB' },
-  { id: 'booked',             label: 'Booked!',         emoji: '✅', color: '#10B981', bg: '#ECFDF5' },
-]
+// Outcome buttons. The 3rd button's label is org-configurable — managers
+// pick "Estimate" vs "Appointment" terminology under Settings → Daily Goal,
+// and the rep's outcome button reflects that choice so the door experience
+// matches the company's vocabulary. `buildOutcomes(label)` swaps the
+// `estimate_requested` button's display text without changing the
+// underlying outcome id (which the rest of the data model depends on).
+function buildOutcomes(countLabel) {
+  const isAppt = countLabel === 'appointments'
+  return [
+    { id: 'no_answer',          label: 'No Answer',                       emoji: '🚪', color: '#9CA3AF', bg: '#F9FAFB' },
+    { id: 'not_interested',     label: 'Not Interested',                  emoji: '✋', color: '#EF4444', bg: '#FEF2F2' },
+    { id: 'estimate_requested', label: isAppt ? 'Appointment' : 'Estimate', emoji: '📋', color: '#F59E0B', bg: '#FFFBEB' },
+    { id: 'booked',             label: 'Booked!',                         emoji: '✅', color: '#10B981', bg: '#ECFDF5' },
+  ]
+}
 
 // Phase 3: door-stage lost reasons. Mirrors the taxonomy decided in design
 // (5 options + Other). The estimate-stage version lives in CloserHome.
@@ -110,16 +119,27 @@ export default function InteractionModal({
   const [salesCycle,      setSalesCycle]      = useState('mixed')
   const [routingMode,     setRoutingMode]     = useState('manager_assigns')
   const [closers,         setClosers]         = useState([])
+  // Rep-facing outcome button terminology: 'estimates' (default) or
+  // 'appointments'. Set by the manager in Settings → Daily Goal and read
+  // here so the 3rd outcome button renders "Appointment" instead of
+  // "Estimate" when that's how the org talks about it.
+  const [countLabel,      setCountLabel]      = useState('estimates')
   useEffect(() => {
     let alive = true
     Promise.all([getMyOrganization(), getAllClosers()]).then(([org, cl]) => {
       if (!alive) return
       if (org?.sales_cycle)       setSalesCycle(org.sales_cycle)
       if (org?.lead_routing_mode) setRoutingMode(org.lead_routing_mode)
+      if (org?.count_goal_label)  setCountLabel(org.count_goal_label)
       setClosers(cl || [])
     }).catch(() => {})
     return () => { alive = false }
   }, [])
+
+  // Build the outcome button list against the current org terminology.
+  // Memoized so changing countLabel re-renders without rebuilding on
+  // every parent update.
+  const outcomes = useMemo(() => buildOutcomes(countLabel), [countLabel])
 
   // Appointment date/time captured at the door. Surfaced as a step when
   // the outcome is 'estimate_requested' on appointment_based / mixed orgs.
@@ -733,7 +753,7 @@ export default function InteractionModal({
               </p>
             )}
             <div className="grid grid-cols-2 gap-3">
-              {OUTCOMES.map((o) => (
+              {outcomes.map((o) => (
                 <button
                   key={o.id}
                   onClick={() => handleOutcomeSelect(o.id)}
@@ -819,7 +839,9 @@ export default function InteractionModal({
         {step === 'details' && (
           <form onSubmit={handleDetailsSave} className="px-5 py-4 space-y-4">
             <h3 className="font-bold text-gray-900 text-base">
-              {selectedOutcome === 'booked' ? '🎉 Book the Job' : '📋 Estimate Details'}
+              {selectedOutcome === 'booked'
+                ? '🎉 Book the Job'
+                : countLabel === 'appointments' ? '📋 Appointment Details' : '📋 Estimate Details'}
             </h3>
 
             {/* Phase 3: appointment + closer assignment.

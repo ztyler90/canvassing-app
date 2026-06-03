@@ -577,7 +577,7 @@ export default function RepHome() {
             </div>
             <div className="space-y-2">
               {allSessions.slice(0, 4).map(s => (
-                <SessionRow key={s.id} session={s} onClick={() => navigate('/session/' + s.id)} />
+                <SessionRow key={s.id} session={s} countLabel={goalCfg.count_goal_label} onClick={() => navigate('/session/' + s.id)} />
               ))}
             </div>
           </section>
@@ -975,10 +975,17 @@ function describeRecency(iso) {
   return `Canvassed ${Math.floor(days / 365)} yr ago`
 }
 
-export function SessionRow({ session, onClick }) {
+export function SessionRow({ session, onClick, countLabel = 'estimates' }) {
   const elapsed = session.ended_at
     ? ((new Date(session.ended_at) - new Date(session.started_at)) / 60000).toFixed(0)
     : null
+  // For orgs using appointment-setter terminology the count column is the
+  // primary KPI (revenue often lands on a closer's plate, not the setter's).
+  // Both surface here: revenue stays as the top-right number for continuity,
+  // and the count line below uses the org-configured noun.
+  const countN     = session.estimates || 0
+  const countNoun  = countLabel === 'appointments' ? 'appt' : 'est'
+  const bookings   = session.bookings || 0
 
   return (
     <button
@@ -995,7 +1002,10 @@ export function SessionRow({ session, onClick }) {
       <div className="flex items-center gap-2">
         <div className="text-right">
           <p className="font-bold text-gray-900">${(session.revenue_booked || 0).toFixed(0)}</p>
-          <p className="text-xs text-green-600">{session.bookings || 0} booked</p>
+          <p className="text-xs text-green-600">
+            {countN} {countN === 1 ? countNoun : countNoun + 's'}
+            {bookings > 0 && ` · ${bookings} booked`}
+          </p>
         </div>
         <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
       </div>
