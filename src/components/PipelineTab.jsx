@@ -366,7 +366,7 @@ function ActionCard({ item, onClick }) {
       </p>
       <div className="mt-2.5 flex items-end justify-between">
         <span className="text-[11px] text-gray-600 truncate">
-          {lead.closer?.full_name ? `Closer: ${lead.closer.full_name}` : lead.setter?.full_name ? `From ${lead.setter.full_name}` : '—'}
+          {closerLabel(lead) || (lead.setter?.full_name ? `From ${lead.setter.full_name}` : '—')}
         </span>
         {lead.estimated_value > 0 && (
           <span className="text-base font-extrabold text-gray-900 shrink-0">
@@ -515,11 +515,8 @@ function DayDetailModal({ day, onClose, onLeadClick }) {
                       </p>
                     )}
                     <p className="text-[11px] text-gray-500 mt-0.5 truncate">
-                      {a.closer?.full_name
-                        ? `Closer: ${a.closer.full_name}`
-                        : a.setter?.full_name
-                          ? `Setter: ${a.setter.full_name}`
-                          : 'Unassigned'}
+                      {closerLabel(a)
+                        || (a.setter?.full_name ? `Setter: ${a.setter.full_name}` : 'Unassigned')}
                     </p>
                   </div>
                   {a.estimated_value > 0 && (
@@ -614,8 +611,8 @@ function LeadCard({ lead, stage, onClick }) {
           </span>
         )}
         <span className={`text-[10px] ${aging.color === 'red' ? 'text-red-600 font-semibold' : 'text-gray-500'} ml-auto truncate`}>
-          {stage === 'appt_scheduled' && lead.closer?.full_name
-            ? `Closer: ${lead.closer.full_name}`
+          {stage === 'appt_scheduled' && closerLabel(lead)
+            ? closerLabel(lead)
             : isUnassignedAppt
               ? 'Unassigned ⚠'
               : `${(lead.setter?.full_name || '—').split(' ')[0]} · ${aging.label}`}
@@ -695,6 +692,16 @@ function startOfTodayLocal() {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
   return d
+}
+
+// "Closer: Name" line for any pipeline row, agnostic to which tier the
+// closer belongs to. Reads the matching join from getPipelineLeads /
+// getUpcomingAppointments — exactly one of the two will be populated.
+// Returns null when no closer is assigned, so callers can fall back to
+// setter / "Unassigned" copy.
+function closerLabel(row) {
+  const name = row?.closer?.full_name || row?.closer_contact?.full_name
+  return name ? `Closer: ${name}` : null
 }
 
 function formatCompact(n) {

@@ -79,9 +79,10 @@ serve(async (req) => {
       .select(`
         id, organization_id, address, contact_name, contact_phone,
         contact_email, service_types, estimated_value, notes,
-        appointment_at, closer_id, rep_id,
-        closer:closer_id ( id, email, full_name, phone, closer_notification_pref ),
-        setter:rep_id   ( id, full_name )
+        appointment_at, closer_id, closer_contact_id, rep_id,
+        closer:closer_id                 ( id, email, full_name, phone, closer_notification_pref ),
+        closer_contact:closer_contact_id ( id, email, full_name, phone, notification_pref ),
+        setter:rep_id                    ( id, full_name )
       `)
       .eq('id', interactionId)
       .single()
@@ -92,7 +93,7 @@ serve(async (req) => {
       })
     }
 
-    if (!lead.closer_id) {
+    if (!lead.closer_id && !lead.closer_contact_id) {
       // Nothing to do — the lead isn't assigned. Quietly succeed so the
       // client can call this defensively after every insert without
       // branching on whether routing was setter_picks / round_robin /
@@ -116,18 +117,44 @@ serve(async (req) => {
       })
     }
 
-    const closer = (lead as any).closer
-    const setter = (lead as any).setter
+    // Phase 5: closer can be a platform user (closer_id) OR an email-only
+    // contact (closer_contact_id). Read whichever join is populated and
+    // normalize the field names so the rest of this function doesn't care.
+    const platformCloser = (lead as any).closer
+    const contactCloser  = (lead as any).closer_contact
+    const setter         = (lead as any).setter
+    const closer = platformCloser
+      ? {
+          tier:    'platform' as const,
+          id:      platformCloser.id,
+          email:   platformCloser.email,
+          full_name: platformCloser.full_name,
+          phone:   platformCloser.phone,
+          pref:    platformCloser.closer_notification_pref || 'email',
+        }
+      : contactCloser
+        ? {
+            tier:    'contact' as const,
+            id:      contactCloser.id,
+            email:   contactCloser.email,
+            full_name: contactCloser.full_name,
+            phone:   contactCloser.phone,
+            // Email-only contacts can't pick 'app' — schema CHECK enforces.
+            pref:    contactCloser.notification_pref || 'email',
+          }
+        : null
     if (!closer) {
       return new Response(JSON.stringify({ error: 'Closer profile missing' }), {
         status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const pref = closer.closer_notification_pref || 'email'
+    const pref = closer.pref
 
-    // 'app' = no outbound notification at all. The closer checks the
-    // inbox on their own cadence. Quietly succeed.
+    // 'app' = no outbound notification at all. Only meaningful for
+    // platform users — email-only contacts can't pick this (schema
+    // CHECK), but defensively treat as no-op anyway. The closer checks
+    // the inbox on their own cadence.
     if (pref === 'app') {
       return new Response(JSON.stringify({ delivered: true, channel: 'app' }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -135,6 +162,9 @@ serve(async (req) => {
     }
 
     // Build the lead summary once — reused for email + (future) SMS.
+    // Platform users get a CTA back into their Closer Inbox; email-only
+    // contacts don't (no login). The email template branches on whether
+    // inboxUrl is non-empty.
     const setterName = setter?.full_name || 'A setter'
     const summary = {
       customerName: lead.contact_name || 'New lead',
@@ -145,7 +175,7 @@ serve(async (req) => {
       appointment:  lead.appointment_at ? formatAppt(lead.appointment_at) : '',
       notes:        lead.notes || '',
       setterName,
-      inboxUrl:     `${APP_BASE_URL}/closer`,
+      inboxUrl:     closer.tier === 'platform' ? `${APP_BASE_URL}/closer` : '',
     }
 
     const channels: string[] = []
@@ -293,11 +323,11 @@ function buildLeadHtml({ toName, summary }: { toName: string; summary: LeadSumma
         ${row('Appointment', summary.appointment)}
         ${row('Notes',       summary.notes)}
       </table>
-      <div style="margin-top:24px;">
+      ${summary.inboxUrl ? `<div style="margin-top:24px;">
         <a href="${escapeAttr(summary.inboxUrl)}" style="display:inline-block;padding:12px 24px;background:#1B4FCC;color:#FFFFFF;text-decoration:none;font-weight:700;border-radius:10px;font-size:14px;">
           Open in KnockIQ →
         </a>
-      </div>
+      </div>` : ''}
     </td></tr>
   </table>
 </td></tr></table></body></html>`
@@ -310,9 +340,7 @@ function buildLeadText({ toName, summary }: { toName: string; summary: LeadSumma
 
 You've been assigned a new lead by ${summary.setterName}.
 
-${line('Customer',    summary.customerName)}${line('Address',     summary.address)}${line('Phone',       summary.phone)}${line('Service',     summary.services)}${line('Est. value',  summary.value)}${line('Appointment', summary.appointment)}${line('Notes',       summary.notes)}
-Open in KnockIQ: ${summary.inboxUrl}
-
+${line('Customer',    summary.customerName)}${line('Address',     summary.address)}${line('Phone',       summary.phone)}${line('Service',     summary.services)}${line('Est. value',  summary.value)}${line('Appointment', summary.appointment)}${line('Notes',       summary.notes)}${summary.inboxUrl ? `\nOpen in KnockIQ: ${summary.inboxUrl}\n` : ''}
 — KnockIQ`
 }
 

@@ -25,8 +25,8 @@ import {
 } from 'lucide-react'
 import { PhotoThumb } from '../lib/photos.jsx'
 import {
-  getAllClosers, updateLeadStage, updateLeadPrice, updateLeadAppointment,
-  updateLeadContact,
+  getAllClosersUnified, updateLeadStage, updateLeadPrice, updateLeadAppointment,
+  updateLeadContact, setLeadCloser,
 } from '../lib/supabase.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -81,7 +81,7 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
   const [savingAppt,  setSavingAppt]  = useState(false)
 
   useEffect(() => {
-    getAllClosers().then(setClosers).catch(() => setClosers([]))
+    getAllClosersUnified().then(setClosers).catch(() => setClosers([]))
   }, [])
 
   async function advance(toStage, extras = {}) {
@@ -93,31 +93,22 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
     onClose?.()
   }
 
-  async function reassign(newCloserId) {
+  async function reassign(closerKey) {
+    // closerKey is the composite "tier:id" string from the dropdown, or
+    // empty to unassign. setLeadCloser handles the XOR write — it sets
+    // the right column (closer_id or closer_contact_id) and nulls the
+    // other one so the DB CHECK constraint is satisfied.
     setReassigning(true); setError('')
-    // Patch closer_id directly. The previous detour through updateLeadStage
-    // was a no-op and confused the failure mode — when the manager UPDATE
-    // RLS policy was missing, the row count was 0 and the trailing
-    // .single() threw "Cannot coerce the result to a single JSON object"
-    // with no hint at the real cause. We now use .maybeSingle() so the
-    // call returns { data: null, error: null } on a 0-row hit and we can
-    // surface a helpful message instead of the raw PostgREST string.
-    const { supabase } = await import('../lib/supabase.js')
-    const { data: row, error: err2 } = await supabase
-      .from('interactions')
-      .update({ closer_id: newCloserId || null })
-      .eq('id', lead.id)
-      .select()
-      .maybeSingle()
+    const pick = closerKey
+      ? (() => {
+          const [tier, id] = closerKey.split(':')
+          return { tier, id }
+        })()
+      : null
+    const { data: row, error: err } = await setLeadCloser(lead.id, pick)
     setReassigning(false)
-    if (err2) {
-      setError(err2.message || 'Reassign failed')
-      return
-    }
-    if (!row) {
-      setError(
-        "Couldn't update this lead — you may not have permission, or the lead was just changed by someone else. Refresh and try again."
-      )
+    if (err) {
+      setError(err.message || "Couldn't update this lead — refresh and try again.")
       return
     }
     onUpdate?.(row)
@@ -184,7 +175,16 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
   const stageIdx     = STAGE_ORDER.findIndex((s) => s.id === lead.stage)
   const nextStage    = STAGE_ORDER[stageIdx + 1]
   const setterName   = lead.setter?.full_name || lead.users?.full_name || '—'
-  const closerName   = lead.closer?.full_name || '—'
+  // Closer name comes from whichever side of the two-tier model is set
+  // on this lead. The currentCloserKey drives the dropdown selection.
+  const closerName = lead.closer?.full_name
+    || lead.closer_contact?.full_name
+    || '—'
+  const currentCloserKey = lead.closer_id
+    ? `platform:${lead.closer_id}`
+    : lead.closer_contact_id
+      ? `contact:${lead.closer_contact_id}`
+      : ''
 
   // Convert ISO → "5d ago"-style aging label. Used for the timeline rows.
   const fmtAge = (iso) => {
@@ -428,15 +428,21 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
                 <div className="flex items-center gap-2 text-[11px] uppercase font-bold tracking-wide text-gray-400 mb-1.5">
                   <UserCheck className="w-3.5 h-3.5" /> Closer
                 </div>
+                {/* Closer dropdown — value is the composite "tier:id" so
+                    reassign() knows which FK column to write. Email-only
+                    contacts get an "(email)" suffix so it's obvious which
+                    closers will be notified vs. logging in. */}
                 <select
-                  value={lead.closer_id || ''}
+                  value={currentCloserKey}
                   onChange={(e) => reassign(e.target.value)}
                   disabled={reassigning}
                   className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none bg-white disabled:opacity-50"
                 >
                   <option value="">— Unassigned —</option>
                   {closers.map((c) => (
-                    <option key={c.id} value={c.id}>{c.full_name || c.email}</option>
+                    <option key={`${c.tier}:${c.id}`} value={`${c.tier}:${c.id}`}>
+                      {c.full_name || c.email}{c.tier === 'contact' ? ' (email)' : ''}
+                    </option>
                   ))}
                 </select>
                 {reassigning && (

@@ -16,7 +16,7 @@ import {
   flagInteractionFollowUp,
   getOrgServices,
   getMyOrganization,
-  getAllClosers,
+  getAllClosersUnified,
   pickRoundRobinCloser,
   notifyAssignedCloser,
 } from '../lib/supabase.js'
@@ -133,7 +133,7 @@ export default function InteractionModal({
   const [countLabel,      setCountLabel]      = useState('estimates')
   useEffect(() => {
     let alive = true
-    Promise.all([getMyOrganization(), getAllClosers()]).then(([org, cl]) => {
+    Promise.all([getMyOrganization(), getAllClosersUnified()]).then(([org, cl]) => {
       if (!alive) return
       if (org?.sales_cycle)       setSalesCycle(org.sales_cycle)
       if (org?.lead_routing_mode) setRoutingMode(org.lead_routing_mode)
@@ -154,11 +154,20 @@ export default function InteractionModal({
   const [appointmentAt,   setAppointmentAt]   = useState(
     existingInteraction?.appointment_at || ''
   )
-  // Closer selection — populated for setter_picks routing or pre-filled
-  // from the round-robin pick. Empty string means "no closer assigned
+  // Closer selection — Phase 5 two-tier model. The dropdown value uses a
+  // composite "tier:id" key so a single string state still encodes both
+  // pieces. Persisted into the right column (closer_id vs
+  // closer_contact_id) at save time. Empty string means "no closer
+  // assigned
   // yet" (manager will dispatch later).
-  const [selectedCloserId, setSelectedCloserId] = useState(
-    existingInteraction?.closer_id || ''
+  // Composite key encoding tier + id: "platform:UUID" or "contact:UUID".
+  // Pre-fill from whichever side of the existing interaction is populated.
+  const [selectedCloserKey, setSelectedCloserKey] = useState(
+    existingInteraction?.closer_id
+      ? `platform:${existingInteraction.closer_id}`
+      : existingInteraction?.closer_contact_id
+        ? `contact:${existingInteraction.closer_contact_id}`
+        : ''
   )
   // Lost-reason capture for 'not_interested' door outcomes. Stays NULL
   // unless the rep explicitly picks a reason — we don't force it.
@@ -325,22 +334,25 @@ export default function InteractionModal({
     }
     // Phase 3: round-robin closer auto-pick. Only fires when the org's
     // routing mode is round_robin AND the rep hasn't manually selected
-    // someone (selectedCloserId empty). Runs synchronously so the closer
-    // id lands on the payload below before logInteraction is called.
-    // Failures are swallowed — the deal just stays unassigned and the
-    // manager dispatches it from the Pipeline tab.
+    // someone (selectedCloserKey empty). pickRoundRobinCloser now returns
+    // { tier, id } so we can write to the correct FK column. Failures are
+    // swallowed — the deal stays unassigned and the manager dispatches it
+    // from the Pipeline tab.
     if (
       selectedOutcome === 'estimate_requested' &&
       routingMode === 'round_robin' &&
-      !selectedCloserId
+      !selectedCloserKey
     ) {
       try {
         const pick = await pickRoundRobinCloser()
-        if (pick) setSelectedCloserId(pick)
-        // saveInteraction below reads selectedCloserId, but React state
-        // hasn't flushed yet at this point. Pass it through extras so the
-        // payload picks it up on this turn.
         if (pick) {
+          setSelectedCloserKey(`${pick.tier}:${pick.id}`)
+          // saveInteraction below reads selectedCloserKey, but React state
+          // hasn't flushed yet at this point. Pass the right column
+          // through extras so the payload picks it up on this turn.
+          const closerExtras = pick.tier === 'platform'
+            ? { closer_id: pick.id }
+            : { closer_contact_id: pick.id }
           await saveInteraction(selectedOutcome, {
             contact_name:    contactName,
             contact_phone:   contactPhone,
@@ -348,7 +360,7 @@ export default function InteractionModal({
             service_types:   selectedServices,
             estimated_value: estimatedValue ? Number(estimatedValue) : null,
             notes:           notes || null,
-            closer_id:       pick,
+            ...closerExtras,
           })
           return
         }
@@ -415,9 +427,16 @@ export default function InteractionModal({
         }
       }
       // Appointment + closer fields populated only when the rep captured
-      // them in the new appt step. Empty string → null.
+      // them in the new appt step. Empty string → null. selectedCloserKey
+      // is the composite "tier:id" — write to the right column based on
+      // tier. Round-robin already passed closer_id/closer_contact_id via
+      // extras above, so don't clobber that.
       if (appointmentAt) payload.appointment_at = appointmentAt
-      if (selectedCloserId) payload.closer_id   = selectedCloserId
+      if (selectedCloserKey && !payload.closer_id && !payload.closer_contact_id) {
+        const [tier, id] = selectedCloserKey.split(':')
+        if (tier === 'platform') payload.closer_id         = id
+        if (tier === 'contact')  payload.closer_contact_id = id
+      }
     }
 
     if (isNoAnswer) {
@@ -431,9 +450,10 @@ export default function InteractionModal({
       payload.estimated_value = null
       payload.notes           = null
       // Phase 3 fields don't apply to no_answer either.
-      payload.appointment_at   = null
-      payload.closer_id        = null
-      payload.lost_reason      = null
+      payload.appointment_at    = null
+      payload.closer_id         = null
+      payload.closer_contact_id = null
+      payload.lost_reason       = null
       payload.lost_reason_notes = null
     }
 
@@ -867,8 +887,8 @@ export default function InteractionModal({
                 required={salesCycle === 'appointment_based'}
                 closers={closers}
                 routingMode={routingMode}
-                selectedCloserId={selectedCloserId}
-                onChangeCloser={setSelectedCloserId}
+                selectedCloserKey={selectedCloserKey}
+                onChangeCloser={setSelectedCloserKey}
               />
             )}
 
@@ -1123,7 +1143,7 @@ export default function InteractionModal({
  */
 function ApptAndCloserPanel({
   appointmentAt, onChangeAppt, required,
-  closers, routingMode, selectedCloserId, onChangeCloser,
+  closers, routingMode, selectedCloserKey, onChangeCloser,
 }) {
   const quickPicks = useMemo(() => buildQuickPicks(), [])
   return (
@@ -1182,14 +1202,20 @@ function ApptAndCloserPanel({
             <UserCheck className="w-4 h-4 text-blue-700" />
             <p className="text-xs font-bold text-blue-900">Assign closer</p>
           </div>
+          {/* Closer dropdown — value encodes both tier + id as "tier:id" so
+              we know which FK column to write. Email-only contacts get an
+              "(email)" suffix so the rep can see at a glance which closers
+              will get a notification vs. log into the inbox. */}
           <select
-            value={selectedCloserId}
+            value={selectedCloserKey}
             onChange={(e) => onChangeCloser(e.target.value)}
             className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none bg-white"
           >
             <option value="">— Pick a closer —</option>
             {closers.map((c) => (
-              <option key={c.id} value={c.id}>{c.full_name || c.email}</option>
+              <option key={`${c.tier}:${c.id}`} value={`${c.tier}:${c.id}`}>
+                {c.full_name || c.email}{c.tier === 'contact' ? ' (email)' : ''}
+              </option>
             ))}
           </select>
         </div>

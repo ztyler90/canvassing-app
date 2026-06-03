@@ -1083,6 +1083,167 @@ export async function notifyAssignedCloser(interactionId) {
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// CLOSER CONTACTS (Phase 5) — email-only closer tier.
+// These contacts don't have an auth user / platform seat. They just
+// receive the lead-assigned email notification.
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * List every closer in the caller's org as one unified array, with a
+ * `tier` discriminator on each row so the UI can render badges and the
+ * routing dropdown can treat both kinds uniformly.
+ *
+ * Returned shape:
+ *   { tier: 'platform' | 'contact',
+ *     id, full_name, email, phone,
+ *     notification_pref,    // only meaningful for platform users
+ *     contact_pref }        // only meaningful for email-only contacts
+ *
+ * Promoted contacts (those that have been upgraded to platform users) are
+ * filtered out — they live on as audit history but shouldn't appear in
+ * the active closer list.
+ */
+export async function getAllClosersUnified() {
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
+  const [platform, contacts] = await Promise.all([
+    supabase
+      .from('users')
+      .select('id, full_name, email, phone, closer_notification_pref')
+      .eq('role', 'closer')
+      .eq('organization_id', orgId)
+      .order('full_name'),
+    supabase
+      .from('closer_contacts')
+      .select('id, full_name, email, phone, notification_pref')
+      .eq('organization_id', orgId)
+      .is('promoted_to_user_id', null)
+      .order('full_name'),
+  ])
+  const platformRows = (platform.data || []).map((u) => ({
+    tier:              'platform',
+    id:                u.id,
+    full_name:         u.full_name,
+    email:             u.email,
+    phone:             u.phone,
+    notification_pref: u.closer_notification_pref || 'email',
+  }))
+  const contactRows = (contacts.data || []).map((c) => ({
+    tier:              'contact',
+    id:                c.id,
+    full_name:         c.full_name,
+    email:             c.email,
+    phone:             c.phone,
+    notification_pref: c.notification_pref || 'email',
+  }))
+  // Sort alphabetically across both tiers.
+  return [...platformRows, ...contactRows].sort((a, b) =>
+    (a.full_name || '').localeCompare(b.full_name || '')
+  )
+}
+
+/**
+ * Create a new email-only closer contact. The default tier for new
+ * closers — most setups don't need a platform login.
+ */
+export async function createCloserContact({ fullName, email, phone, notificationPref = 'email' }) {
+  const orgId = await getMyOrgId()
+  if (!orgId) return { data: null, error: new Error('No organization') }
+  if (!fullName || !email) return { data: null, error: new Error('Name + email required') }
+  const { data, error } = await supabase
+    .from('closer_contacts')
+    .insert({
+      organization_id:   orgId,
+      full_name:         fullName.trim(),
+      email:             email.trim(),
+      phone:             phone?.trim() || null,
+      notification_pref: notificationPref,
+    })
+    .select()
+    .single()
+  return { data, error }
+}
+
+/**
+ * Patch an existing email-only closer contact. Same field set as create.
+ */
+export async function updateCloserContact(contactId, patch = {}) {
+  const cleaned = {}
+  for (const [src, dst] of [
+    ['fullName', 'full_name'],
+    ['email',    'email'],
+    ['phone',    'phone'],
+    ['notificationPref', 'notification_pref'],
+  ]) {
+    if (src in patch) {
+      const v = patch[src]
+      cleaned[dst] = (typeof v === 'string' && v.trim() === '') ? null : (v?.trim?.() ?? v)
+    }
+  }
+  if (Object.keys(cleaned).length === 0) return { data: null, error: new Error('No fields') }
+  const { data, error } = await supabase
+    .from('closer_contacts')
+    .update(cleaned)
+    .eq('id', contactId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+/**
+ * Remove an email-only contact. Any leads assigned to them are left with
+ * a NULL closer reference (ON DELETE SET NULL on the FK).
+ */
+export async function deleteCloserContact(contactId) {
+  const { error } = await supabase
+    .from('closer_contacts')
+    .delete()
+    .eq('id', contactId)
+  return { error }
+}
+
+/**
+ * Promote an email-only contact to a platform user. Re-uses the existing
+ * manage-team edge function to spawn the auth account, then re-points
+ * any active leads from closer_contact_id to the new closer_id and stamps
+ * the contact row with promoted_to_user_id (audit trail).
+ *
+ * Returns { newUserId, emailSent } on success.
+ */
+export async function promoteCloserContactToPlatform(contactId) {
+  // 1. Pull the contact so we have name/email/phone.
+  const { data: contact, error: readErr } = await supabase
+    .from('closer_contacts')
+    .select('id, full_name, email, phone')
+    .eq('id', contactId)
+    .single()
+  if (readErr || !contact) return { error: readErr || new Error('Contact not found') }
+
+  // 2. Spawn the platform user via the existing closer-invite flow.
+  const { user, emailSent, emailError, error: createErr } = await createCloser({
+    fullName: contact.full_name,
+    email:    contact.email,
+    phone:    contact.phone,
+    mode:     'invite',
+  })
+  if (createErr || !user?.id) return { error: createErr || new Error('Could not create user') }
+
+  // 3. Re-point active leads from closer_contact_id → closer_id.
+  await supabase
+    .from('interactions')
+    .update({ closer_contact_id: null, closer_id: user.id })
+    .eq('closer_contact_id', contactId)
+
+  // 4. Stamp the contact row as promoted so it drops out of the active list.
+  await supabase
+    .from('closer_contacts')
+    .update({ promoted_to_user_id: user.id, promoted_at: new Date().toISOString() })
+    .eq('id', contactId)
+
+  return { newUserId: user.id, emailSent, emailError }
+}
+
 /**
  * Pick the next closer in round-robin rotation. Used by the canvassing
  * flow when a setter books a Hot Lead and the org's lead_routing_mode
@@ -1094,31 +1255,79 @@ export async function notifyAssignedCloser(interactionId) {
  * an RPC for it — performance is fine while teams stay small.
  */
 export async function pickRoundRobinCloser() {
-  const closers = await getAllClosers()
+  // Phase 5: round-robin now considers BOTH platform users and email-
+  // only contacts. Returns { tier, id } so the caller can write the
+  // right FK column (closer_id vs closer_contact_id). Returns null if
+  // the org has no closers of either tier.
+  const closers = await getAllClosersUnified()
   if (closers.length === 0) return null
-  const ids = closers.map((c) => c.id)
-  // Pull the most recent assignment time per closer. RLS lets a manager
-  // (the caller during the canvassing flow) read interactions in their
-  // org, which is exactly the rows we need.
-  const { data: recent } = await supabase
-    .from('interactions')
-    .select('closer_id, created_at')
-    .in('closer_id', ids)
-    .order('created_at', { ascending: false })
+
+  const platformIds = closers.filter((c) => c.tier === 'platform').map((c) => c.id)
+  const contactIds  = closers.filter((c) => c.tier === 'contact' ).map((c) => c.id)
+
+  // Pull the most-recent assignment timestamp from BOTH FK columns in a
+  // single round-trip per side. RLS lets a manager / rep read interactions
+  // in their org — which is exactly the rows we need.
+  const [{ data: byUser }, { data: byContact }] = await Promise.all([
+    platformIds.length > 0
+      ? supabase
+          .from('interactions')
+          .select('closer_id, created_at')
+          .in('closer_id', platformIds)
+          .order('created_at', { ascending: false })
+      : { data: [] },
+    contactIds.length > 0
+      ? supabase
+          .from('interactions')
+          .select('closer_contact_id, created_at')
+          .in('closer_contact_id', contactIds)
+          .order('created_at', { ascending: false })
+      : { data: [] },
+  ])
+
   // Most-recent per-closer timestamp. Closers with no prior assignment
-  // sort to the front (Number.NEGATIVE_INFINITY) so brand-new hires get
-  // their first lead before busy veterans get their next.
+  // sort to the front so brand-new hires get their first lead before
+  // busy veterans get their next.
   const lastAt = {}
-  for (const id of ids) lastAt[id] = Number.NEGATIVE_INFINITY
-  for (const row of recent || []) {
+  for (const c of closers) lastAt[c.id] = Number.NEGATIVE_INFINITY
+  for (const row of byUser || []) {
     const t = new Date(row.created_at).getTime()
     if (t > lastAt[row.closer_id]) lastAt[row.closer_id] = t
   }
-  let pick = ids[0]
-  for (const id of ids) {
-    if (lastAt[id] < lastAt[pick]) pick = id
+  for (const row of byContact || []) {
+    const t = new Date(row.created_at).getTime()
+    if (t > lastAt[row.closer_contact_id]) lastAt[row.closer_contact_id] = t
   }
-  return pick
+  let pick = closers[0]
+  for (const c of closers) {
+    if (lastAt[c.id] < lastAt[pick.id]) pick = c
+  }
+  return { tier: pick.tier, id: pick.id }
+}
+
+/**
+ * Set / clear a lead's closer reference. Handles the two-tier model by
+ * writing to either closer_id or closer_contact_id and clearing the
+ * other, enforcing the XOR constraint at the application level on top
+ * of the DB CHECK. Called from LeadDetailModal's reassign dropdown and
+ * from the canvassing flow after a round-robin pick.
+ *
+ *   leadId : interactions.id
+ *   pick   : null (to unassign) OR { tier: 'platform' | 'contact', id }
+ */
+export async function setLeadCloser(leadId, pick) {
+  const patch =
+    !pick ? { closer_id: null, closer_contact_id: null }
+    : pick.tier === 'platform'
+      ? { closer_id: pick.id, closer_contact_id: null }
+      : { closer_id: null,    closer_contact_id: pick.id }
+  const { data, error } = await supabase
+    .from('interactions')
+    .update(patch)
+    .eq('id', leadId)
+    .select()
+    .single()
+  return { data, error }
 }
 
 /**
@@ -2137,9 +2346,10 @@ export async function getPipelineLeads(filters = {}) {
       id, stage, outcome, address, contact_name, contact_phone, contact_email,
       service_types, estimated_value, notes, follow_up,
       appointment_at, estimate_sent_at, hot_lead_started_at,
-      closer_id, rep_id, created_at, lost_reason, lost_at,
-      setter:rep_id    ( id, full_name ),
-      closer:closer_id ( id, full_name )
+      closer_id, closer_contact_id, rep_id, created_at, lost_reason, lost_at,
+      setter:rep_id                  ( id, full_name ),
+      closer:closer_id               ( id, full_name ),
+      closer_contact:closer_contact_id ( id, full_name )
     `)
     .in('stage', ACTIVE_PIPELINE_STAGES)
     .order('created_at', { ascending: false })
@@ -2264,10 +2474,11 @@ export async function getUpcomingAppointments(daysAhead = 10) {
   const { data } = await supabase
     .from('interactions')
     .select(`
-      id, stage, contact_name, address, estimated_value, closer_id,
+      id, stage, contact_name, address, estimated_value, closer_id, closer_contact_id,
       appointment_at, rep_id, created_at,
-      setter:rep_id    ( id, full_name ),
-      closer:closer_id ( id, full_name )
+      setter:rep_id                  ( id, full_name ),
+      closer:closer_id               ( id, full_name ),
+      closer_contact:closer_contact_id ( id, full_name )
     `)
     .gte('appointment_at', start.toISOString())
     .lt('appointment_at',  end.toISOString())
