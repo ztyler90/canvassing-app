@@ -241,7 +241,7 @@ function elapsedLabel(startedAt) {
  *                                                parent can drive a "current view"
  *                                                summary panel.
  */
-const MapView = forwardRef(function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, onRepClick = null, autoFit = false, regionFallback = null, cluster = false, pinValueScale = false, onContextMenu = null, onPinContextMenu = null, onViewportChange = null }, ref) {
+const MapView = forwardRef(function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, onRepClick = null, autoFit = false, regionFallback = null, cluster = false, pinValueScale = false, onContextMenu = null, onPinContextMenu = null, onViewportChange = null, renderPins = true }, ref) {
   const containerRef       = useRef(null)
   const mapRef             = useRef(null)
   const trailRef           = useRef(null)
@@ -470,6 +470,11 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
     const rebuild = () => {
       markersRef.current.forEach((m) => m.remove())
       markersRef.current = []
+      // `renderPins` lets the caller use the same `interactions` prop for
+      // imperative actions (fitToInteractions, viewport summary) while
+      // suppressing pin draw in heatmap mode. Without this we'd have to
+      // pass an empty array — which then breaks Recenter.
+      if (!renderPins) return
       const validPoints = (interactions || []).filter((i) => Number.isFinite(i.lat) && Number.isFinite(i.lng))
       const shouldCluster = cluster && map.getZoom() < CLUSTER_BREAKPOINT_ZOOM
       if (shouldCluster) {
@@ -499,7 +504,7 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
     return () => {
       if (handler) map.off('zoomend', handler)
     }
-  }, [interactions, onInteractionClick, onPinContextMenu, cluster, pinValueScale])
+  }, [interactions, onInteractionClick, onPinContextMenu, cluster, pinValueScale, renderPins])
 
   // Update current position marker + pan
   useEffect(() => {

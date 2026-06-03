@@ -10,10 +10,59 @@
  * it inside ManagerDashboard.jsx would dwarf the rest of the dashboard.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Trophy, Crosshair, Share2, Map as MapIcon, Flame, Layers, SlidersHorizontal, X, Play, Pause, Eye, EyeOff } from 'lucide-react'
+import { Trophy, Crosshair, Share2, Map as MapIcon, Flame, Layers, SlidersHorizontal, X, Eye, EyeOff } from 'lucide-react'
 import MapView from './MapView.jsx'
-import { bucketIntoCells } from '../lib/heatmap.js'
 import { getTerritories, addDoNotKnock, getOrgRegionFallback } from '../lib/supabase.js'
+
+// Density-heatmap cell builder for the manager view. Unlike lib/heatmap.js
+// (which is tuned for the rep's "don't re-canvass this street today" use
+// case — 30m cells, 30-day age cap, colored by recency), this version:
+//   • uses ~150m cells so cells stay visible at city-wide zoom levels
+//   • applies NO age cap — a manager looking at "All time" wants the full
+//     density picture, not just the last month
+//   • colors cells by knock count relative to the densest cell on screen:
+//     bottom-third → green ('older' bucket), middle → amber ('recent'),
+//     top → red ('fresh'). We piggyback on MapView's existing bucket-color
+//     rendering so we don't need to extend its contract.
+//
+// Cell width is constant in degrees (not meters), so it's slightly off in
+// longitude near the poles. Good enough for a heatmap — and irrelevant for
+// a US-only product.
+const DENSITY_CELL_DEG = 0.0015  // ~150–170m depending on latitude
+function buildDensityCells(interactions) {
+  if (!interactions || !interactions.length) return []
+  const counts = new Map()
+  for (const it of interactions) {
+    if (!Number.isFinite(it.lat) || !Number.isFinite(it.lng)) continue
+    const lat = Math.floor(it.lat / DENSITY_CELL_DEG)
+    const lng = Math.floor(it.lng / DENSITY_CELL_DEG)
+    const key = `${lat}:${lng}`
+    const prev = counts.get(key)
+    if (prev) prev.count++
+    else counts.set(key, { lat, lng, count: 1 })
+  }
+  // Threshold the counts into three buckets. We use 33rd / 66th percentile
+  // rather than max / 3 so a single hot block doesn't push everything else
+  // into the bottom bucket.
+  const vals = Array.from(counts.values()).map((c) => c.count).sort((a, b) => a - b)
+  if (!vals.length) return []
+  const q33 = vals[Math.floor(vals.length * 0.33)] || 1
+  const q66 = vals[Math.floor(vals.length * 0.66)] || 1
+  const cells = []
+  for (const c of counts.values()) {
+    const bucket = c.count >= q66 ? 'fresh'
+                : c.count >= q33 ? 'recent'
+                : 'older'
+    const minLat = c.lat * DENSITY_CELL_DEG
+    const minLng = c.lng * DENSITY_CELL_DEG
+    cells.push({
+      bbox:   [[minLat, minLng], [minLat + DENSITY_CELL_DEG, minLng + DENSITY_CELL_DEG]],
+      bucket,
+      count:  c.count,
+    })
+  }
+  return cells
+}
 
 const BRAND_BLUE = '#1B4FCC'
 
@@ -71,44 +120,9 @@ export default function ManagerMap({ interactions = [], allReps = [] }) {
     return n
   })
 
-  // ── Time scrubber ────────────────────────────────────────────────────────
-  // Window slides over the *current* interactions' [min, max] created_at.
-  // tEnd represents the right edge of the window as a fraction (0..1) of
-  // the total range. windowDays is the width of the window. "Play" advances
-  // tEnd 1% every 250ms so a manager can watch the team sweep through.
-  const tsRange = useMemo(() => {
-    let lo =  Infinity, hi = -Infinity
-    for (const it of interactions) {
-      const t = +new Date(it.created_at || 0)
-      if (!Number.isFinite(t)) continue
-      if (t < lo) lo = t
-      if (t > hi) hi = t
-    }
-    if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo >= hi) return null
-    return { lo, hi }
-  }, [interactions])
-  const [tEnd,     setTEnd]     = useState(1)        // 0..1 fraction of [lo,hi]
-  const [windowFr, setWindowFr] = useState(1)        // window width as fraction
-  const [playing,  setPlaying]  = useState(false)
-  useEffect(() => {
-    if (!playing) return
-    const id = setInterval(() => {
-      setTEnd((t) => {
-        const next = t + 0.01
-        if (next >= 1) { setPlaying(false); return 1 }
-        return next
-      })
-    }, 250)
-    return () => clearInterval(id)
-  }, [playing])
-  // Whenever the period changes the user expects tEnd=1 (latest), windowFr=1
-  // (everything). Reset both when the source range identity changes.
-  useEffect(() => { setTEnd(1); setWindowFr(1) }, [tsRange?.lo, tsRange?.hi])
-
   // ── Compose the filtered interaction set ─────────────────────────────────
-  // Order: outcome chip → rep → service → value → day-of-week → time window.
-  // We do this in one pass so we don't allocate 5 intermediate arrays for
-  // 11k+ points.
+  // Order: outcome chip → rep → service → value → day-of-week. Single pass
+  // so we don't allocate intermediate arrays for 11k+ points.
   const allServices = useMemo(() => {
     const set = new Set()
     for (const it of interactions) {
@@ -118,60 +132,46 @@ export default function ManagerMap({ interactions = [], allReps = [] }) {
   }, [interactions])
 
   const filtered = useMemo(() => {
-    const tWin = tsRange ? {
-      end:   tsRange.lo + (tsRange.hi - tsRange.lo) * tEnd,
-      start: tsRange.lo + (tsRange.hi - tsRange.lo) * Math.max(0, tEnd - windowFr),
-    } : null
     const out = []
     for (const it of interactions) {
       if (!visible[it.outcome]) continue
       if (filterRep !== 'all' && it.rep_id !== filterRep) continue
       if (filterService !== 'all' && !(it.service_types || []).includes(filterService)) continue
       if (minValue > 0 && (Number(it.estimated_value) || 0) < minValue) continue
-      const ts = +new Date(it.created_at || 0)
       if (dayMask.size < 7) {
-        const d = new Date(ts)
+        const d = new Date(it.created_at || 0)
         if (!dayMask.has(d.getDay())) continue
-      }
-      if (tWin && Number.isFinite(ts)) {
-        if (ts < tWin.start || ts > tWin.end) continue
       }
       out.push(it)
     }
     return out
-  }, [interactions, visible, filterRep, filterService, minValue, dayMask, tEnd, windowFr, tsRange])
+  }, [interactions, visible, filterRep, filterService, minValue, dayMask])
 
-  // Outcome counts for the legend chips. Always reflects the *current*
-  // filtered set (post rep/service/value/day) but ignores the outcome chip
-  // itself so the user can see "how many would come back if I re-enabled
-  // Not Interested".
+  // Outcome counts for the legend chips. Reflects the *current* filtered set
+  // (post rep/service/value/day) but ignores the outcome chip itself so the
+  // user can see "how many would come back if I re-enabled Not Interested".
   const chipCounts = useMemo(() => {
     const c = { no_answer: 0, not_interested: 0, estimate_requested: 0, booked: 0 }
-    const tWin = tsRange ? {
-      end:   tsRange.lo + (tsRange.hi - tsRange.lo) * tEnd,
-      start: tsRange.lo + (tsRange.hi - tsRange.lo) * Math.max(0, tEnd - windowFr),
-    } : null
     for (const it of interactions) {
       if (filterRep !== 'all' && it.rep_id !== filterRep) continue
       if (filterService !== 'all' && !(it.service_types || []).includes(filterService)) continue
       if (minValue > 0 && (Number(it.estimated_value) || 0) < minValue) continue
-      const ts = +new Date(it.created_at || 0)
       if (dayMask.size < 7) {
-        const d = new Date(ts)
+        const d = new Date(it.created_at || 0)
         if (!dayMask.has(d.getDay())) continue
-      }
-      if (tWin && Number.isFinite(ts)) {
-        if (ts < tWin.start || ts > tWin.end) continue
       }
       if (c[it.outcome] != null) c[it.outcome]++
     }
     return c
-  }, [interactions, filterRep, filterService, minValue, dayMask, tEnd, windowFr, tsRange])
+  }, [interactions, filterRep, filterService, minValue, dayMask])
 
   // ── Heatmap cells (only when in heatmap mode) ────────────────────────────
+  // Local density bucketer — see buildDensityCells above for why we don't
+  // reuse lib/heatmap.js here (cell size + age cap make it invisible at
+  // city-wide zoom).
   const heatmapCells = useMemo(() => {
     if (viewMode !== 'heatmap') return []
-    return bucketIntoCells(filtered)
+    return buildDensityCells(filtered)
   }, [viewMode, filtered])
 
   // ── Selected-area summary — driven by the viewport-change callback ──────
@@ -388,7 +388,12 @@ export default function ManagerMap({ interactions = [], allReps = [] }) {
         >
           <MapView
             ref={mapRef}
-            interactions={viewMode === 'pins' ? filtered : []}
+            // Pass the full filtered set in both modes so imperative methods
+            // (fitToInteractions, the viewport summary) always have points
+            // to work with. `renderPins` suppresses pin draw in heatmap mode
+            // without starving Recenter of data.
+            interactions={filtered}
+            renderPins={viewMode === 'pins'}
             heatmapCells={heatmapCells}
             territories={showTerritories ? territories : []}
             className="w-full h-full"
@@ -406,16 +411,6 @@ export default function ManagerMap({ interactions = [], allReps = [] }) {
         {/* Selected-area summary panel */}
         {showSummary && <SummaryPanel summary={viewportSummary} filteredCount={filtered.length} />}
       </div>
-
-      {/* ─── Time scrubber ─────────────────────────────────────────────── */}
-      {tsRange && (
-        <TimeScrubber
-          range={tsRange}
-          tEnd={tEnd} setTEnd={setTEnd}
-          windowFr={windowFr} setWindowFr={setWindowFr}
-          playing={playing} setPlaying={setPlaying}
-        />
-      )}
 
       {/* ─── Context menu ──────────────────────────────────────────────── */}
       {ctxMenu && (
@@ -539,47 +534,6 @@ function Stat({ label, value }) {
     <div>
       <p className="text-lg font-extrabold text-slate-900 leading-tight tabular-nums">{value}</p>
       <p className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">{label}</p>
-    </div>
-  )
-}
-
-// Bottom time-scrubber — two-input range with a play button. The "window"
-// slider controls the width of the time band; the "end" slider slides that
-// band along the period. Hitting Play animates end → 1.
-function TimeScrubber({ range, tEnd, setTEnd, windowFr, setWindowFr, playing, setPlaying }) {
-  const dur = range.hi - range.lo
-  const endTs   = range.lo + dur * tEnd
-  const startTs = range.lo + dur * Math.max(0, tEnd - windowFr)
-  const fmt = (t) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' })
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 px-3 py-2.5">
-      <div className="flex items-center gap-2 mb-2">
-        <button
-          onClick={() => setPlaying((p) => !p)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-white"
-          style={{ backgroundColor: BRAND_BLUE }}
-        >
-          {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-          {playing ? 'Pause' : 'Play'}
-        </button>
-        <p className="text-[11px] text-slate-600 font-medium">{fmt(startTs)} → {fmt(endTs)}</p>
-        <div className="flex-1" />
-        <p className="text-[10px] text-slate-400 font-medium">Window {Math.round(windowFr * 100)}% · Position {Math.round(tEnd * 100)}%</p>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Window width</label>
-          <input type="range" min="0.02" max="1" step="0.01"
-            value={windowFr} onChange={(e) => setWindowFr(Number(e.target.value))}
-            className="w-full accent-blue-600" />
-        </div>
-        <div>
-          <label className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Position</label>
-          <input type="range" min={Math.max(0.01, windowFr)} max="1" step="0.005"
-            value={tEnd} onChange={(e) => setTEnd(Number(e.target.value))}
-            className="w-full accent-blue-600" />
-        </div>
-      </div>
     </div>
   )
 }
