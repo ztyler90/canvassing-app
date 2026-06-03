@@ -1657,6 +1657,56 @@ export async function rejectRep(repId) {
 
 // ── Territory helpers ─────────────────────────────────────────────────────────
 
+/**
+ * Normalize a stored polygon into the simple `[[lat, lng], ...]` shape the
+ * UI (TerritoryMap, per-zone metrics, rep map overlays) expects.
+ *
+ * The territories.polygon column is jsonb, so different seed paths have
+ * historically dropped in three shapes:
+ *   1. `[[lat, lng], ...]`             — what the in-app draw flow writes.
+ *   2. `[[lng, lat], ...]`             — older seeds + anything GeoJSON-ish.
+ *   3. `{type:'Polygon', coordinates:[[[lng, lat], ...]]}` — full GeoJSON
+ *                                        (the current demo seed).
+ *
+ * Without this normalizer, shapes #2 and #3 render either nowhere (the
+ * Leaflet polygon goes to lat=-82 which is off-globe) or in the wrong
+ * hemisphere — which is exactly the "I don't see any drawn zones" report
+ * the user hit. We do the conversion once at the data boundary so every
+ * caller downstream can assume the simple shape.
+ */
+function normalizePolygon(raw) {
+  if (!raw) return null
+  // Shape #3: GeoJSON Polygon — pull the outer ring then fall through to
+  // the per-point order check below.
+  let ring = raw
+  if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray(raw.coordinates)) {
+    ring = raw.coordinates[0]
+  }
+  if (!Array.isArray(ring) || ring.length === 0) return null
+  const out = []
+  for (const p of ring) {
+    if (!Array.isArray(p) || p.length < 2) continue
+    const [a, b] = p
+    if (typeof a !== 'number' || typeof b !== 'number') continue
+    // Latitude is bounded to ±90, longitude to ±180 — use that to detect
+    // which order the seed used. If both numbers fit a valid lat, we
+    // trust the in-app convention (`[lat, lng]`).
+    if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
+      out.push([a, b])
+    } else if (Math.abs(b) <= 90 && Math.abs(a) <= 180) {
+      out.push([b, a])
+    }
+  }
+  return out.length >= 3 ? out : null
+}
+
+function normalizeTerritoryRow(t) {
+  if (!t) return t
+  const polygon = normalizePolygon(t.polygon)
+  // Keep the original key shape — components read `t.polygon` directly.
+  return polygon ? { ...t, polygon } : t
+}
+
 export async function getTerritories() {
   // Explicit org filter mirrors the pattern used by other manager
   // queries (see getAllReps / getAllSessions). Without this, super-
@@ -1687,7 +1737,7 @@ export async function getTerritories() {
     console.warn('[getTerritories] query failed:', error)
     return []
   }
-  return data || []
+  return (data || []).map(normalizeTerritoryRow)
 }
 
 export async function createTerritory({ name, color, polygon, createdBy, category = null }) {
@@ -1765,7 +1815,7 @@ export async function getRepTerritories(repId) {
     .eq('organization_id', orgId)
     .order('created_at', { ascending: true })
   return (data || []).map((t) => ({
-    ...t,
+    ...normalizeTerritoryRow(t),
     assigned_to_me: (t.territory_assignments || []).some((a) => a.rep_id === repId),
   }))
 }
@@ -1819,7 +1869,11 @@ export async function getOrgTerritoriesForRep(repId) {
     return inside
   }
 
-  return rows.map((t) => {
+  return rows.map((raw) => {
+    // Normalize the polygon first so the same point-in-polygon math works
+    // regardless of whether the row was seeded as GeoJSON, [lng,lat], or
+    // the in-app [lat,lng] shape.
+    const t    = normalizeTerritoryRow(raw)
     const poly = Array.isArray(t.polygon) ? t.polygon : null
     let lastKnockAt = null
     let interactionCount = 0

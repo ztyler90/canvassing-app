@@ -47,6 +47,76 @@ function makeInteractionPin(color) {
   })
 }
 
+// Cluster bubble — same visual language MapView uses on the Map tab so a
+// manager moving between Map and Territories sees consistent UI. Sized by
+// sqrt(count) so a 100-knock cluster doesn't dwarf a 10-knock one; color is
+// the cluster's "dominant" outcome (booked > estimate > not_interested >
+// no_answer).
+function makeHistoryClusterIcon(count, color) {
+  const size = Math.min(56, Math.max(28, Math.round(18 + Math.sqrt(count) * 3)))
+  const fontSize = count >= 1000 ? 11 : count >= 100 ? 12 : 13
+  const label = count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count)
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:${size}px;height:${size}px;line-height:${size - 6}px;
+      background:${color};color:#fff;
+      border:3px solid #fff;border-radius:50%;
+      box-shadow:0 2px 8px rgba(0,0,0,0.35);
+      text-align:center;font-weight:800;font-size:${fontSize}px;
+      font-family:system-ui,-apple-system,Inter,Arial;
+    ">${label}</div>`,
+    iconSize:   [size, size],
+    iconAnchor: [size / 2, size / 2],
+  })
+}
+
+// Grid-cluster door history at the current zoom level. Cheap, deterministic,
+// zero deps — identical algorithm to MapView's clusterer so the two surfaces
+// bucket points identically and behave the same way when a manager zooms in.
+const HISTORY_CLUSTER_PX = 60
+function gridClusterHistory(map, items) {
+  if (!items.length) return []
+  const z = map.getZoom()
+  const buckets = new Map()
+  for (const it of items) {
+    if (!Number.isFinite(it.lat) || !Number.isFinite(it.lng)) continue
+    const pt = map.project([it.lat, it.lng], z)
+    const cx = Math.floor(pt.x / HISTORY_CLUSTER_PX)
+    const cy = Math.floor(pt.y / HISTORY_CLUSTER_PX)
+    const key = `${cx}:${cy}`
+    let b = buckets.get(key)
+    if (!b) {
+      b = { sumLat: 0, sumLng: 0, count: 0, outcomes: {}, items: [] }
+      buckets.set(key, b)
+    }
+    b.sumLat += it.lat
+    b.sumLng += it.lng
+    b.count++
+    b.outcomes[it.outcome] = (b.outcomes[it.outcome] || 0) + 1
+    b.items.push(it)
+  }
+  const out = []
+  for (const b of buckets.values()) {
+    const order = ['booked', 'estimate_requested', 'not_interested', 'no_answer']
+    let dominant = 'no_answer', best = -1
+    for (const o of order) {
+      if ((b.outcomes[o] || 0) > best && b.outcomes[o] > 0) {
+        dominant = o
+        best = b.outcomes[o]
+      }
+    }
+    out.push({
+      lat: b.sumLat / b.count,
+      lng: b.sumLng / b.count,
+      count: b.count,
+      dominantOutcome: dominant,
+      items: b.items,
+    })
+  }
+  return out
+}
+
 function makeDnkPin() {
   return L.divIcon({
     className: '',
@@ -373,13 +443,19 @@ const TerritoryMap = forwardRef(function TerritoryMap(
     })
   }, [territories, doorHistory])
 
-  // ── Door history pins ──────────────────────────────────────────────────────
+  // ── Door history pins (clustered when zoomed out) ──────────────────────────
+  // Below CLUSTER_BREAKPOINT_ZOOM we bucket pins into pixel-grid cells and
+  // render one bubble per bucket — same UX as the Map tab. Above that zoom
+  // every door renders individually. The rebuild runs on doorHistory change
+  // AND on zoom change so cluster boundaries stay correct as the manager
+  // zooms.
   useEffect(() => {
-    if (!historyLayerRef.current) return
-    historyLayerRef.current.clearLayers()
+    if (!historyLayerRef.current || !mapRef.current) return
+    const map = mapRef.current
+    const layer = historyLayerRef.current
+    const CLUSTER_BREAKPOINT_ZOOM = 16
 
-    doorHistory.forEach((i) => {
-      if (!i.lat || !i.lng) return
+    const renderPin = (i) => {
       const color  = OUTCOME_COLORS[i.outcome] || '#9CA3AF'
       const marker = L.marker([i.lat, i.lng], { icon: makeInteractionPin(color) })
       marker.bindPopup(`
@@ -390,8 +466,46 @@ const TerritoryMap = forwardRef(function TerritoryMap(
           ${i.users?.full_name ? `<div style="color:#6B7280">${i.users.full_name}</div>` : ''}
         </div>
       `)
-      historyLayerRef.current.addLayer(marker)
-    })
+      return marker
+    }
+
+    const renderCluster = (c) => {
+      const color  = OUTCOME_COLORS[c.dominantOutcome] || '#9CA3AF'
+      const icon   = makeHistoryClusterIcon(c.count, color)
+      const marker = L.marker([c.lat, c.lng], { icon })
+      // Tap a bubble → zoom in two levels on its center. Two steps splits
+      // most clusters into smaller ones without over-zooming on single-cell
+      // bubbles (which fitBounds would do).
+      marker.on('click', () => {
+        const z = Math.min(map.getMaxZoom(), map.getZoom() + 2)
+        map.setView([c.lat, c.lng], z)
+      })
+      const booked = c.items.filter((i) => i.outcome === 'booked').length
+      marker.bindTooltip(
+        `<div style="font-family:system-ui;font-size:12px;font-weight:600">${c.count} knocks</div>` +
+        `<div style="font-family:system-ui;font-size:11px;color:#6B7280">${booked} booked</div>`,
+        { sticky: true, direction: 'top' }
+      )
+      return marker
+    }
+
+    const rebuild = () => {
+      layer.clearLayers()
+      const valid = (doorHistory || []).filter((i) => Number.isFinite(i.lat) && Number.isFinite(i.lng))
+      if (map.getZoom() < CLUSTER_BREAKPOINT_ZOOM) {
+        for (const c of gridClusterHistory(map, valid)) {
+          if (c.count === 1) layer.addLayer(renderPin(c.items[0]))
+          else               layer.addLayer(renderCluster(c))
+        }
+      } else {
+        for (const i of valid) layer.addLayer(renderPin(i))
+      }
+    }
+    rebuild()
+
+    const onZoom = () => rebuild()
+    map.on('zoomend', onZoom)
+    return () => { map.off('zoomend', onZoom) }
   }, [doorHistory])
 
   // ── Auto-fit to drawn territories on first paint ───────────────────────────
