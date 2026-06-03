@@ -1194,21 +1194,30 @@ export async function updateLeadContact(leadId, patch = {}) {
  */
 export async function updateLeadAppointment(leadId, isoOrNull) {
   // Fetch the current stage to decide whether to auto-promote.
+  // maybeSingle so a deleted/RLS-hidden row doesn't throw — we just
+  // skip the auto-promotion in that case.
   const { data: current } = await supabase
     .from('interactions')
     .select('stage')
     .eq('id', leadId)
-    .single()
+    .maybeSingle()
   const patch = { appointment_at: isoOrNull || null }
   if (isoOrNull && current?.stage === 'hot_lead') {
     patch.stage = 'appt_scheduled'
   }
+  // maybeSingle on the return: if RLS hides the post-update row we get
+  // { data: null, error: null } instead of a "Cannot coerce…" throw, so
+  // callers can detect the silent-zero-rows case and show a clearer
+  // message.
   const { data, error } = await supabase
     .from('interactions')
     .update(patch)
     .eq('id', leadId)
     .select()
-    .single()
+    .maybeSingle()
+  if (!error && !data) {
+    return { data: null, error: new Error('No rows updated — check your permissions and refresh.') }
+  }
   return { data, error }
 }
 
@@ -1230,12 +1239,18 @@ export async function updateLeadStage(leadId, stage, extras = {}) {
   ]) {
     if (extras[k] !== undefined) patch[k] = extras[k]
   }
+  // maybeSingle so a hidden-by-RLS post-update SELECT returns
+  // { data: null, error: null } instead of throwing "Cannot coerce
+  // the result to a single JSON object" — see updateLeadAppointment.
   const { data, error } = await supabase
     .from('interactions')
     .update(patch)
     .eq('id', leadId)
     .select()
-    .single()
+    .maybeSingle()
+  if (!error && !data) {
+    return { data: null, error: new Error('No rows updated — check your permissions and refresh.') }
+  }
   return { data, error }
 }
 
@@ -1973,14 +1988,28 @@ export async function getSessionWithInteractions(sessionId) {
   return { session, interactions: interactions || [] }
 }
 
-/** Update fields on a single interaction (outcome, address, notes, revenue) */
+/** Update fields on a single interaction (outcome, address, notes, revenue).
+ *
+ *  We DON'T include updated_at in the payload anymore — the
+ *  interactions_bump_updated_at_trg trigger in
+ *  20260603_interactions_updated_at_and_manager_update_rls bumps it
+ *  automatically on every update. Sending the column from the client
+ *  was redundant *and* was the cause of the "Could not find the
+ *  'updated_at' column of 'interactions' in the schema cache" error
+ *  back when the column didn't exist.
+ *
+ *  maybeSingle on the return so a row hidden by RLS post-update fails
+ *  loud-and-clear instead of throwing the cryptic single() error. */
 export async function updateInteraction(interactionId, updates) {
   const { data, error } = await supabase
     .from('interactions')
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update(updates)
     .eq('id', interactionId)
     .select()
-    .single()
+    .maybeSingle()
+  if (!error && !data) {
+    return { data: null, error: new Error('No rows updated — check your permissions and refresh.') }
+  }
   return { data, error }
 }
 

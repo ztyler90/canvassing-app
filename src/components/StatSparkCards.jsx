@@ -20,7 +20,7 @@
 //   downsample(values, target)  — averages a long series into exactly
 //                                 `target` buckets (used for mini-bars).
 import { useRef, useState } from 'react'
-import { format, subDays, startOfDay } from 'date-fns'
+import { format, subDays, startOfDay, startOfMonth, subMonths, differenceInCalendarMonths } from 'date-fns'
 
 // ─── Card shell ──────────────────────────────────────────────────────────────
 // `trendLabel` (optional) — short, human noun that names what's trending
@@ -126,11 +126,14 @@ function hoverIndexFromEvent(e, host, count) {
   return Math.max(0, Math.min(count - 1, i))
 }
 
-// Format a Date for the tooltip "Mon, Jun 2"-style label; falls back to an
-// index-relative label ("Day 12 of 30") when we don't have a dates array.
-function tooltipLabelFor(dates, i, totalCount) {
+// Format a Date for the tooltip label, picking a format suited to the
+// bucket unit. Month-bucketed series read as "Jun 2026"; daily series
+// read as "Mon, Jun 2" (or just "Monday" when the series is small).
+// Falls back to an index-relative label when we don't have a dates array.
+function tooltipLabelFor(dates, i, totalCount, bucketUnit = 'day') {
   const d = dates?.[i]
   if (d instanceof Date && !Number.isNaN(d.getTime())) {
+    if (bucketUnit === 'month') return format(d, 'MMM yyyy')
     return format(d, totalCount > 10 ? 'EEE, MMM d' : 'EEEE')
   }
   return `Point ${i + 1} of ${totalCount}`
@@ -146,7 +149,7 @@ function tooltipLabelFor(dates, i, totalCount) {
 //   `valueFormatter`  — function(value) → string; defaults to a compact
 //                       number. Pass `(v) => "$" + formatCompact(v)` for $.
 export function MiniSparkArea({
-  values = [], dates = [], valueFormatter,
+  values = [], dates = [], valueFormatter, bucketUnit = 'day',
   color = '#5ea636', fill = '#7ac94373',
 }) {
   const hostRef = useRef(null)
@@ -201,7 +204,7 @@ export function MiniSparkArea({
       {hoverIdx != null && (
         <ChartTooltip
           xRatio={xRatio}
-          label={tooltipLabelFor(dates, hoverIdx, values.length)}
+          label={tooltipLabelFor(dates, hoverIdx, values.length, bucketUnit)}
           value={fmt(values[hoverIdx])}
         />
       )}
@@ -217,7 +220,7 @@ export function MiniSparkArea({
 // underlying date range + summed value for that bucket — important since
 // each bar may represent several days once we downsample a 30-day series.
 export function MiniSparkBars({
-  values = [], dates = [], valueFormatter,
+  values = [], dates = [], valueFormatter, bucketUnit = 'day',
   color = '#2757d7', highlight = '#1e44b0', target = 8,
 }) {
   const hostRef = useRef(null)
@@ -275,7 +278,7 @@ export function MiniSparkBars({
       {hoverIdx != null && (
         <ChartTooltip
           xRatio={xRatio}
-          label={bucketLabelFor(bucketDates, hoverIdx, bars.length)}
+          label={bucketLabelFor(bucketDates, hoverIdx, bars.length, bucketUnit)}
           value={fmt(bars[hoverIdx])}
         />
       )}
@@ -314,11 +317,16 @@ function downsamplePaired(values, dates, target) {
 }
 
 // "Mon, Jun 2" for a single-day bucket, "May 5 – May 11" for a multi-day
-// downsampled bucket. Falls back to an index-relative label when dates
-// weren't provided.
-function bucketLabelFor(bucketDates, i, totalBuckets) {
+// downsampled bucket. Month-bucket series get a "MMM yyyy" form (single
+// month) or "MMM – MMM yyyy" (range). Falls back to an index-relative
+// label when dates weren't provided.
+function bucketLabelFor(bucketDates, i, totalBuckets, bucketUnit = 'day') {
   const b = bucketDates?.[i]
   if (!b) return `Bucket ${i + 1} of ${totalBuckets}`
+  if (bucketUnit === 'month') {
+    if (b.from.getTime() === b.to.getTime()) return format(b.from, 'MMM yyyy')
+    return `${format(b.from, 'MMM')} – ${format(b.to, 'MMM yyyy')}`
+  }
   if (b.from.getTime() === b.to.getTime()) return format(b.from, 'EEE, MMM d')
   return `${format(b.from, 'MMM d')} – ${format(b.to, 'MMM d')}`
 }
@@ -350,6 +358,55 @@ export function RadialGauge({ pct = 0 }) {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+// Bucket sessions into `monthCount` calendar months (oldest → newest),
+// ending with the current month. Zero-fills empty months so the chart's
+// X axis is regular even if the team skipped a month. Each row carries
+// `date` set to the first-of-month so downstream formatting can render
+// "Jun 2026" / "Jul 2026" labels.
+//
+// `monthCount` is typically derived from the time span of the data —
+// pass `monthsCoveringSessions(sessions)` for the "all time" view. The
+// helper caps at 24 so a very-long-tenured org doesn't blow out the
+// chart width.
+export function groupSessionsByMonth(sessions, monthCount) {
+  const end = startOfMonth(new Date())
+  const order = []
+  const buckets = {}
+  for (let i = 0; i < monthCount; i++) {
+    const d   = subMonths(end, monthCount - 1 - i)
+    const key = format(d, 'yyyy-MM')
+    buckets[key] = { date: d, revenue: 0, doors: 0, bookings: 0, estimates: 0 }
+    order.push(key)
+  }
+  sessions.forEach((s) => {
+    if (!s.started_at) return
+    const key = format(startOfMonth(new Date(s.started_at)), 'yyyy-MM')
+    const b   = buckets[key]
+    if (!b) return
+    b.revenue   += Number(s.revenue_booked) || 0
+    b.doors     += s.doors_knocked  || 0
+    b.bookings  += s.bookings       || 0
+    b.estimates += s.estimates      || 0
+  })
+  return order.map((k) => buckets[k])
+}
+
+// How many months back the oldest session reaches (inclusive of the
+// current month). Capped at 24 to keep month labels legible. Returns at
+// least 1 even when there are no sessions, so the chart still renders a
+// "this month" bucket instead of collapsing to zero columns.
+export function monthsCoveringSessions(sessions) {
+  if (!sessions || sessions.length === 0) return 1
+  let oldest = Infinity
+  for (const s of sessions) {
+    const t = s.started_at ? new Date(s.started_at).getTime() : Infinity
+    if (t < oldest) oldest = t
+  }
+  if (!Number.isFinite(oldest)) return 1
+  const span = differenceInCalendarMonths(new Date(), new Date(oldest)) + 1
+  return Math.min(Math.max(span, 1), 24)
+}
+
 // Bucket sessions into `days` calendar days (oldest → newest). Sums the
 // revenue/doors/bookings/estimates per day; missing days get zero rows.
 export function groupSessionsByDay(sessions, days) {

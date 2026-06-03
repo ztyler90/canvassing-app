@@ -21,6 +21,7 @@ import { PhotoThumb } from '../lib/photos.jsx'
 import {
   RichStatCard, MiniSparkArea, MiniSparkBars, RadialGauge,
   formatCompact, computeTrend, groupSessionsByDay,
+  groupSessionsByMonth, monthsCoveringSessions,
 } from '../components/StatSparkCards.jsx'
 
 const BRAND_GREEN = '#1B4FCC'  // KnockIQ blue
@@ -408,23 +409,27 @@ function OverviewTab({
   }, 0)
   const revenuePerHour = totalHours > 0 ? (totalRevenue / totalHours).toFixed(0) : '—'
 
-  // ── Daily series for sparklines + the Daily Revenue bar chart ─────────
-  // Group sessions into one bucket per calendar day across the selected
-  // date range (zero-fill empty days so the sparkline has a stable length).
-  // A "day" is bucketed by session.started_at local midnight.
-  // The visible window length comes from the calendar-period filter:
-  //   today  → 1 day
-  //   week   → days-since-Monday + 1
-  //   month  → today's day-of-month
-  //   all    → derived from oldest session; capped at 30 so bars stay legible.
-  const days = daysForRange(dateRange, sessions)
-  const daily = groupSessionsByDay(sessions, days)
+  // ── Series for sparklines + the Revenue bar chart ─────────────────────
+  // We bucket either by day or by month depending on the selected period.
+  // Daily buckets work great for "today / week / month" (a manageable
+  // number of bars) but produce a noisy/empty chart for "all time" once
+  // an org has months of history. For "all" we switch to month buckets
+  // so the X axis stays legible regardless of tenure.
+  //
+  //   today/week/month → groupSessionsByDay  (zero-filled daily bars)
+  //   all              → groupSessionsByMonth (zero-filled monthly bars,
+  //                       capped at 24 so labels stay readable)
+  const bucketUnit = dateRange === 'all' ? 'month' : 'day'
+  const series = bucketUnit === 'month'
+    ? groupSessionsByMonth(sessions, monthsCoveringSessions(sessions))
+    : groupSessionsByDay(sessions, daysForRange(dateRange, sessions))
 
   // Trend chips compare the last half of the window to the first half.
   // Honest, no extra DB call — if the back half outpaces the front, ▲.
-  const revenueTrend  = computeTrend(daily, 'revenue')
-  const doorsTrend    = computeTrend(daily, 'doors')
-  const bookingsTrend = computeTrend(daily, 'bookings')
+  // The math works identically on day-bucket and month-bucket series.
+  const revenueTrend  = computeTrend(series, 'revenue')
+  const doorsTrend    = computeTrend(series, 'doors')
+  const bookingsTrend = computeTrend(series, 'bookings')
 
   // Close Rate goal: hard-coded at 5% for now. Future: pull from org settings.
   const goalCloseRate = 5.0
@@ -550,8 +555,9 @@ function OverviewTab({
           iconColor="text-lime-700"
         >
           <MiniSparkArea
-            values={daily.map((d) => d.revenue)}
-            dates={daily.map((d) => d.date)}
+            values={series.map((d) => d.revenue)}
+            dates={series.map((d) => d.date)}
+            bucketUnit={bucketUnit}
             valueFormatter={(v) => `$${formatCompact(v)}`}
             color="#5ea636" fill="#7ac94373"
           />
@@ -568,8 +574,9 @@ function OverviewTab({
           iconColor="text-blue-700"
         >
           <MiniSparkBars
-            values={daily.map((d) => d.doors)}
-            dates={daily.map((d) => d.date)}
+            values={series.map((d) => d.doors)}
+            dates={series.map((d) => d.date)}
+            bucketUnit={bucketUnit}
             valueFormatter={(v) => `${Math.round(v).toLocaleString()} doors`}
             color="#2757d7" highlight="#1e44b0"
           />
@@ -586,8 +593,9 @@ function OverviewTab({
           iconColor="text-teal-700"
         >
           <MiniSparkArea
-            values={daily.map((d) => d.bookings)}
-            dates={daily.map((d) => d.date)}
+            values={series.map((d) => d.bookings)}
+            dates={series.map((d) => d.date)}
+            bucketUnit={bucketUnit}
             valueFormatter={(v) => `${Math.round(v).toLocaleString()} ${v === 1 ? 'job' : 'jobs'}`}
             color="#0d9488" fill="#14b8a673"
           />
@@ -613,7 +621,7 @@ function OverviewTab({
 
       {/* ── Daily Revenue + Rep Leaderboard (2-col on desktop) ────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-        <DailyRevenueChart daily={daily} />
+        <DailyRevenueChart series={series} bucketUnit={bucketUnit} />
         <RepLeaderboard repStats={repStats} />
       </div>
 
@@ -2434,66 +2442,85 @@ function buildLeaderboardShareSvg({ sorted, periodLabel, team, teamCloseRate, re
 // RadialGauge, TrendChip) now live in ../components/StatSparkCards.jsx so the
 // rep-side home can share the exact same look. Imports at the top of this file.
 
-// Daily Revenue bar chart — stacked grey (estimates-only) behind green
-// (booked). Derived from the same sessions the KPI cards use.
+// Revenue bar chart — green "booked" bars over the period the manager has
+// selected. The series is either daily or monthly depending on `bucketUnit`:
 //
-// Interaction: hovering the chart highlights the bar under the cursor and
-// floats an HTML tooltip showing the date + booked revenue. Implemented
-// with an invisible full-height "hit rect" per day so empty days (no
-// rendered green bar) still respond to hover — without that, a manager
-// hovering an empty Wednesday would get nothing and assume the chart was
-// broken.
-function DailyRevenueChart({ daily = [] }) {
+//   bucketUnit === 'day'   → one bar per calendar day (today/week/month views)
+//   bucketUnit === 'month' → one bar per calendar month (all-time view)
+//
+// The rendering is shape-agnostic — bars, hover column, and tooltip behave
+// identically; only the X-axis label format and the card title/subtitle
+// shift to match the unit. Hovering still highlights the bar under the
+// cursor and floats a tooltip with the bucket's date + booked revenue.
+function DailyRevenueChart({ series = [], bucketUnit = 'day' }) {
   const hostRef = useRef(null)
   const [hoverIdx, setHoverIdx] = useState(null)
-  if (!daily.length) return null
+  if (!series.length) return null
+  const isMonthly = bucketUnit === 'month'
   const w = 320, h = 140
   const padL = 30, padR = 8, padT = 12, padB = 28
   const innerW = w - padL - padR
   const innerH = h - padT - padB
   // Scale on combined revenue to reserve headroom for the grey "estimate" cap
   // once we track it separately. For now grey === booked (no estimate $$ yet).
-  const maxRev = Math.max(1, ...daily.map((d) => d.revenue))
-  const slot = innerW / daily.length
+  const maxRev = Math.max(1, ...series.map((d) => d.revenue))
+  const slot = innerW / series.length
   const barW = Math.min(Math.max(slot * 0.55, 4), 28)
 
   const yAt = (val) => padT + innerH - (val / maxRev) * innerH
   const yTicks = [0, maxRev / 2, maxRev]
 
-  // Snap mouse-x to the nearest day column. We use innerW (not the full
+  // Snap mouse-x to the nearest bucket column. We use innerW (not the full
   // viewBox width) because the bars live inside padL..padR.
   const onMove = (e) => {
     if (!hostRef.current) return
     const rect = hostRef.current.getBoundingClientRect()
     const xPct = (e.clientX - rect.left) / Math.max(rect.width, 1)
-    // Map screen-x → viewBox-x → day index using the same padding the bars do.
     const vx = xPct * w
     const i  = Math.floor((vx - padL) / slot)
-    setHoverIdx(Math.max(0, Math.min(daily.length - 1, i)))
+    setHoverIdx(Math.max(0, Math.min(series.length - 1, i)))
   }
   const onLeave = () => setHoverIdx(null)
 
-  const hovered = hoverIdx != null ? daily[hoverIdx] : null
-  // Tooltip x as a percent of the rendered chart width so the HTML overlay
-  // sits over the hovered bar regardless of how the SVG is scaled.
+  const hovered = hoverIdx != null ? series[hoverIdx] : null
   const tipXPct = hovered ? ((padL + slot * hoverIdx + slot / 2) / w) * 100 : 0
-  // Past 65% from the left, anchor right so the tooltip doesn't clip off-screen.
   const flipRight = tipXPct > 65
+
+  // Card title and subtitle adapt to the bucket unit so the chart never
+  // claims "Daily" while showing months.
+  const title    = isMonthly ? 'Monthly Revenue' : 'Daily Revenue'
+  const subtitle = isMonthly
+    ? `${series.length}-month view · hover for details`
+    : `${series.length}-day view · hover for details`
+
+  // X-axis label format and density. Daily series get the existing "M/d"
+  // (or "EEE" for short series) treatment; monthly series get a compact
+  // "MMM" so 12 months don't overflow the axis, with the year nudged in
+  // every January / on the latest bar so the timeline is grounded.
+  const labelText = (d, i) => {
+    if (isMonthly) {
+      const showYear = d.date.getMonth() === 0 || i === series.length - 1
+      return showYear ? format(d.date, "MMM ''yy") : format(d.date, 'MMM')
+    }
+    return format(d.date, series.length > 10 ? 'M/d' : 'EEE')
+  }
+  // Tooltip format — month buckets read "June 2026", day buckets keep
+  // "Monday, Jun 2".
+  const tooltipDate = (date) =>
+    isMonthly ? format(date, 'MMMM yyyy') : format(date, 'EEEE, MMM d')
 
   return (
     <section className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
       <div className="flex items-baseline justify-between mb-3">
         <div>
-          <p className="text-sm font-semibold text-gray-900">Daily Revenue</p>
-          <p className="text-xs text-gray-500">{daily.length}-day view · hover for details</p>
+          <p className="text-sm font-semibold text-gray-900">{title}</p>
+          <p className="text-xs text-gray-500">{subtitle}</p>
         </div>
         <div className="flex items-center gap-3 text-[10px] text-gray-500">
           <span className="inline-flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: '#7ac943' }} />Booked</span>
           <span className="inline-flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: '#cbd5e1' }} />Estimates</span>
         </div>
       </div>
-      {/* Relative host so the absolutely-positioned tooltip can pin to the
-          hovered bar's x-position even though the SVG itself scales. */}
       <div
         ref={hostRef}
         className="relative"
@@ -2513,8 +2540,7 @@ function DailyRevenueChart({ daily = [] }) {
               <text key={i} x={padL - 4} y={yAt(t) + 3}>${formatCompact(t)}</text>
             ))}
           </g>
-          {/* Hover column highlight — drawn under the bars so the green sits
-             on top. Only renders for the currently-hovered day. */}
+          {/* Hover column highlight */}
           {hoverIdx != null && (
             <rect
               x={padL + slot * hoverIdx}
@@ -2527,7 +2553,7 @@ function DailyRevenueChart({ daily = [] }) {
           )}
           {/* Bars */}
           <g>
-            {daily.map((d, i) => {
+            {series.map((d, i) => {
               const cx = padL + slot * i + slot / 2
               const x  = cx - barW / 2
               const bookedH = Math.max((d.revenue / maxRev) * innerH, d.revenue > 0 ? 2 : 0)
@@ -2545,18 +2571,17 @@ function DailyRevenueChart({ daily = [] }) {
               )
             })}
           </g>
-          {/* X labels (only every-Nth so they don't collide on 30-day view) */}
+          {/* X labels (every-Nth so they don't collide; the last label is
+             always rendered so the timeline is anchored to "now"). */}
           <g fontSize="10" fill="#64748b" textAnchor="middle" fontWeight="600">
-            {daily.map((d, i) => {
+            {series.map((d, i) => {
               const cx = padL + slot * i + slot / 2
-              const step = Math.ceil(daily.length / 7)
-              if (i % step !== 0 && i !== daily.length - 1) return null
-              return <text key={i} x={cx} y={h - 8}>{format(d.date, daily.length > 10 ? 'M/d' : 'EEE')}</text>
+              const step = Math.ceil(series.length / 7)
+              if (i % step !== 0 && i !== series.length - 1) return null
+              return <text key={i} x={cx} y={h - 8}>{labelText(d, i)}</text>
             })}
           </g>
         </svg>
-        {/* Tooltip — pinned above the hovered bar. Uses HTML so it can sit
-            outside the SVG viewBox and pick up Tailwind classes. */}
         {hovered && (
           <div
             className="absolute z-20 pointer-events-none whitespace-nowrap rounded-md bg-gray-900 text-white text-[11px] leading-tight font-medium px-2 py-1.5 shadow-lg"
@@ -2567,7 +2592,7 @@ function DailyRevenueChart({ daily = [] }) {
               transform: flipRight ? 'translateY(-4px)' : 'translate(-50%, -4px)',
             }}
           >
-            <div className="text-gray-300">{format(hovered.date, 'EEEE, MMM d')}</div>
+            <div className="text-gray-300">{tooltipDate(hovered.date)}</div>
             <div className="font-bold">${formatCompact(hovered.revenue)} booked</div>
             <div className="text-gray-400 text-[10px]">
               {hovered.bookings} {hovered.bookings === 1 ? 'job' : 'jobs'} · {hovered.doors} doors

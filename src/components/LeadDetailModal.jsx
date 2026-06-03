@@ -95,22 +95,31 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
 
   async function reassign(newCloserId) {
     setReassigning(true); setError('')
-    const { data, error } = await updateLeadStage(lead.id, lead.stage, {
-      // updateLeadStage doesn't accept closer_id in its extras whitelist by
-      // default, but PipelineTab uses the same patch endpoint — passing it
-      // via the unrestricted .from('interactions').update() is fine via
-      // the rep manager RLS policy on this row.
-    })
-    // Above is a no-op; the real update goes through supabase directly:
+    // Patch closer_id directly. The previous detour through updateLeadStage
+    // was a no-op and confused the failure mode — when the manager UPDATE
+    // RLS policy was missing, the row count was 0 and the trailing
+    // .single() threw "Cannot coerce the result to a single JSON object"
+    // with no hint at the real cause. We now use .maybeSingle() so the
+    // call returns { data: null, error: null } on a 0-row hit and we can
+    // surface a helpful message instead of the raw PostgREST string.
     const { supabase } = await import('../lib/supabase.js')
     const { data: row, error: err2 } = await supabase
       .from('interactions')
       .update({ closer_id: newCloserId || null })
       .eq('id', lead.id)
       .select()
-      .single()
+      .maybeSingle()
     setReassigning(false)
-    if (err2) { setError(err2.message || 'Reassign failed'); return }
+    if (err2) {
+      setError(err2.message || 'Reassign failed')
+      return
+    }
+    if (!row) {
+      setError(
+        "Couldn't update this lead — you may not have permission, or the lead was just changed by someone else. Refresh and try again."
+      )
+      return
+    }
     onUpdate?.(row)
   }
 
