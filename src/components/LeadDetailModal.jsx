@@ -26,6 +26,7 @@ import {
 import { PhotoThumb } from '../lib/photos.jsx'
 import {
   getAllClosers, updateLeadStage, updateLeadPrice, updateLeadAppointment,
+  updateLeadContact,
 } from '../lib/supabase.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -134,6 +135,25 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
     if (error) { setError(error.message || 'Price save failed'); return }
     setEditingPrice(false)
     onUpdate?.(data)
+  }
+
+  /**
+   * Shared save handler used by every editable contact field. Each field
+   * passes its column key and new value; we patch just that one column
+   * via updateLeadContact and let the parent's onUpdate refresh the
+   * cached row. Errors surface in the modal-level error banner.
+   *
+   * Returns true on success so EditableField knows to exit edit mode.
+   */
+  async function saveContactField(key, value) {
+    setError('')
+    const patch = key === 'service_types'
+      ? { service_types: parseServiceList(value) }
+      : { [key]: value }
+    const { data, error } = await updateLeadContact(lead.id, patch)
+    if (error) { setError(error.message || 'Save failed'); return false }
+    onUpdate?.(data)
+    return true
   }
 
   async function commitAppt() {
@@ -319,21 +339,49 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
             )}
           </div>
 
-          {/* Contact info */}
+          {/* Contact info — every row is click-to-edit so a manager can
+              fix a typo without leaving the modal. Phone/email become
+              tap-to-call links when not editing; in edit mode they become
+              type=tel and type=email inputs with appropriate keyboards. */}
           <Section title="Contact">
-            <Field icon={<User className="w-4 h-4" />}  label="Name"
-                   value={lead.contact_name || '—'} />
-            <Field icon={<MapPin className="w-4 h-4" />} label="Address"
-                   value={lead.address || '—'} />
-            <Field icon={<Phone className="w-4 h-4" />}  label="Phone"
-                   value={lead.contact_phone || '—'}
-                   linkHref={lead.contact_phone ? `tel:${lead.contact_phone}` : null} />
-            <Field icon={<Mail className="w-4 h-4" />}   label="Email"
-                   value={lead.contact_email || '—'}
-                   linkHref={lead.contact_email ? `mailto:${lead.contact_email}` : null} />
-            {Array.isArray(lead.service_types) && lead.service_types.length > 0 && (
-              <Field label="Services" value={lead.service_types.join(' · ')} />
-            )}
+            <EditableField
+              icon={<User className="w-4 h-4" />}
+              label="Name"
+              value={lead.contact_name}
+              placeholder="Add a name…"
+              onSave={(v) => saveContactField('contact_name', v)}
+            />
+            <EditableField
+              icon={<MapPin className="w-4 h-4" />}
+              label="Address"
+              value={lead.address}
+              placeholder="Add an address…"
+              onSave={(v) => saveContactField('address', v)}
+            />
+            <EditableField
+              icon={<Phone className="w-4 h-4" />}
+              label="Phone"
+              value={lead.contact_phone}
+              placeholder="Add a phone…"
+              type="tel"
+              linkHref={lead.contact_phone ? `tel:${lead.contact_phone}` : null}
+              onSave={(v) => saveContactField('contact_phone', v)}
+            />
+            <EditableField
+              icon={<Mail className="w-4 h-4" />}
+              label="Email"
+              value={lead.contact_email}
+              placeholder="Add an email…"
+              type="email"
+              linkHref={lead.contact_email ? `mailto:${lead.contact_email}` : null}
+              onSave={(v) => saveContactField('contact_email', v)}
+            />
+            <EditableField
+              label="Services"
+              value={Array.isArray(lead.service_types) ? lead.service_types.join(', ') : ''}
+              placeholder="Comma-separated (e.g. Solar, Battery)…"
+              onSave={(v) => saveContactField('service_types', v)}
+            />
           </Section>
 
           {/* Notes — the most-asked-for piece */}
@@ -521,6 +569,114 @@ function Field({ icon, label, value, linkHref }) {
       </div>
     </div>
   )
+}
+
+/**
+ * EditableField — click-to-edit row used throughout the Contact section.
+ *
+ * Mirrors the price + appointment edit pattern: read mode shows the value
+ * (with optional tap-to-call/email link), click anywhere on the row to
+ * switch to an input, Enter or blur commits, Escape reverts. A faint
+ * "edit" hint appears on hover for discoverability.
+ *
+ * The parent supplies a single `onSave(newValue)` callback returning a
+ * Promise<boolean>. True → exit edit mode; false → stay in edit mode with
+ * the parent's error already surfaced in the modal-level error banner.
+ *
+ *   type      — 'text' | 'tel' | 'email' (drives the input element type)
+ *   linkHref  — if set and read mode is active, value renders as a link
+ *   placeholder — shown when value is empty in BOTH read + edit modes
+ */
+function EditableField({ icon, label, value, placeholder = '', type = 'text', linkHref, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [draft,   setDraft]   = useState(value || '')
+  const [saving,  setSaving]  = useState(false)
+
+  // Re-sync draft when the underlying lead row refreshes (e.g. after a
+  // sibling field saved and the parent re-rendered with new props).
+  useEffect(() => { if (!editing) setDraft(value || '') }, [value, editing])
+
+  async function commit() {
+    const original = value || ''
+    const trimmed  = draft.trim()
+    if (trimmed === original) { setEditing(false); return }
+    setSaving(true)
+    const ok = await onSave(trimmed)
+    setSaving(false)
+    if (ok) setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-start gap-2">
+        {icon && <div className="text-gray-400 mt-1.5 shrink-0">{icon}</div>}
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">{label}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <input
+              type={type}
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter')  { e.currentTarget.blur() }
+                if (e.key === 'Escape') { setDraft(value || ''); setEditing(false) }
+              }}
+              placeholder={placeholder}
+              className="flex-1 px-2 py-1 border border-blue-400 rounded-lg text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-blue-50/30"
+            />
+            {saving && <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const display = value || placeholder
+  const isEmpty = !value
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setDraft(value || '')
+        setEditing(true)
+      }}
+      className="w-full text-left group flex items-start gap-2 rounded-lg px-1 -mx-1 py-0.5 hover:bg-blue-50/40 transition-colors"
+      title="Click to edit"
+    >
+      {icon && <div className="text-gray-400 mt-0.5 shrink-0">{icon}</div>}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">{label}</p>
+          <span className="text-[9px] uppercase font-bold tracking-wider text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+            edit
+          </span>
+        </div>
+        {linkHref && !isEmpty ? (
+          // Inside a <button> we can't legally nest an <a> with its own
+          // click target; render as a plain span and rely on the modal's
+          // outer phone/email link affordances on the top-line row.
+          <p className="text-sm text-blue-700 font-semibold underline truncate">{display}</p>
+        ) : (
+          <p className={`text-sm font-semibold truncate ${isEmpty ? 'text-gray-400 italic' : 'text-gray-800'}`}>
+            {display}
+          </p>
+        )}
+      </div>
+    </button>
+  )
+}
+
+// Parse a comma-or-semicolon-separated services string into a clean
+// string[]. Used by the Services row in the Contact editor.
+function parseServiceList(s) {
+  if (!s) return null
+  const list = String(s)
+    .split(/[,;]+/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+  return list.length > 0 ? list : null
 }
 
 function TimelineRow({ label, age, done }) {

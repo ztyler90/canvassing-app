@@ -1145,6 +1145,41 @@ export async function updateLeadPrice(leadId, value) {
 }
 
 /**
+ * Patch contact info fields on a single lead. Used by the Pipeline tab's
+ * drill-down modal so a manager can fix a typo in the customer's name,
+ * address, phone, email, or services without bouncing through a separate
+ * edit screen. Accepts any subset of the editable fields; values not in
+ * the patch are left untouched. Empty string → null for nicer DB hygiene
+ * (so a cleared field doesn't read as "" in downstream queries).
+ *
+ *   patch keys: contact_name | address | contact_phone |
+ *               contact_email | service_types (string[] OR null)
+ */
+export async function updateLeadContact(leadId, patch = {}) {
+  const cleaned = {}
+  for (const k of ['contact_name', 'address', 'contact_phone', 'contact_email']) {
+    if (k in patch) {
+      const v = patch[k]
+      cleaned[k] = (typeof v === 'string' && v.trim() === '') ? null : (v ?? null)
+    }
+  }
+  if ('service_types' in patch) {
+    const v = patch.service_types
+    cleaned.service_types = Array.isArray(v) && v.length > 0 ? v : null
+  }
+  if (Object.keys(cleaned).length === 0) {
+    return { data: null, error: new Error('No fields to update') }
+  }
+  const { data, error } = await supabase
+    .from('interactions')
+    .update(cleaned)
+    .eq('id', leadId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+/**
  * Update the appointment date/time on a single lead. Called from the
  * Pipeline tab's drill-down modal when a manager reschedules.
  *
