@@ -1,0 +1,2148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KnockIQ — Complete visibility into your door-to-door team (DRAFT v2)</title>
+  <!-- DRAFT — Not linked from production. Preview at /welcome-v2.html -->
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* Brand */
+      --blue-600: #1B4FCC;
+      --blue-700: #1640A8;
+      --blue-50:  #EEF3FF;
+      --lime:     #7DC31E;
+      --lime-50:  #F4FBE6;
+      --green:    #059669;
+      --amber:    #F59E0B;
+      --red:      #DC2626;
+      --pink:     #DB2777;
+      --violet:   #6D28D9;
+      --cyan:     #06B6D4;
+      --indigo:   #6366F1;
+      --sky:      #0EA5E9;
+
+      --ink:      #0F172A;
+      --ink-2:    #1E293B;
+      --text:     #334155;
+      --muted:    #64748B;
+      --line:     #E2E8F0;
+      --line-2:   #F1F5F9;
+      --bg:       #F8FAFC;
+      --bg-2:     #F1F5F9;
+      --white:    #ffffff;
+
+      --sh-sm: 0 1px 2px rgba(15,23,42,.06), 0 1px 1px rgba(15,23,42,.04);
+      --sh:    0 4px 14px rgba(15,23,42,.08);
+      --sh-lg: 0 18px 40px -12px rgba(15,23,42,.18);
+      --sh-xl: 0 30px 60px -20px rgba(15,23,42,.22);
+
+      --r-card: 20px;
+      --r-btn:  12px;
+      --r-chip: 999px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      background: var(--white);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.55;
+    }
+    img { max-width: 100%; display: block; }
+    a   { color: inherit; text-decoration: none; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 28px; }
+    .section   { padding: 96px 0; }
+    .section-tight { padding: 64px 0; }
+
+    /* ═══ NAV ═══════════════════════════════════════════════════════════════ */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.85);
+      backdrop-filter: saturate(180%) blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-inner {
+      max-width: 1200px; margin: 0 auto;
+      padding: 0 28px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 800; font-size: 17px; letter-spacing: -0.01em;
+    }
+    .nav-logo img {
+      height: 52px; width: auto; display: block;
+    }
+    .logo-mark {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, #2E6BFF 0%, #1B4FCC 100%);
+      display: grid; place-items: center;
+      color: white; font-weight: 900; font-size: 15px;
+      box-shadow: 0 6px 14px rgba(27,79,204,.35);
+    }
+    .nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+    .nav-links a {
+      font-size: 14px; color: var(--text); font-weight: 500;
+      transition: color .15s;
+    }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-actions { display: flex; align-items: center; gap: 16px; }
+    .nav-signin {
+      font-size: 14px; color: var(--text); font-weight: 500;
+      transition: color .15s;
+    }
+    .nav-signin:hover { color: var(--ink); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: var(--r-btn);
+      font-weight: 600; font-size: 14px;
+      transition: transform .15s, box-shadow .15s, background .15s, border-color .15s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-blue {
+      background: linear-gradient(135deg, #2E6BFF 0%, var(--blue-600) 100%);
+      color: white;
+      box-shadow: 0 10px 24px -8px rgba(27,79,204,.55);
+    }
+    .btn-blue:hover { filter: brightness(1.05); }
+    .btn-dark  { background: var(--ink); color: white; }
+    .btn-dark:hover { background: var(--ink-2); box-shadow: var(--sh); }
+    .btn-ghost {
+      background: transparent; color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .btn-ghost:hover { background: var(--bg); border-color: #CBD5E1; }
+    .btn-lg { padding: 14px 22px; font-size: 15px; border-radius: 14px; }
+
+    /* ═══ HERO ══════════════════════════════════════════════════════════════ */
+    .hero {
+      position: relative;
+      padding: 72px 0 80px;
+      background:
+        radial-gradient(1200px 540px at 50% -10%, rgba(27,79,204,.11), transparent 60%),
+        radial-gradient(900px 420px at 110% 40%, rgba(125,195,30,.10), transparent 60%),
+        linear-gradient(180deg, var(--white) 0%, var(--white) 55%, var(--bg) 100%);
+      overflow: hidden;
+    }
+    .hero-head { text-align: center; max-width: 900px; margin: 0 auto; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: var(--r-chip);
+      background: white; border: 1px solid var(--line);
+      font-size: 12px; font-weight: 600; color: var(--text);
+      box-shadow: var(--sh-sm);
+    }
+    .pill .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--lime);
+      box-shadow: 0 0 0 3px rgba(125,195,30,.2);
+    }
+    .hero h1 {
+      font-size: clamp(40px, 5.4vw, 68px);
+      line-height: 1.04;
+      letter-spacing: -0.035em;
+      font-weight: 800;
+      margin: 22px auto 18px;
+      max-width: 16ch;
+    }
+    .hero h1 .grad {
+      background: linear-gradient(135deg, #2E6BFF 0%, var(--violet) 55%, var(--pink) 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .hero p.sub {
+      font-size: clamp(16px, 1.35vw, 19px);
+      color: var(--text);
+      max-width: 680px; margin: 0 auto;
+    }
+    .hero-ctas {
+      display: flex; gap: 12px; justify-content: center;
+      margin-top: 26px; flex-wrap: wrap;
+    }
+    .hero-trust {
+      display: inline-flex; gap: 22px;
+      margin-top: 18px; font-size: 13px; color: var(--muted);
+      flex-wrap: wrap; justify-content: center;
+    }
+    .hero-trust span { display: inline-flex; align-items: center; gap: 6px; }
+    .check {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--lime-50); color: var(--green);
+      display: inline-grid; place-items: center;
+      font-size: 9px; font-weight: 900;
+    }
+    .pricing-hook {
+      display: inline-flex; gap: 10px; align-items: center;
+      margin-top: 10px;
+      padding: 10px 16px; border-radius: 999px;
+      background: linear-gradient(135deg, #F4FBE6 0%, #EEF3FF 100%);
+      border: 1px solid var(--line);
+      font-size: 13px; font-weight: 600; color: var(--ink-2);
+    }
+    .pricing-hook strong { color: var(--blue-600); font-weight: 800; }
+
+    /* ═══ HERO SHOWCASE — desktop + phone together ════════════════════════ */
+    .showcase {
+      position: relative;
+      max-width: 1200px; margin: 64px auto 0;
+      padding: 0 28px;
+    }
+    .showcase-inner {
+      position: relative;
+      padding-bottom: 20px;
+    }
+    .floating-badge {
+      position: absolute;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 14px; border-radius: 999px;
+      background: white; border: 1px solid var(--line);
+      font-size: 13px; font-weight: 600; color: var(--ink);
+      box-shadow: var(--sh-lg);
+      z-index: 5;
+    }
+    .floating-badge.fb-top { top: -18px; left: 40px; }
+    .floating-badge.fb-right { top: 90px; right: -10px; }
+    .floating-badge .em { font-size: 16px; }
+    .floating-badge.pink {
+      background: linear-gradient(135deg, #FCE7F3 0%, #F3E8FF 100%);
+      border-color: #E9D5FF; color: var(--violet);
+    }
+    .floating-badge.lime {
+      background: linear-gradient(135deg, #F4FBE6 0%, #DCFCE7 100%);
+      border-color: #BBF7D0; color: var(--green);
+    }
+
+    /* Desktop browser window ─────────────────────────────────────── */
+    .browser {
+      position: relative;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: var(--sh-xl);
+      margin-right: 180px;
+    }
+    .browser-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; border-bottom: 1px solid var(--line);
+      background: #FAFBFF;
+    }
+    .dot-row { display: flex; gap: 6px; }
+    .dot-row .d { width: 11px; height: 11px; border-radius: 50%; }
+    .dot-row .d.red    { background: #FDA4AF; }
+    .dot-row .d.amber  { background: #FCD34D; }
+    .dot-row .d.green  { background: #86EFAC; }
+    .browser-url {
+      flex: 1; font-size: 12px; color: var(--muted);
+      padding: 5px 12px;
+      background: var(--line-2); border-radius: 8px; font-weight: 500;
+      max-width: 460px;
+    }
+    .browser-body { padding: 22px; background: var(--bg); }
+
+    .dash-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .dash-head h3 {
+      font-size: 18px; font-weight: 800; letter-spacing: -0.01em;
+    }
+    .dash-head-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--lime-50); color: var(--green);
+      padding: 4px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 700;
+    }
+    .dash-head-tag .pulse {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green); animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+    /* KPI strip */
+    .kpi-strip {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .kpi {
+      padding: 14px;
+      border-radius: 14px;
+      background: white;
+      border: 1px solid var(--line);
+    }
+    .kpi .kpi-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .kpi .kpi-val {
+      font-size: 24px; font-weight: 800;
+      margin-top: 4px; letter-spacing: -0.02em;
+    }
+    .kpi .kpi-trend { font-size: 11px; font-weight: 600; margin-top: 2px; color: var(--green); }
+    .kpi.kpi-blue  .kpi-val { color: var(--blue-600); }
+    .kpi.kpi-lime  .kpi-val { color: var(--lime); }
+    .kpi.kpi-green .kpi-val { color: var(--green); }
+    .kpi.kpi-amber .kpi-val { color: var(--amber); }
+
+    /* Chart + leaderboard two-up */
+    .dash-two {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .dash-panel {
+      background: white; border: 1px solid var(--line);
+      border-radius: 14px; padding: 16px;
+    }
+    .panel-title {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 13px; font-weight: 700; color: var(--ink-2);
+      margin-bottom: 10px;
+    }
+    .panel-title span { font-size: 11px; color: var(--muted); font-weight: 500; }
+    .chart-legend {
+      display: flex; gap: 12px; font-size: 11px; color: var(--muted); font-weight: 500;
+    }
+    .chart-legend .sw { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 5px; }
+    .line-chart { width: 100%; height: 150px; display: block; }
+
+    /* Leaderboard */
+    .lb-row {
+      display: grid;
+      grid-template-columns: 26px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 0;
+      font-size: 12.5px;
+      border-top: 1px solid var(--line-2);
+    }
+    .lb-row:first-of-type { border-top: none; }
+    .medal {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: grid; place-items: center;
+      font-size: 10px; font-weight: 800;
+    }
+    .medal.gold   { background: linear-gradient(135deg, #FDE68A, #F59E0B); color: #7C2D12; }
+    .medal.silver { background: linear-gradient(135deg, #F1F5F9, #94A3B8); color: #1E293B; }
+    .medal.bronze { background: linear-gradient(135deg, #FCD9B3, #C77A3A); color: #7C2D12; }
+    .medal.plain  { background: var(--line-2); color: var(--muted); font-weight: 700; }
+    .lb-rep { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .lb-ava {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--blue-50); color: var(--blue-600);
+      display: grid; place-items: center;
+      font-weight: 800; font-size: 10px;
+    }
+    .lb-name { font-weight: 600; color: var(--ink-2); }
+    .lb-sub  { color: var(--muted); font-size: 10.5px; font-weight: 500; }
+    .lb-rev  { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--ink); font-size: 12.5px; }
+
+    /* Phone mockup floating over the desktop ─────────────────── */
+    .phone {
+      position: absolute;
+      right: 0; bottom: -40px;
+      width: 260px;
+      aspect-ratio: 1320 / 2476;
+      border-radius: 36px;
+      background: #0B1020;
+      padding: 9px;
+      box-shadow:
+        0 35px 70px -22px rgba(15,23,42,.45),
+        0 0 0 1px rgba(15,23,42,.08);
+      z-index: 4;
+    }
+    .phone-screen {
+      width: 100%; height: 100%;
+      border-radius: 28px;
+      background: var(--bg);
+      overflow: hidden;
+      position: relative;
+      display: flex; flex-direction: column;
+    }
+    .phone-screen img.phone-shot {
+      display: block;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      object-position: top center;
+    }
+    .phone-notch {
+      position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+      width: 80px; height: 18px; border-radius: 12px;
+      background: #0B1020; z-index: 10;
+    }
+    .phone-header {
+      background: linear-gradient(135deg, var(--blue-600) 0%, #2E6BFF 100%);
+      padding: 34px 14px 14px;
+      color: white;
+    }
+    .phone-header-row { display: flex; align-items: center; gap: 8px; }
+    .phone-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: white; color: var(--blue-600);
+      display: grid; place-items: center;
+      font-weight: 800; font-size: 12px;
+    }
+    .phone-greet { font-size: 10px; opacity: .85; }
+    .phone-name  { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+    .phone-body  {
+      padding: 12px 12px 14px;
+      display: flex; flex-direction: column; gap: 8px;
+      overflow: hidden;
+    }
+    .phone-start {
+      background: var(--blue-600); color: white;
+      padding: 11px; border-radius: 14px;
+      font-weight: 800; font-size: 12.5px;
+      display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 10px 20px -8px rgba(27,79,204,.55);
+    }
+    .phone-start .play {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: rgba(255,255,255,.22);
+      display: grid; place-items: center;
+      font-size: 9px;
+    }
+
+    .callout {
+      border-radius: 12px; padding: 9px 11px; color: white;
+      position: relative; overflow: hidden; box-shadow: var(--sh-sm);
+    }
+    .callout .eyebrow {
+      font-size: 7.5px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; opacity: .9;
+    }
+    .callout .headline { font-size: 11px; font-weight: 800; margin-top: 1px; line-height: 1.2; }
+    .callout .sub      { font-size: 9px; opacity: .85; margin-top: 2px; line-height: 1.3; }
+    .callout .ico      {
+      position: absolute; right: 4px; bottom: -4px;
+      font-size: 42px; opacity: .10; line-height: 1;
+    }
+    .c-hot    { background: linear-gradient(135deg, #6D28D9 0%, #DB2777 100%); }
+    .c-rank   { background: linear-gradient(135deg, #059669 0%, #7DC31E 100%); }
+    .c-level  { background: linear-gradient(135deg, #F59E0B 0%, #DC2626 100%); }
+    .c-team   { background: linear-gradient(135deg, #0EA5E9 0%, #6366F1 100%); }
+    .c-pb     { background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%); }
+    .c-dry    { background: linear-gradient(135deg, #EA580C 0%, #FACC15 100%); }
+    .c-diag   { background: linear-gradient(135deg, #B45309 0%, #F59E0B 100%); }
+
+    .mini-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .mini-card {
+      background: white; border: 1px solid var(--line);
+      border-radius: 12px; padding: 8px; box-shadow: var(--sh-sm);
+    }
+    .mini-label {
+      font-size: 7px; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .mini-val { font-size: 14px; font-weight: 800; letter-spacing: -0.02em; margin-top: 3px; }
+    .mini-sub { font-size: 8.5px; color: var(--muted); margin-top: 1px; }
+    .mini-ring {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: conic-gradient(var(--lime) 252deg, #f3f4f6 0);
+      display: grid; place-items: center; float: right;
+    }
+    .mini-ring-inner {
+      width: 20px; height: 20px; border-radius: 50%; background: white;
+      display: grid; place-items: center;
+      font-size: 7.5px; font-weight: 800; color: var(--green);
+    }
+    .mini-bar {
+      height: 4px; border-radius: 5px; background: var(--line-2);
+      overflow: hidden; margin-top: 5px;
+    }
+    .mini-bar > span {
+      display: block; height: 100%; width: 78%;
+      background: linear-gradient(90deg, #FACC15 0%, #F59E0B 100%);
+    }
+
+    /* ═══ SECTION HEADS ═════════════════════════════════════════════════════ */
+    .section-head { text-align: center; max-width: 740px; margin: 0 auto 56px; }
+    .eyebrow {
+      display: inline-block; font-size: 12px;
+      text-transform: uppercase; letter-spacing: .16em;
+      font-weight: 700; color: var(--blue-600);
+      margin-bottom: 14px;
+    }
+    .eyebrow.lime   { color: var(--lime); }
+    .eyebrow.violet { color: var(--violet); }
+    .eyebrow.amber  { color: var(--amber); }
+    .section-h {
+      font-size: clamp(32px, 3.6vw, 48px);
+      letter-spacing: -0.03em; line-height: 1.1;
+      font-weight: 800;
+    }
+    .section-h .grad {
+      background: linear-gradient(135deg, #2E6BFF 0%, var(--violet) 70%, var(--pink) 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .section-sub {
+      font-size: 17px; color: var(--muted);
+      margin-top: 14px; max-width: 620px; margin-left: auto; margin-right: auto;
+    }
+
+    /* ═══ AUTOMATIC DOOR KNOCKING ═════════════════════════════════════════ */
+    .auto-feat {
+      position: relative;
+      background:
+        radial-gradient(700px 360px at 10% 10%, rgba(27,79,204,.10), transparent 60%),
+        radial-gradient(900px 420px at 90% 90%, rgba(125,195,30,.10), transparent 60%),
+        linear-gradient(180deg, var(--bg) 0%, white 100%);
+    }
+    .auto-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.05fr;
+      gap: 64px;
+      align-items: center;
+    }
+    .tag-new {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: linear-gradient(135deg, #EEF3FF, #F4FBE6);
+      border: 1px solid #CBE3FF;
+      color: var(--blue-600);
+      padding: 6px 14px; border-radius: 999px;
+      font-size: 12px; font-weight: 700; letter-spacing: .02em;
+    }
+    .auto-h {
+      font-size: clamp(28px, 3.2vw, 42px);
+      line-height: 1.08; letter-spacing: -0.03em;
+      font-weight: 800; margin-top: 18px;
+    }
+    .auto-h .grad { background: linear-gradient(135deg, #1B4FCC, #6D28D9); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .auto-copy p { color: var(--text); font-size: 16px; margin-top: 16px; max-width: 48ch; }
+    .auto-list {
+      list-style: none; margin-top: 22px; display: grid; gap: 12px;
+    }
+    .auto-list li {
+      display: flex; gap: 12px; align-items: flex-start;
+      font-size: 14.5px; color: var(--text);
+    }
+    .auto-list .tick {
+      flex-shrink: 0;
+      width: 22px; height: 22px; border-radius: 7px;
+      background: var(--lime-50); color: var(--green);
+      display: grid; place-items: center;
+      font-weight: 900; font-size: 12px;
+    }
+    .auto-compare {
+      margin-top: 26px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    .ac-card {
+      padding: 14px 16px; border-radius: 14px;
+      background: white; border: 1px solid var(--line);
+    }
+    .ac-card.bad { background: #FEF2F2; border-color: #FECACA; }
+    .ac-card.good { background: linear-gradient(135deg, #F4FBE6 0%, #EEF3FF 100%); border-color: #BBF7D0; }
+    .ac-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .ac-card.bad .ac-title { color: #B91C1C; }
+    .ac-card.good .ac-title { color: var(--green); }
+    .ac-text { font-size: 14px; font-weight: 600; margin-top: 4px; color: var(--ink-2); }
+
+    /* Automatic detection visual — phone-framed */
+    .auto-visual {
+      position: relative;
+      width: 340px;
+      margin: 0 auto;
+      background: linear-gradient(180deg, #0F172A, #1E293B);
+      border-radius: 44px;
+      padding: 14px 12px 14px;
+      box-shadow:
+        0 0 0 2px #0F172A,
+        0 30px 80px -20px rgba(15,23,42,.45),
+        0 10px 30px -8px rgba(15,23,42,.25);
+    }
+    .auto-visual::before {
+      content: '';
+      position: absolute;
+      top: 18px; left: 50%; transform: translateX(-50%);
+      width: 96px; height: 22px;
+      background: #0F172A;
+      border-radius: 14px;
+      z-index: 2;
+    }
+    .auto-phone-screen {
+      background: white;
+      border-radius: 34px;
+      padding: 40px 14px 14px;
+      overflow: hidden;
+      min-height: 520px;
+    }
+    .auto-visual-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+      padding: 0 4px;
+    }
+    .auto-visual-head h5 { font-size: 13px; font-weight: 800; letter-spacing: -0.01em; }
+    .av-status {
+      display: inline-flex; gap: 6px; align-items: center;
+      background: var(--lime-50); color: var(--green);
+      padding: 3px 9px; border-radius: 999px;
+      font-size: 10px; font-weight: 700;
+    }
+    .av-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 1.8s infinite; }
+
+    .av-map {
+      height: 300px; position: relative;
+      background: linear-gradient(135deg, #EEF3FF 0%, #F4FBE6 100%);
+      border-radius: 18px; overflow: hidden;
+      border: 1px solid var(--line);
+    }
+    .av-map svg { width: 100%; height: 100%; }
+
+    .detect-log {
+      margin-top: 12px;
+      display: grid; gap: 6px;
+    }
+    .detect-row {
+      display: grid; grid-template-columns: 44px 1fr auto;
+      gap: 8px; align-items: center;
+      padding: 8px 10px; border-radius: 10px;
+      background: var(--bg-2); border: 1px solid var(--line);
+      font-size: 11px;
+    }
+    .detect-row .time { font-size: 10px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .detect-row.lime  { border-left: 3px solid var(--lime); }
+    .detect-row.blue  { border-left: 3px solid var(--blue-600); }
+    .detect-row.amber { border-left: 3px solid var(--amber); }
+    .detect-row .ev { font-weight: 600; color: var(--ink-2); }
+    .detect-row .tag {
+      font-size: 10px; font-weight: 700; padding: 3px 8px;
+      border-radius: 999px; background: white; border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .detect-row.lime  .tag { color: var(--green); border-color: #BBF7D0; background: var(--lime-50); }
+    .detect-row.blue  .tag { color: var(--blue-600); border-color: #BFDBFE; background: var(--blue-50); }
+    .detect-row.amber .tag { color: #92400E; border-color: #FDE68A; background: #FEF3C7; }
+
+    /* ═══ MANAGER SECTION ═══════════════════════════════════════════════════ */
+    .persona {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      gap: 56px;
+      align-items: center;
+    }
+    .persona.flip { grid-template-columns: 1.1fr 1fr; }
+    .persona.flip .p-copy   { order: 2; }
+    .persona.flip .p-visual { order: 1; }
+    .p-copy h3 {
+      font-size: clamp(28px, 3vw, 38px);
+      line-height: 1.08; letter-spacing: -0.03em;
+      font-weight: 800; margin-top: 14px;
+    }
+    .p-copy h3 .hi-blue { background: linear-gradient(135deg, #1B4FCC, #0EA5E9); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .p-copy h3 .hi-pink { background: linear-gradient(135deg, var(--violet), var(--pink)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .p-copy p {
+      font-size: 16px; color: var(--text); line-height: 1.65;
+      margin-top: 14px; max-width: 52ch;
+    }
+    .p-list {
+      list-style: none; margin-top: 22px;
+      display: grid; gap: 18px;
+    }
+    .p-item { display: flex; gap: 14px; align-items: flex-start; }
+    .p-icon {
+      flex-shrink: 0;
+      width: 40px; height: 40px; border-radius: 12px;
+      display: grid; place-items: center;
+      font-size: 18px;
+    }
+    .p-icon.blue   { background: var(--blue-50); color: var(--blue-600); }
+    .p-icon.lime   { background: var(--lime-50); color: var(--green); }
+    .p-icon.amber  { background: #FEF3C7; color: var(--amber); }
+    .p-icon.violet { background: #F3E8FF; color: var(--violet); }
+    .p-icon.pink   { background: #FCE7F3; color: var(--pink); }
+    .p-icon.sky    { background: #E0F2FE; color: var(--sky); }
+    .p-item strong {
+      display: block; font-weight: 700; font-size: 15px; color: var(--ink);
+    }
+    .p-item span {
+      display: block; font-size: 13.5px; color: var(--muted);
+      margin-top: 2px; line-height: 1.5;
+    }
+
+    /* Manager dashboard deep-dive visual */
+    .mgr-visual {
+      background: white; border: 1px solid var(--line);
+      border-radius: 20px; overflow: hidden;
+      box-shadow: var(--sh-xl);
+    }
+    .mgr-topbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; border-bottom: 1px solid var(--line);
+      background: #FAFBFF;
+    }
+    .mgr-title { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .mgr-sub   { margin-left: 4px; font-size: 11px; color: var(--ink-2); font-weight: 700; }
+    .mgr-body { padding: 20px; }
+    .mgr-kpis {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 10px; margin-bottom: 16px;
+    }
+    .mgr-kpi {
+      padding: 12px; border-radius: 12px; background: var(--bg);
+    }
+    .mgr-kpi .lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .mgr-kpi .val { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-top: 3px; }
+    .mgr-kpi.blue  .val { color: var(--blue-600); }
+    .mgr-kpi.lime  .val { color: var(--lime); }
+    .mgr-kpi.green .val { color: var(--green); }
+    .mgr-kpi.amber .val { color: var(--amber); }
+
+    /* Territory map with assigned reps (manager view) */
+    .mgr-map {
+      height: 210px; border-radius: 14px;
+      background: linear-gradient(135deg, #EEF3FF 0%, #F4FBE6 100%);
+      border: 1px solid var(--line);
+      overflow: hidden; position: relative;
+    }
+    .mgr-map svg { width: 100%; height: 100%; }
+
+    /* Export chip */
+    .export-chip {
+      margin-top: 12px;
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 8px 14px; border-radius: 10px;
+      background: white; border: 1px solid var(--line);
+      font-size: 12px; color: var(--ink-2); font-weight: 600;
+      box-shadow: var(--sh-sm);
+    }
+    .export-chip .sheet-icon {
+      display: inline-grid; place-items: center;
+      width: 24px; height: 24px; border-radius: 6px;
+      background: #0F9D58; color: white;
+      font-weight: 900; font-size: 11px;
+    }
+
+    /* Game mechanics strip on manager section */
+    .game-strip {
+      margin-top: 26px;
+      background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
+      color: white; border-radius: 18px;
+      padding: 22px 24px;
+      display: grid; grid-template-columns: auto 1fr auto;
+      gap: 18px; align-items: center;
+    }
+    .game-strip .orbs {
+      display: flex; gap: -8px;
+    }
+    .orb {
+      width: 38px; height: 38px; border-radius: 50%;
+      display: grid; place-items: center;
+      font-size: 17px;
+      border: 2px solid #0F172A;
+      margin-left: -10px;
+    }
+    .orb:first-child { margin-left: 0; }
+    .orb.rookie  { background: linear-gradient(135deg, #d1fae5, #86efac); }
+    .orb.bronze  { background: linear-gradient(135deg, #fcd9b3, #c77a3a); }
+    .orb.silver  { background: linear-gradient(135deg, #f1f5f9, #94a3b8); }
+    .orb.ninja   { background: linear-gradient(135deg, #a78bfa, #6d28d9); color: white; }
+    .orb.gold    { background: linear-gradient(135deg, #fde68a, #f59e0b); }
+    .orb.god     { background: conic-gradient(from 0deg, #fde047, #fb7185, #a78bfa, #60a5fa, #4ade80, #fde047); box-shadow: 0 0 12px rgba(253,224,71,.6); }
+    .game-strip h4 { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+    .game-strip p  { font-size: 13px; color: #CBD5E1; margin-top: 4px; max-width: 44ch; }
+
+    /* ═══ REP SECTION ═══════════════════════════════════════════════════════ */
+    .rep-section { background: var(--bg); }
+
+    /* Big phone for rep section */
+    .phone-big {
+      position: relative;
+      width: 320px; max-width: 100%;
+      aspect-ratio: 9 / 19;
+      border-radius: 42px;
+      background: #0B1020;
+      padding: 10px;
+      box-shadow: var(--sh-xl);
+      margin: 0 auto;
+    }
+    .phone-big .phone-screen { border-radius: 34px; }
+    .phone-big .phone-notch {
+      width: 98px; height: 22px;
+      top: 10px;
+    }
+    .phone-big .phone-header {
+      padding: 44px 18px 18px;
+    }
+    .phone-big .phone-avatar { width: 38px; height: 38px; font-size: 14px; }
+    .phone-big .phone-greet  { font-size: 11px; }
+    .phone-big .phone-name   { font-size: 16px; }
+    .phone-big .phone-body   { padding: 14px; gap: 10px; }
+    .phone-big .phone-start  { padding: 13px; font-size: 14px; }
+    .phone-big .callout .headline { font-size: 12px; }
+    .phone-big .callout .sub { font-size: 10px; }
+    .phone-big .callout .eyebrow { font-size: 8.5px; }
+
+    /* Metrics tiles inside rep phone */
+    .rep-tile {
+      background: white; border: 1px solid var(--line);
+      border-radius: 14px; padding: 10px;
+    }
+    .rep-tile .lbl {
+      font-size: 9px; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .rep-tile .val { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-top: 4px; }
+    .rep-tile .sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .rep-row-3 {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+    }
+    .rep-tile.blue  .val { color: var(--blue-600); }
+    .rep-tile.green .val { color: var(--green); }
+    .rep-tile.lime  .val { color: var(--lime); }
+
+    /* Commission card */
+    .commission {
+      border-radius: 14px; padding: 10px 12px; color: white;
+      background: linear-gradient(135deg, #059669 0%, #7DC31E 100%);
+      position: relative; overflow: hidden;
+    }
+    .commission .lbl {
+      font-size: 8.5px; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; opacity: .9;
+    }
+    .commission .val { font-size: 17px; font-weight: 800; margin-top: 2px; }
+    .commission .sub { font-size: 9.5px; opacity: .85; margin-top: 2px; }
+
+    /* Callout annotation arrow */
+    .rep-visual-wrap {
+      position: relative;
+      padding: 0 40px;
+    }
+    .annotation {
+      position: absolute;
+      right: -30px;
+      top: 180px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px 14px;
+      box-shadow: var(--sh-lg);
+      display: flex; align-items: center; gap: 10px;
+      font-size: 12px; font-weight: 600; color: var(--ink-2);
+      max-width: 220px;
+      z-index: 3;
+    }
+    .annotation .rainbow {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: linear-gradient(135deg, #6D28D9, #DB2777, #F59E0B, #7DC31E, #06B6D4);
+      display: grid; place-items: center; color: white;
+      font-size: 14px; flex-shrink: 0;
+    }
+    .annotation .line {
+      position: absolute;
+      left: -50px; top: 50%;
+      width: 50px; height: 2px;
+      background: var(--line);
+    }
+
+    /* ═══ SIMPLE VS ENTERPRISE COMPARISON ═══════════════════════════════════ */
+    .vs-section {
+      background: white;
+      padding: 80px 0;
+    }
+    .vs-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 16px; max-width: 980px; margin: 40px auto 0;
+    }
+    .vs-col {
+      border-radius: 20px; padding: 26px;
+      border: 1px solid var(--line);
+    }
+    .vs-col.them {
+      background: #F8FAFC;
+    }
+    .vs-col.us {
+      background: linear-gradient(135deg, #EEF3FF 0%, #F4FBE6 100%);
+      border-color: #CBE3FF;
+      position: relative;
+    }
+    .vs-col h5 {
+      font-size: 13px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .vs-col.us h5 { color: var(--blue-600); }
+    .vs-col .lead {
+      font-size: 22px; font-weight: 800; letter-spacing: -0.02em;
+      margin-bottom: 14px; color: var(--ink);
+    }
+    .vs-col ul { list-style: none; display: grid; gap: 9px; }
+    .vs-col li {
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: 14px; color: var(--text);
+    }
+    .vs-col .mark {
+      width: 18px; height: 18px; border-radius: 50%;
+      flex-shrink: 0;
+      display: grid; place-items: center;
+      font-size: 11px; font-weight: 900;
+    }
+    .vs-col.them .mark { background: #FEE2E2; color: var(--red); }
+    .vs-col.us   .mark { background: var(--lime-50); color: var(--green); }
+
+    /* ═══ PRICING ═══════════════════════════════════════════════════════════ */
+    .pricing-head .section-sub strong { color: var(--ink); font-weight: 700; }
+
+    /* Billing toggle */
+    .billing-toggle {
+      display: inline-flex; align-items: center; gap: 14px;
+      margin: 4px auto 36px;
+      padding: 6px; background: white;
+      border: 1px solid var(--line); border-radius: 999px;
+      box-shadow: var(--sh-sm);
+      position: relative;
+    }
+    .bt-opt {
+      border: 0; background: transparent;
+      font-size: 14px; font-weight: 700; color: var(--muted);
+      padding: 10px 22px; border-radius: 999px;
+      cursor: pointer;
+      display: inline-flex; align-items: center; gap: 8px;
+      transition: all .2s ease;
+    }
+    .bt-opt.active {
+      background: var(--blue-600); color: white;
+      box-shadow: 0 6px 16px -6px rgba(27,79,204,.45);
+    }
+    .bt-save {
+      font-size: 10.5px; font-weight: 800; letter-spacing: .03em;
+      padding: 3px 8px; border-radius: 999px;
+      background: var(--lime); color: #1a3a00;
+    }
+    .bt-opt.active .bt-save { background: rgba(255,255,255,.18); color: white; }
+
+    .billing-wrap { text-align: center; }
+
+    .pricing-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 20px; max-width: 1100px; margin: 0 auto;
+    }
+    /* hide annual prices by default */
+    .amount-annual { display: none; }
+    .billing-annual .amount-monthly { display: none; }
+    .billing-annual .amount-annual  { display: block; }
+    .price {
+      background: white; border: 1px solid var(--line);
+      border-radius: 20px; padding: 30px 28px;
+      display: flex; flex-direction: column;
+      position: relative;
+    }
+    .price.featured {
+      background: linear-gradient(180deg, #EEF3FF 0%, #fff 35%);
+      border: 2px solid var(--blue-600);
+      transform: translateY(-10px);
+      box-shadow: var(--sh-xl);
+    }
+    .price-badge {
+      position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+      background: var(--blue-600); color: white;
+      padding: 4px 14px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; letter-spacing: .05em;
+    }
+    .price.pro { border: 2px solid var(--lime); box-shadow: 0 10px 30px -12px rgba(125,195,30,.3); }
+    .price.pro .price-badge { background: var(--lime); color: #1a3a00; }
+    .price h5 { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+    .price.pro h5 { color: var(--lime); }
+    .price .tagline { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .price .amount {
+      font-size: 46px; font-weight: 800; letter-spacing: -0.03em;
+      margin-top: 16px;
+    }
+    .price .amount small { font-size: 15px; font-weight: 500; color: var(--muted); }
+    .price .amount-sub {
+      font-size: 12px; color: var(--muted); margin-top: 2px;
+    }
+    .price ul {
+      list-style: none; margin-top: 20px; padding-top: 20px;
+      border-top: 1px solid var(--line); flex: 1;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .price li {
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: 14px; color: var(--text); line-height: 1.45;
+    }
+    .price li .tick {
+      flex-shrink: 0;
+      width: 18px; height: 18px; border-radius: 5px;
+      background: var(--lime-50); color: var(--green);
+      display: grid; place-items: center;
+      font-weight: 900; font-size: 10px;
+    }
+    .price.pro li .tick { background: var(--lime); color: white; }
+    .price .cta { margin-top: 22px; }
+    .price.pro .cta {
+      background: var(--lime); color: #1a3a00;
+      box-shadow: 0 10px 24px -8px rgba(125,195,30,.55);
+    }
+    .price.pro .cta:hover { filter: brightness(1.05); }
+
+    /* ═══ INDUSTRY TAGS ═════════════════════════════════════════════════════ */
+    .industries {
+      display: flex; flex-wrap: wrap; justify-content: center;
+      gap: 10px; max-width: 800px; margin: 32px auto 0;
+    }
+    .industry-tag {
+      padding: 8px 16px; border-radius: 999px;
+      background: white; border: 1px solid var(--line);
+      font-size: 13px; color: var(--text); font-weight: 500;
+      box-shadow: var(--sh-sm);
+    }
+
+    /* ═══ FINAL CTA ═════════════════════════════════════════════════════════ */
+    .final-cta {
+      background:
+        radial-gradient(900px 400px at 90% 10%, rgba(125,195,30,.18), transparent 60%),
+        radial-gradient(800px 400px at 10% 90%, rgba(219,39,119,.18), transparent 60%),
+        linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
+      color: white; padding: 96px 0; text-align: center;
+    }
+    .final-cta h2 {
+      font-size: clamp(32px, 4vw, 48px);
+      letter-spacing: -0.03em; font-weight: 800; line-height: 1.1;
+      max-width: 18ch; margin: 0 auto;
+    }
+    .final-cta p { color: #CBD5E1; margin-top: 16px; max-width: 540px; margin-left: auto; margin-right: auto; }
+    .final-cta .hero-ctas { margin-top: 32px; }
+    .final-cta .btn-ghost { color: white; border-color: rgba(255,255,255,.3); }
+    .final-cta .btn-ghost:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.5); }
+
+    footer {
+      background: var(--ink); color: #94A3B8;
+      padding: 40px 0; text-align: center; font-size: 13px;
+    }
+    footer a { color: #CBD5E1; margin: 0 12px; }
+
+    /* ═══ RESPONSIVE ════════════════════════════════════════════════════════ */
+    @media (max-width: 1000px) {
+      .browser { margin-right: 0; }
+      .phone { position: relative; right: auto; bottom: auto; margin: 20px auto 0; }
+      .auto-grid, .persona, .persona.flip { grid-template-columns: 1fr; gap: 40px; }
+      .persona.flip .p-copy   { order: 1; }
+      .persona.flip .p-visual { order: 2; }
+      .rep-visual-wrap { padding: 0; }
+      .annotation { position: relative; right: auto; top: auto; margin: 20px auto 0; }
+      .annotation .line { display: none; }
+      .vs-grid, .pricing-grid { grid-template-columns: 1fr; }
+      .mgr-kpis { grid-template-columns: repeat(2, 1fr); }
+      .game-strip { grid-template-columns: 1fr; text-align: left; }
+      .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+      .dash-two { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      .section { padding: 72px 0; }
+      .nav-links { display: none; }
+      .nav-inner { padding: 0 16px; }
+      .nav-actions { gap: 10px; }
+      .nav-signin { font-size: 13px; }
+      .nav-actions .btn { padding: 9px 14px; font-size: 13px; }
+      .auto-compare { grid-template-columns: 1fr; }
+      .hero-trust { flex-direction: column; gap: 8px; }
+    }
+
+    /* ═══ NEW v2: SCREENSHOT FRAMES ═════════════════════════════════════════ */
+    /* Frame wraps a real screenshot in browser chrome. The placeholder shows
+       the expected filename so we can preview which screenshots are missing.
+       When the <img> loads, .has-image is added and the placeholder hides. */
+    .ss-browser {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: var(--sh-xl);
+    }
+    .ss-browser-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      background: #FAFBFF;
+      border-bottom: 1px solid var(--line);
+    }
+    .ss-browser-bar .d {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .ss-browser-bar .d.r { background: #FF5F57; }
+    .ss-browser-bar .d.a { background: #FEBC2E; }
+    .ss-browser-bar .d.g { background: #28C840; }
+    .ss-browser-url {
+      flex: 1; text-align: center;
+      font-size: 12px; color: var(--muted);
+      background: white; padding: 5px 14px;
+      border-radius: 999px; border: 1px solid var(--line);
+      max-width: 360px; margin: 0 auto;
+    }
+    .ss-frame {
+      position: relative;
+      background: linear-gradient(135deg, var(--blue-50) 0%, var(--lime-50) 100%);
+      min-height: 280px;
+      display: grid; place-items: center;
+    }
+    .ss-frame img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .ss-placeholder {
+      padding: 60px 32px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .ss-placeholder strong {
+      display: block;
+      font-size: 16px;
+      color: var(--ink-2);
+      margin-bottom: 8px;
+      font-weight: 800;
+    }
+    .ss-placeholder code {
+      display: inline-block;
+      background: white;
+      border: 1px dashed var(--line);
+      padding: 6px 12px; border-radius: 8px;
+      font-family: 'SF Mono', Menlo, monospace;
+      font-size: 12px; color: var(--blue-600);
+      margin-top: 10px;
+    }
+    .ss-frame.has-image .ss-placeholder { display: none; }
+
+    /* Phone-framed screenshot (native app shots) */
+    .ss-phone {
+      width: 300px;
+      margin: 0 auto;
+      background: #0B1020;
+      border-radius: 42px;
+      padding: 10px;
+      box-shadow: var(--sh-xl);
+      position: relative;
+    }
+    .ss-phone::before {
+      content: ''; position: absolute;
+      top: 18px; left: 50%; transform: translateX(-50%);
+      width: 96px; height: 22px;
+      background: #0B1020; border-radius: 14px; z-index: 2;
+    }
+    .ss-phone .ss-frame {
+      border-radius: 34px;
+      overflow: hidden;
+      min-height: 560px;
+    }
+    .ss-phone .ss-placeholder { padding: 240px 24px; }
+
+    /* Draft banner across the top of the page */
+    .draft-banner {
+      background: linear-gradient(135deg, #F59E0B 0%, #DB2777 100%);
+      color: white;
+      padding: 10px 20px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+    .draft-banner code {
+      background: rgba(0,0,0,.18);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-family: 'SF Mono', Menlo, monospace;
+      font-size: 12px;
+    }
+
+    /* ═══ NEW v2: PIPELINE SECTION ══════════════════════════════════════════ */
+    .pipeline-feat {
+      position: relative;
+      background:
+        radial-gradient(700px 360px at 90% 10%, rgba(109,40,217,.10), transparent 60%),
+        radial-gradient(900px 420px at 10% 90%, rgba(27,79,204,.08), transparent 60%),
+        var(--white);
+    }
+    .pipeline-grid {
+      display: grid; grid-template-columns: 1fr 1.15fr;
+      gap: 56px; align-items: center;
+    }
+    .pipeline-copy .tag-new {
+      background: linear-gradient(135deg, #F3E8FF, #EEF3FF);
+      border-color: #DDD6FE;
+      color: var(--violet);
+    }
+    .pipeline-copy h2 {
+      font-size: clamp(28px, 3.2vw, 42px);
+      line-height: 1.08; letter-spacing: -0.03em;
+      font-weight: 800; margin-top: 18px;
+    }
+    .pipeline-copy h2 .grad {
+      background: linear-gradient(135deg, var(--violet), var(--pink));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .pipeline-copy > p {
+      color: var(--text); font-size: 16px; margin-top: 16px; max-width: 48ch;
+    }
+    .pipeline-stats {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 12px; margin-top: 24px;
+    }
+    .pipeline-stat {
+      padding: 14px; border-radius: 12px;
+      background: var(--bg); border: 1px solid var(--line);
+    }
+    .pipeline-stat .num {
+      font-size: 24px; font-weight: 800; letter-spacing: -0.02em;
+      color: var(--violet);
+    }
+    .pipeline-stat .lbl {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted); margin-top: 2px;
+    }
+    .pipeline-features {
+      list-style: none; margin-top: 26px; display: grid; gap: 14px;
+    }
+    .pipeline-features li {
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .pipeline-features .pf-icon {
+      flex-shrink: 0;
+      width: 32px; height: 32px; border-radius: 9px;
+      background: #F3E8FF; color: var(--violet);
+      display: grid; place-items: center;
+      font-size: 14px; font-weight: 800;
+    }
+    .pipeline-features strong {
+      display: block; font-weight: 700; font-size: 15px; color: var(--ink);
+    }
+    .pipeline-features span {
+      display: block; font-size: 13.5px; color: var(--muted);
+      margin-top: 2px; line-height: 1.5;
+    }
+
+    /* ═══ NEW v2: ACTIVE SESSION SHOWCASE ══════════════════════════════════
+       Same overall styling, but no green — palette is blue/violet/ink. */
+    .active-session-strip {
+      position: relative;
+      background: linear-gradient(180deg, var(--white) 0%, var(--bg) 100%);
+      padding: 80px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    .as-head {
+      text-align: center; max-width: 760px; margin: 0 auto 48px;
+    }
+    .as-head .eyebrow { color: var(--blue-600); }
+    .as-head h3 {
+      font-size: clamp(28px, 3vw, 40px);
+      line-height: 1.1; letter-spacing: -0.02em;
+      font-weight: 800; margin-top: 12px;
+    }
+    .as-head h3 .grad {
+      background: linear-gradient(135deg, var(--blue-600), var(--violet));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .as-head > p {
+      color: var(--text); font-size: 16px; margin: 14px auto 0; max-width: 60ch;
+    }
+    .as-chips {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 22px auto 0;
+      justify-content: center;
+    }
+    .as-chip {
+      padding: 6px 12px; border-radius: 999px;
+      background: white; border: 1px solid var(--line);
+      font-size: 12px; font-weight: 700; color: var(--ink-2);
+      display: inline-flex; align-items: center; gap: 6px;
+      box-shadow: var(--sh-sm);
+    }
+    .as-chip .pulse {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--blue-600); animation: pulse 1.8s infinite;
+    }
+    .as-split {
+      display: grid; grid-template-columns: 0.85fr 1.15fr;
+      gap: 48px; align-items: center;
+      max-width: 1140px; margin: 0 auto;
+    }
+    .as-side {
+      text-align: center;
+    }
+    .as-side .as-label {
+      font-size: 11px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .12em; color: var(--blue-600);
+      margin-bottom: 14px;
+    }
+    .as-side .as-caption {
+      font-size: 13.5px; color: var(--muted); margin-top: 14px;
+      max-width: 32ch; margin-left: auto; margin-right: auto;
+    }
+
+    /* ═══ NEW v2: DARK SECTION FRAMEWORK ═══════════════════════════════════
+       Generic dark-bg section used by Rep Tracking + Coaching and
+       Performance & Insights. Accents are blue/violet (no green/lime). */
+    .dark-section {
+      background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
+      color: white; padding: 96px 0;
+      position: relative; overflow: hidden;
+    }
+    .dark-section::before {
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(700px 320px at 10% 10%, rgba(124,58,237,.18), transparent 60%),
+        radial-gradient(700px 320px at 90% 90%, rgba(56,189,248,.14), transparent 60%);
+      pointer-events: none;
+    }
+    .dark-section .container { position: relative; }
+    .dark-section .section-head h2,
+    .dark-section .section-h { color: white; }
+    .dark-section .section-sub { color: #CBD5E1; }
+    .dark-section .eyebrow { color: #93C5FD; }
+    .dark-section h2 .grad,
+    .dark-section h3 .grad {
+      background: linear-gradient(135deg, #93C5FD 0%, #C4B5FD 50%, #F0ABFC 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+
+    .dark-card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 20px;
+      padding: 24px;
+      backdrop-filter: blur(8px);
+      display: flex; flex-direction: column;
+    }
+    .dark-card h4 {
+      font-size: 19px; font-weight: 800; letter-spacing: -0.01em;
+      margin-bottom: 8px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .dark-card h4 .ico {
+      width: 32px; height: 32px; border-radius: 9px;
+      background: rgba(147,197,253,.18); color: #93C5FD;
+      display: inline-grid; place-items: center;
+      font-size: 15px;
+    }
+    .dark-card p {
+      font-size: 14px; color: #CBD5E1; line-height: 1.6;
+      margin-bottom: 18px;
+    }
+    .dark-card .ss-browser { box-shadow: 0 20px 40px -12px rgba(0,0,0,.45); }
+    .dark-card .ss-phone   { box-shadow: 0 20px 40px -12px rgba(0,0,0,.55); }
+    .dark-card .ss-frame { min-height: 220px; }
+    .dark-card-meta {
+      list-style: none; display: grid; gap: 12px; margin-top: auto;
+    }
+    .dark-card-meta li {
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: 13px; color: #E2E8F0;
+    }
+    .dark-card-meta .dot {
+      flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%;
+      background: #93C5FD; margin-top: 7px;
+    }
+
+    /* ═══ NEW v2: SALES REP TRACKING + COACHING ═══════════════════════════ */
+    .rep-coach-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 28px; align-items: stretch;
+    }
+    .rep-coach-grid .dark-card.tall { grid-row: span 2; }
+
+    /* ═══ NEW v2: TERRITORY MANAGEMENT (light) ═════════════════════════════ */
+    .territory-feat {
+      background:
+        radial-gradient(700px 320px at 90% 0%, rgba(245,158,11,.10), transparent 60%),
+        radial-gradient(700px 320px at 0% 100%, rgba(27,79,204,.08), transparent 60%),
+        var(--white);
+    }
+    .territory-grid {
+      display: grid; grid-template-columns: 1.1fr 1fr;
+      gap: 56px; align-items: center;
+    }
+    .territory-copy .tag-new {
+      background: linear-gradient(135deg, #FEF3C7, #EEF3FF);
+      border-color: #FDE68A;
+      color: #B45309;
+    }
+    .territory-copy h2 {
+      font-size: clamp(28px, 3.2vw, 42px);
+      line-height: 1.08; letter-spacing: -0.03em;
+      font-weight: 800; margin-top: 18px;
+    }
+    .territory-copy h2 .grad {
+      background: linear-gradient(135deg, #F59E0B, #1B4FCC);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .territory-copy > p {
+      color: var(--text); font-size: 16px; margin-top: 16px; max-width: 48ch;
+    }
+    .territory-list {
+      list-style: none; margin-top: 26px; display: grid; gap: 14px;
+    }
+    .territory-list li {
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .territory-list .tl-icon {
+      flex-shrink: 0;
+      width: 32px; height: 32px; border-radius: 9px;
+      background: #FEF3C7; color: var(--amber);
+      display: grid; place-items: center;
+      font-size: 14px; font-weight: 800;
+    }
+    .territory-list strong { display: block; font-weight: 700; font-size: 15px; color: var(--ink); }
+    .territory-list span  { display: block; font-size: 13.5px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+
+    /* ═══ NEW v2: PERFORMANCE & INSIGHTS — 2x2 grid of sub-cards ═════════ */
+    .perf-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 22px;
+    }
+
+    @media (max-width: 1000px) {
+      .pipeline-grid { grid-template-columns: 1fr; }
+      .as-split { grid-template-columns: 1fr; gap: 32px; }
+      .pipeline-stats { grid-template-columns: 1fr; }
+      .rep-coach-grid { grid-template-columns: 1fr; }
+      .territory-grid { grid-template-columns: 1fr; }
+      .perf-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     DRAFT BANNER — remove before promoting to /welcome.html
+═══════════════════════════════════════════════════════════════════════════ -->
+<div class="draft-banner">
+  Draft v2 · preview only · live page is still <code>/welcome.html</code>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     NAV
+═══════════════════════════════════════════════════════════════════════════ -->
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="#top">
+      <img src="/logo.png" alt="KnockIQ" />
+    </a>
+    <ul class="nav-links">
+      <li><a href="#live-session">Live View</a></li>
+      <li><a href="#pipeline">Pipeline</a></li>
+      <li><a href="#rep-coach">Coach Reps</a></li>
+      <li><a href="#territory">Territory</a></li>
+      <li><a href="#insights">Insights</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+    </ul>
+    <div class="nav-actions">
+      <a href="/login" class="nav-signin">Sign In</a>
+      <a href="/signup" class="btn btn-blue">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     HERO
+═══════════════════════════════════════════════════════════════════════════ -->
+<section id="top" class="hero">
+  <div class="container hero-head">
+    <span class="pill">
+      <span class="dot"></span>
+      The all-in-one door-to-door operations platform
+    </span>
+    <h1>
+      Complete visibility into your <span class="grad">door-to-door team's</span> performance.
+    </h1>
+    <p class="sub">
+      KnockIQ is the field sales system that ties every knock to a rep, a street, and a dollar —
+      with a manager dashboard, a rep app built to motivate, and a pipeline built to close.
+    </p>
+    <div class="hero-ctas">
+      <a href="/signup" class="btn btn-blue btn-lg">Start free 14-day trial →</a>
+      <a href="#live-session" class="btn btn-ghost btn-lg">See how it works</a>
+    </div>
+  </div>
+
+  <!-- Showcase: desktop + phone together -->
+  <div class="showcase">
+    <div class="showcase-inner">
+      <div class="floating-badge fb-top pink">
+        <span class="em">✨</span> Sales rep motivation built in
+      </div>
+      <div class="floating-badge fb-right lime">
+        <span class="em">📈</span> Live team performance
+      </div>
+
+      <!-- Manager desktop — real Overview screenshot (v2) -->
+      <div class="browser">
+        <div class="browser-bar">
+          <div class="dot-row">
+            <div class="d red"></div><div class="d amber"></div><div class="d green"></div>
+          </div>
+          <div class="browser-url">knockiq.app/manager/overview</div>
+        </div>
+        <div class="browser-body" style="padding:0;">
+          <div class="ss-frame" data-img="/screenshots/overview.png" style="min-height: 480px; border-radius: 0;">
+            <div class="ss-placeholder">
+              <strong>📸 Manager Overview page</strong>
+              KPI sparkline strip, doors & bookings chart,<br/>
+              leaderboard column. Goal ring at 60–80%.
+              <code>/screenshots/overview.png</code>
+            </div>
+            <img src="/screenshots/overview.png" alt="KnockIQ manager overview dashboard" loading="eager" decoding="async" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Rep phone floating (real app screenshot) -->
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <img
+            class="phone-shot"
+            src="/hero-phone.png"
+            alt="KnockIQ rep home — hot hour, goal ring, level, and daily stats"
+            loading="eager"
+            decoding="async"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     ACTIVE CANVAS SESSION SHOWCASE (NEW v2)
+     A real screenshot of a rep mid-session — the most "this thing is alive"
+     visual on the page.
+═══════════════════════════════════════════════════════════════════════════ -->
+<section id="live-session" class="active-session-strip">
+  <div class="container">
+    <div class="as-head">
+      <span class="eyebrow">Live from the field</span>
+      <h3>One canvas. <span class="grad">Two real-time views.</span></h3>
+      <p>
+        The moment a rep starts a session, auto-knock fires, interactions log
+        themselves, and the manager dashboard updates in real time — so what
+        the rep sees on their phone and what the manager sees on the dashboard
+        are always the same source of truth.
+      </p>
+      <div class="as-chips">
+        <span class="as-chip"><span class="pulse"></span> Auto-knock running</span>
+        <span class="as-chip">⏱️ Session timer</span>
+        <span class="as-chip">📍 GPS verified</span>
+        <span class="as-chip">💬 Two-way chat</span>
+      </div>
+    </div>
+
+    <div class="as-split">
+      <div class="as-side">
+        <div class="as-label">Rep view · in the field</div>
+        <div class="ss-phone">
+          <div class="ss-frame" data-img="/screenshots/active-session-phone.png">
+            <div class="ss-placeholder">
+              <strong>📸 Rep mid-session</strong>
+              ActiveCanvassing screen with auto-knock<br/>pulsing and recent knocks logged.
+              <code>/screenshots/active-session-phone.png</code>
+            </div>
+            <img src="/screenshots/active-session-phone.png" alt="KnockIQ rep mid-canvass" loading="lazy" />
+          </div>
+        </div>
+        <p class="as-caption">Heads-up at the door — the phone tracks what the rep would otherwise have to remember.</p>
+      </div>
+
+      <div class="as-side">
+        <div class="as-label">Manager view · at the desk</div>
+        <div class="ss-browser">
+          <div class="ss-browser-bar">
+            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
+            <div class="ss-browser-url">knockiq.app/manager/live</div>
+          </div>
+          <div class="ss-frame" data-img="/screenshots/live-manager-view.png" style="min-height: 360px;">
+            <div class="ss-placeholder">
+              <strong>📸 Manager live view</strong>
+              The same active session from the manager's<br/>
+              dashboard — reps on the map, knocks streaming in.
+              <code>/screenshots/live-manager-view.png</code>
+            </div>
+            <img src="/screenshots/live-manager-view.png" alt="KnockIQ manager live view" loading="lazy" />
+          </div>
+        </div>
+        <p class="as-caption">Watch the team in motion — every active rep, every knock, every booked appointment in real time.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- (v2: removed Auto Door Knocking section — folded into the Live Session
+     showcase above.) -->
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PIPELINE → APPOINTMENTS (NEW v2)
+     The week's big story: the pipeline rework with closer routing.
+═══════════════════════════════════════════════════════════════════════════ -->
+<section id="pipeline" class="section pipeline-feat">
+  <div class="container">
+    <div class="pipeline-grid">
+      <div class="pipeline-copy">
+        <span class="tag-new">◆ Pipeline</span>
+        <h2>Built to run the <span class="grad">whole sales cycle</span> — not just track it.</h2>
+        <p>
+          From the moment a rep knocks a door to the moment the deal is signed,
+          KnockIQ's pipeline keeps every lead, every closer, and every appointment
+          moving — whether you set appointments for next Tuesday or close at the door.
+        </p>
+
+        <ul class="pipeline-features">
+          <li>
+            <div class="pf-icon">📅</div>
+            <div>
+              <strong>Appointment setting</strong>
+              <span>Setters mark a lead as interested and the calendar/closer hand-off happens automatically — no texts, no shared spreadsheets.</span>
+            </div>
+          </li>
+          <li>
+            <div class="pf-icon">🤝</div>
+            <div>
+              <strong>Assigning leads to closers</strong>
+              <span>Route by territory, by setter, or round-robin. Closers get notified the second a qualified lead lands in their queue.</span>
+            </div>
+          </li>
+          <li>
+            <div class="pf-icon">🛡️</div>
+            <div>
+              <strong>Zero dropped leads</strong>
+              <span>Stale-deal alerts, follow-up reminders, and lead-aging surfaced on the board mean nothing rots in a phase.</span>
+            </div>
+          </li>
+          <li>
+            <div class="pf-icon">🔁</div>
+            <div>
+              <strong>Manage the full sales cycle</strong>
+              <span>Custom phases, required fields per phase, and conversion at every step — so you see exactly where leads stall and where dollars come from.</span>
+            </div>
+          </li>
+          <li>
+            <div class="pf-icon">⚙️</div>
+            <div>
+              <strong>Configured for how your team sells</strong>
+              <span>Appointment-setting model or book-at-the-door model — both first-class. Switch motions per crew, per region, or per campaign.</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="pipeline-visual">
+        <div class="ss-browser">
+          <div class="ss-browser-bar">
+            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
+            <div class="ss-browser-url">knockiq.app/manager/pipeline</div>
+          </div>
+          <div class="ss-frame" data-img="/screenshots/pipeline-board.png">
+            <div class="ss-placeholder">
+              <strong>📸 Pipeline board</strong>
+              Full board with all phase columns — cards in each column,<br/>
+              including at least one with a closer assigned.
+              <code>/screenshots/pipeline-board.png</code>
+            </div>
+            <img src="/screenshots/pipeline-board.png" alt="KnockIQ pipeline board" loading="lazy" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SALES REP TRACKING + COACHING (NEW v2 · dark)
+     Real-time accountability + the tools to coach reps mid-canvas.
+═══════════════════════════════════════════════════════════════════════════ -->
+<section id="rep-coach" class="dark-section">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Rep tracking + coaching</span>
+      <h2 class="section-h">Know what every rep is doing.<br/><span class="grad">Coach them in the moment.</span></h2>
+      <p class="section-sub">
+        Verified GPS activity ends self-reporting. Team chat ends "let me text you
+        about that door." Game mechanics keep reps pushing through the no-answers.
+      </p>
+    </div>
+
+    <div class="rep-coach-grid">
+      <div class="dark-card tall">
+        <h4><span class="ico">💬</span> In-session team chat</h4>
+        <p>
+          Messages surface on the rep's active canvas screen — coach the next
+          door, not the last one. Two-way, threaded, and tied to the session.
+        </p>
+        <div class="ss-browser">
+          <div class="ss-browser-bar">
+            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
+            <div class="ss-browser-url">knockiq.app/chat</div>
+          </div>
+          <div class="ss-frame" data-img="/screenshots/team-chat.png">
+            <div class="ss-placeholder">
+              <strong>📸 Team chat</strong>
+              Manager chat panel or rep in-session<br/>chat bubble — your pick.
+              <code>/screenshots/team-chat.png</code>
+            </div>
+            <img src="/screenshots/team-chat.png" alt="KnockIQ team chat" loading="lazy" />
+          </div>
+        </div>
+      </div>
+
+      <div class="dark-card">
+        <h4><span class="ico">📡</span> Verified activity, no self-reporting</h4>
+        <p>
+          Every knock, every interaction, every minute on territory — captured
+          by GPS + motion and tied to the rep, the address, and the time.
+        </p>
+        <ul class="dark-card-meta">
+          <li><span class="dot"></span><span>Time-stamped knock log, no manual entry</span></li>
+          <li><span class="dot"></span><span>DNK zones suppress activity silently</span></li>
+          <li><span class="dot"></span><span>Session timer + GPS smoothing in background</span></li>
+        </ul>
+      </div>
+
+      <div class="dark-card">
+        <h4><span class="ico">🏆</span> Leaderboards + game mechanics</h4>
+        <p>
+          Levels, XP, medals, and a leaderboard that ranks on the metrics that
+          actually matter — set rate, close rate, dollars closed. Re-scored
+          this week to reward depth, not just volume.
+        </p>
+        <div class="ss-browser" style="margin-top:6px;">
+          <div class="ss-browser-bar">
+            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
+            <div class="ss-browser-url">knockiq.app/manager/leaderboard</div>
+          </div>
+          <div class="ss-frame" data-img="/screenshots/leaderboard.png" style="min-height: 200px;">
+            <div class="ss-placeholder">
+              <strong>📸 Leaderboard (improved scoring)</strong>
+              Top 5 reps with the new weighted scoring.<br/>
+              Medals on top 3.
+              <code>/screenshots/leaderboard.png</code>
+            </div>
+            <img src="/screenshots/leaderboard.png" alt="KnockIQ leaderboard" loading="lazy" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TERRITORY MANAGEMENT (NEW v2 · light)
+═══════════════════════════════════════════════════════════════════════════ -->
+<section id="territory" class="section territory-feat">
+  <div class="container">
+    <div class="territory-grid">
+      <div class="territory-visual">
+        <div class="ss-browser">
+          <div class="ss-browser-bar">
+            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
+            <div class="ss-browser-url">knockiq.app/manager/territories</div>
+          </div>
+          <div class="ss-frame" data-img="/screenshots/territory-map.png" style="min-height: 360px;">
+            <div class="ss-placeholder">
+              <strong>📸 Territory map</strong>
+              Manager map with 3-4 drawn polygons, each<br/>
+              labeled and color-coded by assigned rep.
+              Optional DNK overlay visible.
+              <code>/screenshots/territory-map.png</code>
+            </div>
+            <img src="/screenshots/territory-map.png" alt="KnockIQ territory management" loading="lazy" />
+          </div>
+        </div>
+      </div>
+
+      <div class="territory-copy">
+        <span class="tag-new">◆ Territory management</span>
+        <h2>Draw it. Assign it. <span class="grad">Own the street.</span></h2>
+        <p>
+          Carve up neighborhoods on a map, assign reps in two clicks, and
+          stop reps from stepping on each other — or knocking where they
+          shouldn't.
+        </p>
+        <ul class="territory-list">
+          <li>
+            <div class="tl-icon">✎</div>
+            <div>
+              <strong>Draw territories on the map</strong>
+              <span>Free-hand polygons, named, colored, sized to what your crew can cover in a shift.</span>
+            </div>
+          </li>
+          <li>
+            <div class="tl-icon">👥</div>
+            <div>
+              <strong>Assign in two clicks</strong>
+              <span>One rep, multiple reps, or rotate weekly. Reassign as fast as the schedule changes.</span>
+            </div>
+          </li>
+          <li>
+            <div class="tl-icon">🚫</div>
+            <div>
+              <strong>DNK zones, baked in</strong>
+              <span>Layer do-not-knock polygons over any territory and the rep app silently suppresses logs inside them.</span>
+            </div>
+          </li>
+          <li>
+            <div class="tl-icon">📍</div>
+            <div>
+              <strong>Live view of who's where</strong>
+              <span>The same map shows active reps in real time — so you always know whose street is being worked.</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PERFORMANCE & INSIGHTS (NEW v2 · dark)
+     Overall canvassing performance, AI top-area insights, funnel drop-off,
+     goal tracking — the full D2D optimization story.
+═══════════════════════════════════════════════════════════════════════════ -->
+<section id="insights" class="dark-section">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">Performance & insights</span>
+      <h2 class="section-h">Know what's working.<br/><span class="grad">Fix what isn't.</span></h2>
+      <p class="section-sub">
+        Canvassing isn't just knocking — it's knowing which neighborhoods,
+        which hours, and which reps are generating dollars, and which aren't.
+        KnockIQ turns every door into a data point and every data point into
+        a decision.
+      </p>
+    </div>
+
+    <div class="perf-grid">
+      <div class="dark-card">
+        <h4><span class="ico">📊</span> Overall canvassing performance</h4>
+        <p>
+          Sparkline KPIs for doors, estimates, bookings, and revenue — with
+          week-over-week and month-over-month deltas baked in. Glance, decide, move.
+        </p>
+        <div class="ss-browser">
+          <div class="ss-browser-bar">
+            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
+            <div class="ss-browser-url">knockiq.app/manager/overview</div>
+          </div>
+          <div class="ss-frame" data-img="/screenshots/overview.png" style="min-height: 220px;">
+            <div class="ss-placeholder">
+              <strong>📸 Overview page</strong>
+              KPI sparklines + 14-day chart.
+              <code>/screenshots/overview.png</code>
+            </div>
+            <img src="/screenshots/overview.png" alt="KnockIQ overview" loading="lazy" />
+          </div>
+        </div>
+      </div>
+
+      <div class="dark-card">
+        <h4><span class="ico">🤖</span> AI insights · top-performing areas</h4>
+        <p>
+          KnockIQ analyzes every street, every hour, every rep — then surfaces
+          where the dollars actually come from. Stop guessing which subdivisions
+          are worth a second pass.
+        </p>
+        <ul class="dark-card-meta">
+          <li><span class="dot"></span><span>Heatmaps of revenue-per-door by zip + street</span></li>
+          <li><span class="dot"></span><span>"Hot hour" detection — when your team converts</span></li>
+          <li><span class="dot"></span><span>Rep + area combos that outperform the average</span></li>
+        </ul>
+        <div class="ss-browser" style="margin-top:6px;">
+          <div class="ss-browser-bar">
+            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
+            <div class="ss-browser-url">knockiq.app/manager/insights</div>
+          </div>
+          <div class="ss-frame" data-img="/screenshots/ai-insights.png" style="min-height: 180px;">
+            <div class="ss-placeholder">
+              <strong>📸 AI insights panel</strong>
+              Heatmap or recommended-area card.
+              <code>/screenshots/ai-insights.png</code>
+            </div>
+            <img src="/screenshots/ai-insights.png" alt="KnockIQ AI insights" loading="lazy" />
+          </div>
+        </div>
+      </div>
+
+      <div class="dark-card">
+        <h4><span class="ico">📉</span> Funnel drop-off · find where leads stall</h4>
+        <p>
+          Conversion at every phase — doors to interested, interested to set,
+          set to closed. See exactly which step is the leak so you can fix it.
+        </p>
+        <div class="ss-browser">
+          <div class="ss-browser-bar">
+            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
+            <div class="ss-browser-url">knockiq.app/manager/funnel</div>
+          </div>
+          <div class="ss-frame" data-img="/screenshots/funnel.png" style="min-height: 220px;">
+            <div class="ss-placeholder">
+              <strong>📸 Funnel drop-off chart</strong>
+              Conversion percentages between each phase.
+              <code>/screenshots/funnel.png</code>
+            </div>
+            <img src="/screenshots/funnel.png" alt="KnockIQ funnel analysis" loading="lazy" />
+          </div>
+        </div>
+      </div>
+
+      <div class="dark-card">
+        <h4><span class="ico">🎯</span> Goal tracking · on-pace forecasting</h4>
+        <p>
+          Set a monthly revenue target and watch the team chase it in real
+          time. The ring fills as bookings close — and projects forward so
+          you know by the 15th whether you'll hit the 30th.
+        </p>
+        <div class="ss-browser">
+          <div class="ss-browser-bar">
+            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
+            <div class="ss-browser-url">knockiq.app/manager/goals</div>
+          </div>
+          <div class="ss-frame" data-img="/screenshots/goal-tracking.png" style="min-height: 220px;">
+            <div class="ss-placeholder">
+              <strong>📸 Goal tracking ring</strong>
+              Monthly goal ring + on-pace projection.
+              <code>/screenshots/goal-tracking.png</code>
+            </div>
+            <img src="/screenshots/goal-tracking.png" alt="KnockIQ goal tracking" loading="lazy" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     NO ENTERPRISE BLOAT
+═══════════════════════════════════════════════════════════════════════════ -->
+<section class="vs-section">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">The no-brainer option</span>
+      <h2 class="section-h">Enterprise features.<br/><span class="grad">Not enterprise pricing.</span></h2>
+      <p class="section-sub">
+        We cut everything you don't need. You keep everything you do.
+      </p>
+    </div>
+    <div class="vs-grid">
+      <div class="vs-col them">
+        <h5>Enterprise canvassing tools</h5>
+        <div class="lead">$8k–$30k / year, plus setup fees</div>
+        <ul>
+          <li><span class="mark">✕</span> Multi-week procurement cycle to get started</li>
+          <li><span class="mark">✕</span> Annual contracts and multi-year commitments</li>
+          <li><span class="mark">✕</span> Feature bloat your reps never touch</li>
+          <li><span class="mark">✕</span> Mandatory "implementation consultant"</li>
+          <li><span class="mark">✕</span> Manual door-tap logging</li>
+          <li><span class="mark">✕</span> CSV export locked behind higher tier</li>
+        </ul>
+      </div>
+
+      <div class="vs-col us">
+        <h5>KnockIQ</h5>
+        <div class="lead">Starts at $25/seat · billed monthly, cancel anytime</div>
+        <ul>
+          <li><span class="mark">✓</span> Sign up in under 10 minutes — no sales call</li>
+          <li><span class="mark">✓</span> Transparent per-seat pricing · pay only for active reps</li>
+          <li><span class="mark">✓</span> Only what field teams actually use</li>
+          <li><span class="mark">✓</span> Self-serve setup — onboard a rep in 5 minutes</li>
+          <li><span class="mark">✓</span> Automatic door knock tracking</li>
+          <li><span class="mark">✓</span> Google Sheets &amp; Excel export on Pro</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PRICING
+═══════════════════════════════════════════════════════════════════════════ -->
+<section id="pricing" class="section" style="background: var(--bg);">
+  <div class="container pricing-head">
+    <div class="section-head">
+      <span class="eyebrow">Pricing</span>
+      <h2 class="section-h">Simple. Transparent. <span class="grad">Per seat.</span></h2>
+      <p class="section-sub">
+        One price per rep, per month. <strong>Add seats as you hire, remove them when reps leave.</strong>
+        No contracts, no setup fees — cancel anytime.
+      </p>
+    </div>
+
+    <div class="billing-wrap">
+      <div class="billing-toggle" id="billingToggle" role="tablist" aria-label="Billing period">
+        <button type="button" class="bt-opt active" data-period="monthly" role="tab" aria-selected="true">Monthly</button>
+        <button type="button" class="bt-opt" data-period="annual" role="tab" aria-selected="false">
+          Annual <span class="bt-save">Save 15%</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="pricing-grid" id="pricingGrid">
+      <!-- Starter -->
+      <div class="price">
+        <h5>Starter</h5>
+        <p class="tagline">For a lean crew getting started on D2D.</p>
+        <div class="amount amount-monthly">$25<small>/seat/mo</small></div>
+        <div class="amount amount-annual">$21.25<small>/seat/mo</small></div>
+        <div class="amount-sub amount-monthly">per seat · billed monthly</div>
+        <div class="amount-sub amount-annual">per seat · billed annually · 15% off</div>
+        <ul>
+          <li><span class="tick">✓</span> Manager dashboard &amp; live leaderboard</li>
+          <li><span class="tick">✓</span> Automatic door knock tracking</li>
+          <li><span class="tick">✓</span> Territory assignments &amp; DNK zones</li>
+          <li><span class="tick">✓</span> Rep app with core callouts</li>
+          <li><span class="tick">✓</span> Unlimited territories, zones &amp; door history</li>
+        </ul>
+        <a href="/signup" class="btn btn-ghost cta">Start free trial</a>
+      </div>
+
+      <!-- Standard (featured) -->
+      <div class="price featured">
+        <span class="price-badge">MOST POPULAR</span>
+        <h5>Standard</h5>
+        <p class="tagline">Everything growing teams need.</p>
+        <div class="amount amount-monthly">$50<small>/seat/mo</small></div>
+        <div class="amount amount-annual">$42.50<small>/seat/mo</small></div>
+        <div class="amount-sub amount-monthly">per seat · billed monthly</div>
+        <div class="amount-sub amount-annual">per seat · billed annually · 15% off</div>
+        <ul>
+          <li><span class="tick">✓</span> Everything in Starter</li>
+          <li><span class="tick">✓</span> Full game mechanics &amp; motivational cards</li>
+          <li><span class="tick">✓</span> Advanced territory &amp; route planning</li>
+          <li><span class="tick">✓</span> Rep analytics &amp; goal tracking</li>
+          <li><span class="tick">✓</span> Priority email support</li>
+        </ul>
+        <a href="/signup" class="btn btn-blue cta">Start free trial →</a>
+      </div>
+
+      <!-- Pro -->
+      <div class="price pro">
+        <span class="price-badge">⚡ PRO</span>
+        <h5>Pro</h5>
+        <p class="tagline">Plug into your stack.</p>
+        <div class="amount amount-monthly">$100<small>/seat/mo</small></div>
+        <div class="amount amount-annual">$85<small>/seat/mo</small></div>
+        <div class="amount-sub amount-monthly">per seat · billed monthly</div>
+        <div class="amount-sub amount-annual">per seat · billed annually · 15% off</div>
+        <ul>
+          <li><span class="tick">✓</span> Everything in Standard</li>
+          <li><span class="tick">✓</span> Zapier webhook integration</li>
+          <li><span class="tick">✓</span> Google Sheets export</li>
+          <li><span class="tick">✓</span> Excel export</li>
+          <li><span class="tick">✓</span> Connects to 6,000+ apps via Zapier</li>
+          <li><span class="tick">✓</span> Priority support</li>
+        </ul>
+        <a href="/signup" class="btn btn-blue cta" style="background: var(--lime); color:#1a3a00; box-shadow: 0 10px 24px -8px rgba(125,195,30,.55);">Start free trial →</a>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var grid = document.getElementById('pricingGrid');
+        var toggle = document.getElementById('billingToggle');
+        if (!grid || !toggle) return;
+        toggle.addEventListener('click', function (e) {
+          var btn = e.target.closest('.bt-opt');
+          if (!btn) return;
+          var period = btn.getAttribute('data-period');
+          toggle.querySelectorAll('.bt-opt').forEach(function (b) {
+            var active = b === btn;
+            b.classList.toggle('active', active);
+            b.setAttribute('aria-selected', active ? 'true' : 'false');
+          });
+          grid.classList.toggle('billing-annual', period === 'annual');
+        });
+      })();
+    </script>
+
+    <p style="text-align:center; margin-top: 32px; font-size: 14px; color: var(--muted);">
+      Questions? <a href="mailto:hello@knockiq.com" style="color:var(--blue-600); font-weight: 600;">hello@knockiq.com</a> or <a href="/demo" style="color:var(--blue-600); font-weight: 600;">book a demo →</a>
+    </p>
+
+    <!-- Industry tags — who it's for -->
+    <div style="text-align:center; margin-top: 56px;">
+      <span class="eyebrow">Built for</span>
+      <div class="industries">
+        <div class="industry-tag">☀️ Solar Sales</div>
+        <div class="industry-tag">🐛 Pest Control</div>
+        <div class="industry-tag">🔒 Home Security</div>
+        <div class="industry-tag">🏗️ Roofing</div>
+        <div class="industry-tag">🪟 Window Cleaning</div>
+        <div class="industry-tag">🌿 Landscaping</div>
+        <div class="industry-tag">🚿 Pressure Washing</div>
+        <div class="industry-tag">📡 Internet &amp; Cable</div>
+        <div class="industry-tag">🗳️ Political Canvassing</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     FINAL CTA
+═══════════════════════════════════════════════════════════════════════════ -->
+<section class="final-cta">
+  <div class="container">
+    <h2>Stop guessing. Start knowing.</h2>
+    <p>
+      The canvassing app your reps actually open — and the dashboard you've been trying to
+      hack together in spreadsheets. 14 days free, no card required.
+    </p>
+    <div class="hero-ctas">
+      <a href="/signup" class="btn btn-blue btn-lg">Start free trial →</a>
+      <a href="/demo.html" class="btn btn-ghost btn-lg">Book a 15-min demo</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div style="margin-bottom:12px;">
+      <img src="/logo-white.png" alt="KnockIQ" style="height: 42px; width: auto; display: inline-block;" />
+    </div>
+    <div>
+      <a href="/login">Sign in</a> ·
+      <a href="/signup">Start trial</a> ·
+      <a href="mailto:hello@knockiq.com">Contact</a> ·
+      <a href="/blog.html">Blog</a> ·
+      <a href="#pricing">Pricing</a>
+    </div>
+    <div style="margin-top:16px; opacity:.6;">© 2026 KnockIQ · Built for the field.</div>
+  </div>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SCREENSHOT LOAD HANDLER (v2)
+     When a real screenshot loads, mark its frame so the placeholder hides.
+     If the image 404s, the placeholder stays visible so we can tell which
+     files are still missing.
+═══════════════════════════════════════════════════════════════════════════ -->
+<script>
+  (function () {
+    document.querySelectorAll('.ss-frame img').forEach(function (img) {
+      var markLoaded = function () {
+        if (img.naturalWidth > 0) {
+          img.closest('.ss-frame').classList.add('has-image');
+        }
+      };
+      if (img.complete) markLoaded();
+      img.addEventListener('load', markLoaded);
+      img.addEventListener('error', function () {
+        // Hide the broken image icon so the placeholder reads clean
+        img.style.display = 'none';
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>

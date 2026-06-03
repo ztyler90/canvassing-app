@@ -2,67 +2,17 @@
  * ManagerMap — the rebuilt manager-side Map tab.
  *
  * Replaces the original MapTab inside ManagerDashboard with a feature-rich
- * canvas: clustered pins, heatmap mode, territory overlay, current-view
- * summary, multi-axis filter panel, time scrubber, right-click context
- * menu, and one-click PNG share.
+ * canvas: clustered pins, territory overlay, current-view summary,
+ * multi-axis filter panel, right-click context menu, and one-click PNG
+ * share.
  *
  * Lives in its own file because the surface grew large enough that nesting
  * it inside ManagerDashboard.jsx would dwarf the rest of the dashboard.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Trophy, Crosshair, Share2, Map as MapIcon, Flame, Layers, SlidersHorizontal, X, Eye, EyeOff } from 'lucide-react'
+import { Trophy, Crosshair, Share2, Layers, SlidersHorizontal, X, Eye, EyeOff } from 'lucide-react'
 import MapView from './MapView.jsx'
 import { getTerritories, addDoNotKnock, getOrgRegionFallback } from '../lib/supabase.js'
-
-// Density-heatmap cell builder for the manager view. Unlike lib/heatmap.js
-// (which is tuned for the rep's "don't re-canvass this street today" use
-// case — 30m cells, 30-day age cap, colored by recency), this version:
-//   • uses ~150m cells so cells stay visible at city-wide zoom levels
-//   • applies NO age cap — a manager looking at "All time" wants the full
-//     density picture, not just the last month
-//   • colors cells by knock count relative to the densest cell on screen:
-//     bottom-third → green ('older' bucket), middle → amber ('recent'),
-//     top → red ('fresh'). We piggyback on MapView's existing bucket-color
-//     rendering so we don't need to extend its contract.
-//
-// Cell width is constant in degrees (not meters), so it's slightly off in
-// longitude near the poles. Good enough for a heatmap — and irrelevant for
-// a US-only product.
-const DENSITY_CELL_DEG = 0.0015  // ~150–170m depending on latitude
-function buildDensityCells(interactions) {
-  if (!interactions || !interactions.length) return []
-  const counts = new Map()
-  for (const it of interactions) {
-    if (!Number.isFinite(it.lat) || !Number.isFinite(it.lng)) continue
-    const lat = Math.floor(it.lat / DENSITY_CELL_DEG)
-    const lng = Math.floor(it.lng / DENSITY_CELL_DEG)
-    const key = `${lat}:${lng}`
-    const prev = counts.get(key)
-    if (prev) prev.count++
-    else counts.set(key, { lat, lng, count: 1 })
-  }
-  // Threshold the counts into three buckets. We use 33rd / 66th percentile
-  // rather than max / 3 so a single hot block doesn't push everything else
-  // into the bottom bucket.
-  const vals = Array.from(counts.values()).map((c) => c.count).sort((a, b) => a - b)
-  if (!vals.length) return []
-  const q33 = vals[Math.floor(vals.length * 0.33)] || 1
-  const q66 = vals[Math.floor(vals.length * 0.66)] || 1
-  const cells = []
-  for (const c of counts.values()) {
-    const bucket = c.count >= q66 ? 'fresh'
-                : c.count >= q33 ? 'recent'
-                : 'older'
-    const minLat = c.lat * DENSITY_CELL_DEG
-    const minLng = c.lng * DENSITY_CELL_DEG
-    cells.push({
-      bbox:   [[minLat, minLng], [minLat + DENSITY_CELL_DEG, minLng + DENSITY_CELL_DEG]],
-      bucket,
-      count:  c.count,
-    })
-  }
-  return cells
-}
 
 const BRAND_BLUE = '#1B4FCC'
 
@@ -95,7 +45,6 @@ export default function ManagerMap({ interactions = [], allReps = [] }) {
   }, [])
 
   // ── Display-mode toggles ─────────────────────────────────────────────────
-  const [viewMode,        setViewMode]        = useState('pins')   // 'pins' | 'heatmap'
   const [showTerritories, setShowTerritories] = useState(false)
   const [showFilters,     setShowFilters]     = useState(false)
   const [showSummary,     setShowSummary]     = useState(true)
@@ -164,15 +113,6 @@ export default function ManagerMap({ interactions = [], allReps = [] }) {
     }
     return c
   }, [interactions, filterRep, filterService, minValue, dayMask])
-
-  // ── Heatmap cells (only when in heatmap mode) ────────────────────────────
-  // Local density bucketer — see buildDensityCells above for why we don't
-  // reuse lib/heatmap.js here (cell size + age cap make it invisible at
-  // city-wide zoom).
-  const heatmapCells = useMemo(() => {
-    if (viewMode !== 'heatmap') return []
-    return buildDensityCells(filtered)
-  }, [viewMode, filtered])
 
   // ── Selected-area summary — driven by the viewport-change callback ──────
   const [viewport, setViewport] = useState(null) // { bounds, zoom, center }
@@ -280,17 +220,6 @@ export default function ManagerMap({ interactions = [], allReps = [] }) {
           <Crosshair className="w-3.5 h-3.5" /> Recenter
         </button>
 
-        <div className="inline-flex rounded-xl bg-slate-100 p-1">
-          <button onClick={() => setViewMode('pins')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1 ${viewMode === 'pins' ? 'bg-white text-slate-900 ring-1 ring-slate-200 shadow-sm' : 'text-slate-600'}`}>
-            <MapIcon className="w-3.5 h-3.5" /> Pins
-          </button>
-          <button onClick={() => setViewMode('heatmap')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1 ${viewMode === 'heatmap' ? 'bg-white text-slate-900 ring-1 ring-slate-200 shadow-sm' : 'text-slate-600'}`}>
-            <Flame className="w-3.5 h-3.5" /> Heatmap
-          </button>
-        </div>
-
         <button
           type="button"
           onClick={() => setShowTerritories((v) => !v)}
@@ -388,13 +317,7 @@ export default function ManagerMap({ interactions = [], allReps = [] }) {
         >
           <MapView
             ref={mapRef}
-            // Pass the full filtered set in both modes so imperative methods
-            // (fitToInteractions, the viewport summary) always have points
-            // to work with. `renderPins` suppresses pin draw in heatmap mode
-            // without starving Recenter of data.
             interactions={filtered}
-            renderPins={viewMode === 'pins'}
-            heatmapCells={heatmapCells}
             territories={showTerritories ? territories : []}
             className="w-full h-full"
             followUser={false}
