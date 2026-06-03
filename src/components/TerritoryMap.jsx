@@ -75,7 +75,7 @@ function timeAgo(dateStr) {
 }
 
 const TerritoryMap = forwardRef(function TerritoryMap(
-  { territories = [], doorHistory = [], doNotKnock = [], onPolygonComplete, onDrawPointsChange, onEditTerritory, className = '', autoFit = false },
+  { territories = [], doorHistory = [], doNotKnock = [], onPolygonComplete, onDrawPointsChange, onEditTerritory, className = '', autoFit = false, regionFallback = null },
   ref
 ) {
   const containerRef       = useRef(null)
@@ -263,14 +263,22 @@ const TerritoryMap = forwardRef(function TerritoryMap(
     const onKey = (e) => { if (e.key === 'Escape') clearDraw() }
     document.addEventListener('keydown', onKey)
 
-    // Initial default matches MapView exactly — Tampa, FL at zoom 17.75
-    // (street-level). Picked over the old continental-centroid-at-zoom-12
-    // because when geolocation gets denied AND the org has no territories
-    // yet, this default is the view the manager actually lives with.
-    // Zoom 12 over Smith Center, KS is useless tiles; 17.75 over Tampa
-    // at least looks like "a map of houses" while the auto-fit effect
-    // tries to put them somewhere more relevant.
-    map.setView([27.9506, -82.4572], 17.75)
+    // Initial viewport priority (matches MapView):
+    //   1. If the parent gave us a regionFallback (org's known service
+    //      area, derived from historical interactions or territories),
+    //      use it. This is the fix for the "Apex Pest Defense / Phoenix
+    //      manager opens Territories and sees Tampa" bug — Tampa is no
+    //      longer the universal default.
+    //   2. Else fall back to a continental-US view so no org sees a
+    //      wrong-coast bias. The auto-fit effect below will tighten this
+    //      as soon as territories or geolocation resolve.
+    if (regionFallback?.bounds && regionFallback.bounds.length >= 2) {
+      map.fitBounds(regionFallback.bounds, { padding: [40, 40], maxZoom: 14 })
+    } else if (regionFallback?.center) {
+      map.setView(regionFallback.center, regionFallback.zoom ?? 11)
+    } else {
+      map.setView([39.5, -98.35], 4)
+    }
     mapRef.current = map
 
     return () => {
@@ -474,6 +482,24 @@ const TerritoryMap = forwardRef(function TerritoryMap(
       )
     }
   }, [autoFit, territories])
+
+  // ── Late-arriving regionFallback ──────────────────────────────────────────
+  // The org-region fetch is network-bound, so the prop typically lands a
+  // tick after init. Apply it only if no territories have framed the map
+  // yet AND the manager hasn't taken over the viewport — same guards as
+  // the auto-fit effect above. Without this, the map stays on the wide
+  // continental view until the manager pans.
+  useEffect(() => {
+    if (!mapRef.current || !regionFallback) return
+    if (autoFitDoneRef.current) return
+    if (userMovedRef.current) return
+    if (territories.some((t) => Array.isArray(t.polygon) && t.polygon.length > 0)) return
+    if (regionFallback.bounds && regionFallback.bounds.length >= 2) {
+      mapRef.current.fitBounds(regionFallback.bounds, { padding: [40, 40], maxZoom: 14 })
+    } else if (regionFallback.center) {
+      mapRef.current.setView(regionFallback.center, regionFallback.zoom ?? 11)
+    }
+  }, [regionFallback, territories])
 
   // ── DNK pins ───────────────────────────────────────────────────────────────
   useEffect(() => {

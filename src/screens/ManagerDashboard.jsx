@@ -14,6 +14,7 @@ import {
 import { computeConversion } from '../lib/repStats.js'
 import { ConversionFunnel } from './RepHome.jsx'
 import MapView from '../components/MapView.jsx'
+import ManagerMap from '../components/ManagerMap.jsx'
 import TerritoryMap from '../components/TerritoryMap.jsx'
 import PipelineTab from '../components/PipelineTab.jsx'
 import ChatPanel   from '../components/ChatPanel.jsx'
@@ -387,7 +388,7 @@ export default function ManagerDashboard() {
             {tab === 'leaderboard' && <LeaderboardTab territories={territoriesLite} countLabel={countLabel} />}
             {tab === 'reps'        && <RepsTab repStats={repStats} allReps={reps} sessions={sessions} dateRange={dateRange} />}
             {tab === 'pipeline'    && <PipelineTab />}
-            {tab === 'map'         && <MapTab interactions={mapData} />}
+            {tab === 'map'         && <ManagerMap interactions={mapData} allReps={reps} />}
             {tab === 'territories' && <TerritoryTab allReps={reps} managerId={user?.id} />}
           </div>
         )}
@@ -1073,107 +1074,11 @@ function RepMetricMini({ label, value, variant, values, dates, color, fill, high
 }
 
 // ─── Map Tab ──────────────────────────────────────────────────────────────────
-// Door-status filters live in this tab (not in MapView) because the filter
-// is a manager-dashboard UX concern and MapView is shared with the rep's
-// live canvassing screen. We just feed MapView a pre-filtered list so it
-// stays a dumb renderer.
-const MAP_OUTCOMES = [
-  { id: 'no_answer',          color: '#9CA3AF', label: 'No Answer' },
-  { id: 'not_interested',     color: '#EF4444', label: 'Not Int.'  },
-  { id: 'estimate_requested', color: '#F59E0B', label: 'Estimate'  },
-  { id: 'booked',             color: '#10B981', label: 'Booked'    },
-]
-
-function MapTab({ interactions }) {
-  const counts = interactions.reduce((acc, i) => { acc[i.outcome] = (acc[i.outcome] || 0) + 1; return acc }, {})
-  const mapRef = useRef(null)
-  // Org "home region" — used as the initial viewport when the current date
-  // filter returned zero markers. Fetched once on mount (RLS-scoped to the
-  // caller's org so the result is the right region for whichever org the
-  // manager belongs to — Arizona for Apex, etc., never a hardcoded Tampa).
-  const [regionFallback, setRegionFallback] = useState(null)
-  useEffect(() => {
-    let alive = true
-    getOrgRegionFallback().then((r) => { if (alive) setRegionFallback(r) })
-    return () => { alive = false }
-  }, [])
-
-  // Per-outcome visibility toggles. Default: all on. Clicking a chip
-  // removes that outcome from the rendered set without refetching.
-  const [visible, setVisible] = useState({
-    no_answer:          true,
-    not_interested:     true,
-    estimate_requested: true,
-    booked:             true,
-  })
-  const toggleOutcome = (id) => setVisible((v) => ({ ...v, [id]: !v[id] }))
-  const allOn  = MAP_OUTCOMES.every((o) => visible[o.id])
-  const allOff = MAP_OUTCOMES.every((o) => !visible[o.id])
-  const setAll = (on) => setVisible(Object.fromEntries(MAP_OUTCOMES.map((o) => [o.id, on])))
-
-  const filteredInteractions = interactions.filter((i) => visible[i.outcome])
-
-  // Jump the map to a geocoded address. The tight zoom (17) mirrors the
-  // street-level default so managers land looking at individual houses
-  // right after searching.
-  const handleGoTo = (lat, lng) => mapRef.current?.flyTo(lat, lng, 17)
-  const handleRecenter = () => mapRef.current?.fitToInteractions(40, 18)
-
-  return (
-    <div className="space-y-3">
-      <AddressSearch onResult={handleGoTo} onRecenter={handleRecenter} canRecenter={filteredInteractions.length > 0} />
-
-      {/* Outcome toggle chips — tap to hide/show pins of that color. */}
-      <div className="bg-white rounded-xl border border-gray-200 px-3 py-2.5">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-            Door Status · tap to toggle
-          </p>
-          <button
-            onClick={() => setAll(!allOn)}
-            className="text-[11px] font-semibold text-gray-500 hover:text-gray-700"
-          >
-            {allOff ? 'Show all' : allOn ? 'Hide all' : 'Show all'}
-          </button>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          {MAP_OUTCOMES.map(({ id, color, label }) => {
-            const on    = visible[id]
-            const count = counts[id] || 0
-            return (
-              <button
-                key={id}
-                onClick={() => toggleOutcome(id)}
-                aria-pressed={on}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${on ? 'bg-white border-gray-300 text-gray-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}
-              >
-                <div
-                  className="w-3 h-3 rounded-full transition-opacity"
-                  style={{ backgroundColor: color, opacity: on ? 1 : 0.3 }}
-                />
-                <span className={on ? '' : 'line-through'}>{label}</span>
-                <span className={`text-[10px] font-bold px-1.5 rounded-full ${on ? 'bg-gray-100 text-gray-500' : 'bg-gray-200 text-gray-400'}`}>
-                  {count}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="rounded-2xl overflow-hidden border border-gray-200" style={{ height: '480px' }}>
-        <MapView
-          ref={mapRef}
-          interactions={filteredInteractions}
-          className="w-full h-full"
-          followUser={false}
-          autoFit
-          regionFallback={regionFallback}
-        />
-      </div>
-    </div>
-  )
-}
+// Map tab now lives in ../components/ManagerMap.jsx — the in-file version
+// here grew far beyond what was reasonable to nest inside the dashboard
+// (clustering, heatmap, territory overlay, filter panel, summary panel,
+// time scrubber, context menu, PNG share). The dashboard mounts
+// <ManagerMap interactions={mapData} allReps={reps} /> directly.
 
 // ─── Territory Tab ────────────────────────────────────────────────────────────
 function TerritoryTab({ allReps, managerId }) {
@@ -1181,6 +1086,16 @@ function TerritoryTab({ allReps, managerId }) {
   const [doorHistory, setDoorHistory] = useState([])
   const [doNotKnock, setDoNotKnock]   = useState([])
   const [loading, setLoading]         = useState(true)
+  // Org "home region" — fed to TerritoryMap so a brand-new org with no
+  // drawn polygons lands on its actual service area instead of Tampa.
+  // Fetched once on mount; the map handles the case where it arrives
+  // after init.
+  const [regionFallback, setRegionFallback] = useState(null)
+  useEffect(() => {
+    let alive = true
+    getOrgRegionFallback().then((r) => { if (alive) setRegionFallback(r) })
+    return () => { alive = false }
+  }, [])
   const [drawing, setDrawing]         = useState(false)
   // Live count of vertices placed during the current draw session.
   // Drives the enabled state of the "Complete" button.
@@ -1440,6 +1355,7 @@ function TerritoryTab({ allReps, managerId }) {
           onEditTerritory={openEditForm}
           className="w-full h-full"
           autoFit
+          regionFallback={regionFallback}
         />
       </div>
 
@@ -1454,70 +1370,84 @@ function TerritoryTab({ allReps, managerId }) {
         <span className="text-red-500 ml-1">✕ DNK</span>
       </div>
 
-      {/* Territory list + DNK */}
-      <div className="px-4 py-3 space-y-2 pb-8">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Zones</p>
-
-        {territories.length === 0 && (
-          <div className="text-center py-8 text-gray-400">
-            <Map className="w-8 h-8 mx-auto mb-2 opacity-40" />
-            <p className="text-sm">No territories yet.</p>
-            <p className="text-xs mt-1">Click "Draw Territory" and outline a zone on the map.</p>
+      {/* Two-column body: zones list on the left, per-zone performance
+          metrics on the right. Stacks vertically on small screens —
+          same pattern as LiveTab so managers get a consistent reading
+          order across the dashboard. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-4 pt-4 pb-6">
+        {/* ── Left column: zones list ──────────────────────────────── */}
+        <section className="space-y-2">
+          <div className="flex items-center gap-2 mb-2">
+            <Map className="w-3.5 h-3.5 text-gray-400" />
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Zones
+            </p>
+            <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+              {territories.length}
+            </span>
           </div>
-        )}
 
-        {territories.map((t) => {
-          const assignedReps = (t.territory_assignments || []).map((a) => a.users?.full_name).filter(Boolean)
-          const isFocused = focusedTerritoryId === t.id
-          return (
-            // The whole card is now a tap target that zooms the map
-            // to this zone's polygon. Edit/Delete buttons stop
-            // propagation so they keep their original behavior.
-            <div
-              key={t.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => focusTerritory(t)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focusTerritory(t) } }}
-              className={`bg-white rounded-xl border p-3 cursor-pointer transition-colors active:bg-gray-50 ${isFocused ? 'ring-2 ring-blue-400 border-blue-300' : 'border-gray-200 hover:border-gray-300'}`}
-              style={isFocused ? { backgroundColor: `${t.color}0A` } : undefined}
-              aria-label={`Zoom map to ${t.name}`}
-            >
-              <div className="flex items-center gap-2">
-                <div className="w-3.5 h-3.5 rounded-sm flex-shrink-0" style={{ backgroundColor: t.color }} />
-                <p className="font-semibold text-gray-900 text-sm flex-1 truncate">{t.name}</p>
-                {t.category && (
-                  <span
-                    className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: `${t.color}18`, color: t.color }}
-                  >
-                    {t.category}
-                  </span>
-                )}
-                <button
-                  onClick={(e) => { e.stopPropagation(); openEditForm(t) }}
-                  className="p-1.5 text-gray-400 hover:text-blue-500"
-                  aria-label="Edit zone"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(t.id) }}
-                  className="p-1.5 text-gray-400 hover:text-red-500"
-                  aria-label="Delete zone"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className="text-xs text-gray-400 mt-1 ml-5">
-                {assignedReps.length ? `Priority for ${assignedReps.join(', ')}` : 'Visible to everyone'}
-              </p>
+          {territories.length === 0 && (
+            <div className="text-center py-8 text-gray-400 rounded-xl border border-dashed border-gray-200 bg-white">
+              <Map className="w-8 h-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">No territories yet.</p>
+              <p className="text-xs mt-1">Click "Draw Territory" and outline a zone on the map.</p>
             </div>
-          )
-        })}
+          )}
 
-        {/* DNK Section */}
-        <div className="mt-5 pt-4 border-t border-gray-100">
+          {territories.map((t) => {
+            const assignedReps = (t.territory_assignments || []).map((a) => a.users?.full_name).filter(Boolean)
+            const isFocused = focusedTerritoryId === t.id
+            return (
+              // The whole card is now a tap target that zooms the map
+              // to this zone's polygon. Edit/Delete buttons stop
+              // propagation so they keep their original behavior.
+              <div
+                key={t.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => focusTerritory(t)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focusTerritory(t) } }}
+                className={`bg-white rounded-xl border p-3 cursor-pointer transition-colors active:bg-gray-50 ${isFocused ? 'ring-2 ring-blue-400 border-blue-300' : 'border-gray-200 hover:border-gray-300'}`}
+                style={isFocused ? { backgroundColor: `${t.color}0A` } : undefined}
+                aria-label={`Zoom map to ${t.name}`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-3.5 h-3.5 rounded-sm flex-shrink-0" style={{ backgroundColor: t.color }} />
+                  <p className="font-semibold text-gray-900 text-sm flex-1 truncate">{t.name}</p>
+                  {t.category && (
+                    <span
+                      className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: `${t.color}18`, color: t.color }}
+                    >
+                      {t.category}
+                    </span>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openEditForm(t) }}
+                    className="p-1.5 text-gray-400 hover:text-blue-500"
+                    aria-label="Edit zone"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(t.id) }}
+                    className="p-1.5 text-gray-400 hover:text-red-500"
+                    aria-label="Delete zone"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1 ml-5">
+                  {assignedReps.length ? `Priority for ${assignedReps.join(', ')}` : 'Visible to everyone'}
+                </p>
+              </div>
+            )
+          })}
+
+          {/* DNK Section — stays in the left column underneath the
+              zones list because both are map-management surfaces. */}
+          <div className="mt-5 pt-4 border-t border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🚫 Do Not Knock</p>
             <button onClick={() => setShowDnkForm((v) => !v)}
@@ -1572,7 +1502,24 @@ function TerritoryTab({ allReps, managerId }) {
               </div>
             ))}
           </div>
-        </div>
+          </div>
+        </section>
+
+        {/* ── Right column: per-zone performance metrics ───────────── */}
+        <section>
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="w-3.5 h-3.5 text-gray-400" />
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Performance by Zone
+            </p>
+          </div>
+          <ZonePerformanceList
+            territories={territories}
+            doorHistory={doorHistory}
+            focusedTerritoryId={focusedTerritoryId}
+            onFocus={focusTerritory}
+          />
+        </section>
       </div>
 
       {/* Create/Edit Territory Modal */}
@@ -1655,6 +1602,134 @@ function TerritoryTab({ allReps, managerId }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Per-Zone Performance ────────────────────────────────────────────────────
+// Right-column companion to the zones list. Computes door-history metrics
+// for each polygon (point-in-polygon over the full org history) and
+// renders one card per zone with the same focus/click-to-zoom hook the
+// list uses — clicking either side highlights and frames the same zone.
+
+/** Ray-casting point-in-polygon. polygon = [[lat,lng], ...] */
+function pipLatLng(lat, lng, polygon) {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [yi, xi] = polygon[i]
+    const [yj, xj] = polygon[j]
+    if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
+function zoneTimeAgo(dateStr) {
+  if (!dateStr) return 'Never'
+  const days = Math.floor((Date.now() - new Date(dateStr)) / 86400000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7)  return `${days}d ago`
+  if (days < 30) return `${Math.floor(days / 7)}wk ago`
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`
+  return `${Math.floor(days / 365)}yr ago`
+}
+
+function computeZoneMetrics(territory, doorHistory) {
+  if (!territory?.polygon || !Array.isArray(territory.polygon) || territory.polygon.length < 3) {
+    return { doors: 0, conversations: 0, estimates: 0, bookings: 0, closeRate: null, lastAt: null }
+  }
+  const inside = doorHistory.filter(
+    (i) => i.lat != null && i.lng != null && pipLatLng(i.lat, i.lng, territory.polygon)
+  )
+  let conversations = 0, estimates = 0, bookings = 0
+  let lastAt = null
+  for (const i of inside) {
+    if (i.outcome !== 'no_answer') conversations += 1
+    if (i.outcome === 'estimate_requested') estimates += 1
+    if (i.outcome === 'booked') {
+      bookings += 1
+      // Bookings count as estimates too — every booked door was first
+      // estimated, even if the rep skipped the estimate-requested step.
+      // Without this, "100% close rate" is unreachable in zones where
+      // reps booked on the spot without separately logging an estimate.
+      estimates += 1
+    }
+    if (i.created_at && (!lastAt || new Date(i.created_at) > new Date(lastAt))) {
+      lastAt = i.created_at
+    }
+  }
+  const closeRate = estimates > 0 ? Math.round((bookings / estimates) * 100) : null
+  return { doors: inside.length, conversations, estimates, bookings, closeRate, lastAt }
+}
+
+function ZonePerformanceList({ territories, doorHistory, focusedTerritoryId, onFocus }) {
+  if (!territories || territories.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-400 rounded-xl border border-dashed border-gray-200 bg-white">
+        <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-30" />
+        <p className="text-sm">No zone metrics yet</p>
+        <p className="text-xs mt-1">Draw a territory to see knocks, conversations, and close rate by zone.</p>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-2">
+      {territories.map((t) => {
+        const m = computeZoneMetrics(t, doorHistory)
+        const isFocused = focusedTerritoryId === t.id
+        return (
+          <div
+            key={t.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => onFocus?.(t)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFocus?.(t) } }}
+            className={`bg-white rounded-xl border p-3 cursor-pointer transition-colors active:bg-gray-50 ${isFocused ? 'ring-2 ring-blue-400 border-blue-300' : 'border-gray-200 hover:border-gray-300'}`}
+            style={isFocused ? { backgroundColor: `${t.color}0A` } : undefined}
+            aria-label={`Zoom map to ${t.name}`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: t.color }} />
+              <p className="font-semibold text-gray-900 text-sm flex-1 truncate">{t.name}</p>
+              <span className="text-[10px] text-gray-400 font-medium tabular-nums whitespace-nowrap">
+                Last: {zoneTimeAgo(m.lastAt)}
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              <ZoneStat label="Doors"  value={m.doors} />
+              <ZoneStat label="Convos" value={m.conversations} />
+              <ZoneStat label="Est"    value={m.estimates} />
+              <ZoneStat label="Booked" value={m.bookings} accent="green" />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[11px]">
+              <span className="text-gray-400">
+                Conv rate{' '}
+                <span className="font-semibold text-gray-700 tabular-nums">
+                  {m.doors > 0 ? `${Math.round((m.conversations / m.doors) * 100)}%` : '—'}
+                </span>
+              </span>
+              <span className="text-gray-400">
+                Close rate{' '}
+                <span className="font-semibold text-gray-700 tabular-nums">
+                  {m.closeRate != null ? `${m.closeRate}%` : '—'}
+                </span>
+              </span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ZoneStat({ label, value, accent }) {
+  const valueClass = accent === 'green' ? 'text-green-600' : 'text-gray-900'
+  return (
+    <div className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
+      <p className={`text-sm font-bold tabular-nums ${valueClass}`}>{value}</p>
+      <p className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold">{label}</p>
     </div>
   )
 }

@@ -28,19 +28,97 @@ const OUTCOME_LABELS = {
   booked:             'Booked!',
 }
 
-function makePin(color) {
+function makePin(color, sizePx = 22) {
+  const s = sizePx
   return L.divIcon({
     className: '',
     html: `<div style="
-      width: 22px; height: 22px;
+      width: ${s}px; height: ${s}px;
       background: ${color};
       border: 3px solid white;
       border-radius: 50%;
       box-shadow: 0 2px 6px rgba(0,0,0,0.35);
     "></div>`,
-    iconSize:   [22, 22],
-    iconAnchor: [11, 11],
+    iconSize:   [s, s],
+    iconAnchor: [s / 2, s / 2],
   })
+}
+
+// Cluster bubble — a single circle that stands in for N interactions when
+// zoomed out. Sized by sqrt(count) so a 100-knock cluster doesn't dwarf a
+// 10-knock one. Color is the cluster's "dominant" outcome (passed in).
+function makeClusterIcon(count, color) {
+  const size = Math.min(56, Math.max(28, Math.round(18 + Math.sqrt(count) * 3)))
+  const fontSize = count >= 1000 ? 11 : count >= 100 ? 12 : 13
+  const label = count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count)
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:${size}px;height:${size}px;line-height:${size - 6}px;
+      background:${color};color:#fff;
+      border:3px solid #fff;border-radius:50%;
+      box-shadow:0 2px 8px rgba(0,0,0,0.35);
+      text-align:center;font-weight:800;font-size:${fontSize}px;
+      font-family:system-ui,-apple-system,Inter,Arial;
+    ">${label}</div>`,
+    iconSize:   [size, size],
+    iconAnchor: [size / 2, size / 2],
+  })
+}
+
+// Grid-cluster a list of points at the current zoom level. We compute a
+// pixel-space grid (~CLUSTER_PX wide cells) and bucket each point by its
+// projected pixel coords at zoom Z. Cheap, deterministic, and zero deps.
+//
+// Returned shape per cluster:
+//   { lat, lng, count, dominantOutcome, items: [...interactions] }
+//
+// Single-point "clusters" (count === 1) are returned too so the caller can
+// render them as ordinary pins on the same pass.
+const CLUSTER_PX = 60
+function gridClusterPoints(map, items) {
+  if (!items.length) return []
+  const z = map.getZoom()
+  const buckets = new Map() // key -> { sumLat, sumLng, count, outcomes:{}, items:[] }
+  for (const it of items) {
+    if (!Number.isFinite(it.lat) || !Number.isFinite(it.lng)) continue
+    const pt = map.project([it.lat, it.lng], z)
+    const cx = Math.floor(pt.x / CLUSTER_PX)
+    const cy = Math.floor(pt.y / CLUSTER_PX)
+    const key = `${cx}:${cy}`
+    let b = buckets.get(key)
+    if (!b) {
+      b = { sumLat: 0, sumLng: 0, count: 0, outcomes: {}, items: [] }
+      buckets.set(key, b)
+    }
+    b.sumLat += it.lat
+    b.sumLng += it.lng
+    b.count++
+    b.outcomes[it.outcome] = (b.outcomes[it.outcome] || 0) + 1
+    b.items.push(it)
+  }
+  const out = []
+  for (const b of buckets.values()) {
+    // Dominant outcome priority order: booked > estimate > not_interested > no_answer.
+    // Ties broken by priority instead of count so a cluster with 1 booking and
+    // 1 no_answer reads as "booked" (high-value signal beats low-value noise).
+    const order = ['booked', 'estimate_requested', 'not_interested', 'no_answer']
+    let dominant = 'no_answer', best = -1
+    for (const o of order) {
+      if ((b.outcomes[o] || 0) > best && b.outcomes[o] > 0) {
+        dominant = o
+        best = b.outcomes[o]
+      }
+    }
+    out.push({
+      lat: b.sumLat / b.count,
+      lng: b.sumLng / b.count,
+      count: b.count,
+      dominantOutcome: dominant,
+      items: b.items,
+    })
+  }
+  return out
 }
 
 function makeCurrentLocationPin() {
@@ -146,8 +224,24 @@ function elapsedLabel(startedAt) {
  *                                         `interactions` is empty so the map
  *                                         lands on the org's actual region
  *                                         instead of a hardcoded city.
+ * @param {boolean} props.cluster        - When true, points are bucketed into a
+ *                                         grid at low zoom levels and rendered
+ *                                         as a single colored bubble per cell.
+ *                                         Bursts back to individual pins at
+ *                                         zoom ≥ CLUSTER_BREAKPOINT_ZOOM (16).
+ * @param {boolean} props.pinValueScale  - When true, booked pins scale in size
+ *                                         with `estimated_value` so the highest
+ *                                         dollar deals visually stand out.
+ * @param {Function} props.onContextMenu        - (latlng, screenPos) => void
+ *                                                Right-click on empty map area.
+ * @param {Function} props.onPinContextMenu     - (interaction, screenPos) => void
+ *                                                Right-click on an interaction pin.
+ * @param {Function} props.onViewportChange     - ({bounds, zoom, center}) => void
+ *                                                Fires on moveend/zoomend so the
+ *                                                parent can drive a "current view"
+ *                                                summary panel.
  */
-const MapView = forwardRef(function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, onRepClick = null, autoFit = false, regionFallback = null }, ref) {
+const MapView = forwardRef(function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, onRepClick = null, autoFit = false, regionFallback = null, cluster = false, pinValueScale = false, onContextMenu = null, onPinContextMenu = null, onViewportChange = null }, ref) {
   const containerRef       = useRef(null)
   const mapRef             = useRef(null)
   const trailRef           = useRef(null)
@@ -247,6 +341,37 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Wire optional context-menu + viewport-change callbacks. Re-registers
+  // when the parent swaps the callback identity (e.g., closure over fresh
+  // state) so handlers never call into a stale reference.
+  useEffect(() => {
+    if (!mapRef.current) return
+    const map = mapRef.current
+    const onCtx = (e) => {
+      if (!onContextMenu) return
+      L.DomEvent.preventDefault(e)
+      onContextMenu(
+        { lat: e.latlng.lat, lng: e.latlng.lng },
+        { x: e.originalEvent.clientX, y: e.originalEvent.clientY },
+      )
+    }
+    const fireViewport = () => {
+      if (!onViewportChange) return
+      const b = map.getBounds()
+      onViewportChange({
+        bounds: [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]],
+        zoom:   map.getZoom(),
+        center: [map.getCenter().lat, map.getCenter().lng],
+      })
+    }
+    if (onContextMenu)    map.on('contextmenu', onCtx)
+    if (onViewportChange) { map.on('moveend', fireViewport); map.on('zoomend', fireViewport); fireViewport() }
+    return () => {
+      if (onContextMenu)    map.off('contextmenu', onCtx)
+      if (onViewportChange) { map.off('moveend', fireViewport); map.off('zoomend', fireViewport) }
+    }
+  }, [onContextMenu, onViewportChange])
+
   // Update GPS trail
   useEffect(() => {
     if (!trailRef.current || !trail.length) return
@@ -254,28 +379,45 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
     trailRef.current.setLatLngs(latlngs)
   }, [trail])
 
-  // Update interaction pins
+  // Update interaction pins (re-runs on cluster/zoom/value-scale changes too)
+  //
+  // Clustering: when `cluster` is on and the zoom is below
+  // CLUSTER_BREAKPOINT_ZOOM, points are grouped into pixel-grid buckets and
+  // rendered as a single colored bubble per bucket. Click a bubble → zoom in.
+  // Above the breakpoint, every interaction renders as its own pin.
+  //
+  // Value scaling: when `pinValueScale` is on, booked pins get a size from
+  // 22→36px depending on their estimated_value (capped so a $50k outlier
+  // doesn't draw a beach ball over Phoenix).
   useEffect(() => {
     if (!mapRef.current) return
-    // Clear old markers
-    markersRef.current.forEach((m) => m.remove())
-    markersRef.current = []
+    const map = mapRef.current
+    const CLUSTER_BREAKPOINT_ZOOM = 16
 
-    interactions.forEach((interaction) => {
-      if (!interaction.lat || !interaction.lng) return
-      const color   = OUTCOME_COLORS[interaction.outcome] || '#9CA3AF'
-      const marker  = L.marker([interaction.lat, interaction.lng], { icon: makePin(color) })
+    // Escape HTML in rep-entered free text (notes / contact name) so it
+    // can't break popup markup or inject script.
+    const escapeHtml = (s) =>
+      String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
+    const renderPin = (interaction) => {
+      const color = OUTCOME_COLORS[interaction.outcome] || '#9CA3AF'
+      // Value-scale: clamp 22..36px across $0..$10k. Above $10k saturates.
+      let size = 22
+      if (pinValueScale && interaction.outcome === 'booked') {
+        const v = Math.min(10000, Math.max(0, Number(interaction.estimated_value) || 0))
+        size = Math.round(22 + (v / 10000) * 14)
+      }
+      const marker = L.marker([interaction.lat, interaction.lng], { icon: makePin(color, size) })
 
       const editHint = onInteractionClick
-        ? `<div style="color:#3B82F6;font-size:11px;margin-top:6px;font-weight:500">Tap pin to change status ↻</div>`
+        ? `<div style="color:#3B82F6;font-size:11px;margin-top:6px;font-weight:500">Tap to edit ↻</div>`
         : ''
-      // Escape HTML in rep-entered free text (notes / contact name) so it
-      // can't break popup markup or inject script.
-      const escapeHtml = (s) =>
-        String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
       const notesHtml = interaction.notes
         ? `<div style="margin-top:6px;padding:6px 8px;background:#F3F4F6;border-radius:6px;color:#374151;font-size:12px;white-space:pre-wrap;line-height:1.35">💬 ${escapeHtml(interaction.notes)}</div>`
+        : ''
+      const repNameHtml = interaction.users?.full_name
+        ? `<div style="color:#6B7280;font-size:11px;margin-top:2px">by ${escapeHtml(interaction.users.full_name)}</div>`
         : ''
       const popupContent = `
         <div style="min-width:160px;max-width:240px;font-family:system-ui;font-size:13px">
@@ -286,24 +428,78 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
           ${interaction.contact_name ? `<div style="color:#6B7280">👤 ${escapeHtml(interaction.contact_name)}</div>` : ''}
           ${interaction.estimated_value ? `<div style="color:#059669;font-weight:600">$${interaction.estimated_value}</div>` : ''}
           ${notesHtml}
+          ${repNameHtml}
           ${editHint}
         </div>
       `
       marker.bindPopup(popupContent)
-
-      // Tap to edit: fires the parent callback with the full interaction so
-      // the caller can open InteractionModal in edit mode. We still bind the
-      // popup so the rep sees the current status, then invoke the editor.
       if (onInteractionClick) {
-        marker.on('click', () => {
-          onInteractionClick(interaction)
+        marker.on('click', () => onInteractionClick(interaction))
+      }
+      if (onPinContextMenu) {
+        marker.on('contextmenu', (e) => {
+          L.DomEvent.stopPropagation(e)
+          L.DomEvent.preventDefault(e)
+          onPinContextMenu(interaction, { x: e.originalEvent.clientX, y: e.originalEvent.clientY })
         })
       }
+      return marker
+    }
 
-      marker.addTo(mapRef.current)
-      markersRef.current.push(marker)
-    })
-  }, [interactions, onInteractionClick])
+    const renderCluster = (c) => {
+      const color  = OUTCOME_COLORS[c.dominantOutcome] || '#9CA3AF'
+      const icon   = makeClusterIcon(c.count, color)
+      const marker = L.marker([c.lat, c.lng], { icon })
+      // Click → zoom in one step on the cluster's center. fitBounds of the
+      // cluster's items would over-zoom on single-cell clusters; +2 levels
+      // is a sweet spot that splits most clusters into smaller ones.
+      marker.on('click', () => {
+        const z = Math.min(map.getMaxZoom(), map.getZoom() + 2)
+        map.setView([c.lat, c.lng], z)
+      })
+      const booked   = c.items.filter((i) => i.outcome === 'booked').length
+      const revenue  = c.items.reduce((s, i) => s + (Number(i.estimated_value) || 0), 0)
+      marker.bindTooltip(
+        `<div style="font-family:system-ui;font-size:12px;font-weight:600">${c.count} knocks</div>` +
+        `<div style="font-family:system-ui;font-size:11px;color:#6B7280">${booked} booked${revenue > 0 ? ` · $${Math.round(revenue).toLocaleString()}` : ''}</div>`,
+        { sticky: true, direction: 'top' }
+      )
+      return marker
+    }
+
+    const rebuild = () => {
+      markersRef.current.forEach((m) => m.remove())
+      markersRef.current = []
+      const validPoints = (interactions || []).filter((i) => Number.isFinite(i.lat) && Number.isFinite(i.lng))
+      const shouldCluster = cluster && map.getZoom() < CLUSTER_BREAKPOINT_ZOOM
+      if (shouldCluster) {
+        for (const c of gridClusterPoints(map, validPoints)) {
+          if (c.count === 1) {
+            const m = renderPin(c.items[0]); m.addTo(map); markersRef.current.push(m)
+          } else {
+            const m = renderCluster(c); m.addTo(map); markersRef.current.push(m)
+          }
+        }
+      } else {
+        for (const it of validPoints) {
+          const m = renderPin(it); m.addTo(map); markersRef.current.push(m)
+        }
+      }
+    }
+    rebuild()
+
+    // Re-cluster on zoom changes when clustering is enabled. We intentionally
+    // skip moveend — cluster IDs are zoom-dependent only, so panning doesn't
+    // change the buckets and we save the rebuild cost.
+    let handler = null
+    if (cluster) {
+      handler = () => rebuild()
+      map.on('zoomend', handler)
+    }
+    return () => {
+      if (handler) map.off('zoomend', handler)
+    }
+  }, [interactions, onInteractionClick, onPinContextMenu, cluster, pinValueScale])
 
   // Update current position marker + pan
   useEffect(() => {
