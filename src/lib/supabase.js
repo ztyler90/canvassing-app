@@ -1944,20 +1944,41 @@ export async function clearRepLocation(repId) {
 }
 
 /**
- * Get all reps with a location update in the last 5 minutes (active)
+ * Org IDs that should bypass the 5-minute live-freshness filter. Used for
+ * sales-demo accounts where the seed timestamps would otherwise go stale
+ * between sessions and the Live tab would look empty. Real-customer orgs
+ * still honor the freshness check.
+ */
+const DEMO_ORG_IDS = new Set([
+  'd0d0d0d0-0000-4000-a000-000000000001', // Sunburst Solar
+  'e1e1e1e1-0000-4000-a000-000000000001', // Apex Pest Defense
+])
+
+/**
+ * Get all reps with a location update in the last 5 minutes (active).
  * Returns: [{ rep_id, lat, lng, updated_at, session_id, user, session }]
+ *
+ * Demo orgs (see DEMO_ORG_IDS) skip the freshness filter so the Live tab
+ * is always populated regardless of when the seed last ran. Since RLS
+ * scopes rep_locations to the caller's organization, this only affects
+ * the demo orgs themselves — real-customer queries still require recent
+ * updates.
  */
 export async function getActiveRepLocations() {
   const since = new Date(Date.now() - 5 * 60 * 1000).toISOString()
-  const { data: locations } = await supabase
+  let query = supabase
     .from('rep_locations')
-    .select('rep_id, lat, lng, updated_at, session_id')
-    .gte('updated_at', since)
-
+    .select('rep_id, lat, lng, updated_at, session_id, organization_id')
+  const { data: locations } = await query
   if (!locations?.length) return []
 
-  const repIds    = locations.map((l) => l.rep_id)
-  const sessionIds = locations.map((l) => l.session_id).filter(Boolean)
+  const filtered = locations.filter((l) =>
+    DEMO_ORG_IDS.has(l.organization_id) || l.updated_at >= since,
+  )
+  if (!filtered.length) return []
+
+  const repIds    = filtered.map((l) => l.rep_id)
+  const sessionIds = filtered.map((l) => l.session_id).filter(Boolean)
 
   const [{ data: users }, { data: sessions }] = await Promise.all([
     supabase.from('users').select('id, full_name').in('id', repIds),
@@ -1972,7 +1993,7 @@ export async function getActiveRepLocations() {
   const userMap    = Object.fromEntries((users    || []).map((u) => [u.id, u]))
   const sessionMap = Object.fromEntries((sessions || []).map((s) => [s.id, s]))
 
-  return locations.map((l) => ({
+  return filtered.map((l) => ({
     ...l,
     user:    userMap[l.rep_id]     || null,
     session: sessionMap[l.session_id] || null,
