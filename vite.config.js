@@ -3,6 +3,21 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  // The Capacitor native-only plugin is dynamically imported from
+  // src/lib/gps.js but only ever called on iOS/Android. We mark it as
+  // "external" so Rollup (and vite-plugin-pwa's separate build pass)
+  // skip resolving it during the web build, where the package's
+  // native-only package.json entry would otherwise cause:
+  //   "Failed to resolve entry for package
+  //    '@capacitor-community/background-geolocation'"
+  build: {
+    rollupOptions: {
+      external: ['@capacitor-community/background-geolocation'],
+    },
+  },
+  optimizeDeps: {
+    exclude: ['@capacitor-community/background-geolocation'],
+  },
   plugins: [
     react(),
     VitePWA({
