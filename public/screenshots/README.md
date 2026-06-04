@@ -20,8 +20,8 @@ Drop PNG files into this folder using the exact filenames below. The home page (
 | `team-chat.png` | Manager → team chat panel open, OR in-session chat bubble on rep phone. Whichever reads cleaner. | A short thread between manager + rep. | Coach Reps section (in-session chat card). |
 | `leaderboard.png` | Manager → leaderboard panel only, tight crop. Top 5 reps with the improved weighted scoring. | Medals on top 3. | Coach Reps section. |
 | `territory-map.png` | Manager → **Territories** view. 3-4 drawn polygons each named and color-coded by assigned rep. Optional DNK overlay. | Mix of small + medium territories, no overlaps. | Territory Management section. |
-| `ai-insights.png` | Manager → insights view. Heatmap of revenue-per-area, OR a "recommended area" card. | At least one clear hot zone visible. | Performance & Insights — AI sub-card. |
-| `funnel.png` | Manager → funnel/conversion chart. Vertical funnel from doors → interested → set → closed with conversion % between phases. | Real conversion data, not all 100%. | Performance & Insights — funnel sub-card. |
+| `top-territories.png` | Manager → top-territories view. Ranked list (or heatmap) of highest-converting neighborhoods / streets, with $/door or close-rate values. | At least one clear standout area. | Performance & Insights — AI sub-card (Top performing areas). |
+| `ai-insights.png` | Manager → funnel / conversion chart. Vertical (or horizontal) funnel showing doors → interested → set → closed with the conversion % between phases. | Real conversion data, not all 100%. | Performance & Insights — Funnel drop-off sub-card. |
 | `goal-tracking.png` | Manager → goals/overview. Monthly revenue goal ring with on-pace projection callout. | Goal ring around 60-78% to look "in the chase". | Performance & Insights — goals sub-card. |
 | `closer-home.png` *(optional)* | Closer → home view showing assigned leads queue. | 3-5 leads queued. | Pipeline section, tertiary if room. |
 

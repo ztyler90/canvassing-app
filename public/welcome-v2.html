@@ -1147,9 +1147,12 @@
     .ss-phone .ss-frame {
       border-radius: 34px;
       overflow: hidden;
-      min-height: 560px;
+      /* Aspect ratio matches active-session-phone.png (996×1740 ≈ 9:16) so
+         the frame hugs the image with no dead space at the bottom. */
+      aspect-ratio: 996 / 1740;
+      min-height: 0;
     }
-    .ss-phone .ss-placeholder { padding: 240px 24px; }
+    .ss-phone .ss-placeholder { padding: 200px 24px; }
 
     /* Draft banner across the top of the page */
     .draft-banner {
@@ -1427,18 +1430,20 @@
     /* ── Game mechanics mock (orbs + motivational cards) ──────────────── */
     .gm-mock {
       margin-top: auto;
+      padding-top: 8px;
     }
     .gm-orbs {
-      display: flex; gap: 0; padding-left: 8px;
-      margin-bottom: 16px;
+      display: flex; gap: 0; padding-left: 12px;
+      margin-bottom: 22px;
+      justify-content: center;
     }
     .gm-orb {
-      width: 36px; height: 36px; border-radius: 50%;
+      width: 56px; height: 56px; border-radius: 50%;
       display: grid; place-items: center;
-      font-size: 16px;
-      border: 2px solid #0F172A;
-      margin-left: -8px;
-      box-shadow: 0 4px 10px -2px rgba(0,0,0,.4);
+      font-size: 26px;
+      border: 3px solid #0F172A;
+      margin-left: -14px;
+      box-shadow: 0 8px 18px -4px rgba(0,0,0,.5);
     }
     .gm-orb:first-child { margin-left: 0; }
     .gm-orb.rookie  { background: linear-gradient(135deg, #d1fae5, #86efac); }
@@ -1448,40 +1453,85 @@
     .gm-orb.gold    { background: linear-gradient(135deg, #fde68a, #f59e0b); }
     .gm-orb.god     {
       background: conic-gradient(from 0deg, #fde047, #fb7185, #a78bfa, #60a5fa, #4ade80, #fde047);
-      box-shadow: 0 0 14px rgba(253,224,71,.55), 0 4px 10px -2px rgba(0,0,0,.4);
+      box-shadow: 0 0 22px rgba(253,224,71,.6), 0 8px 18px -4px rgba(0,0,0,.5);
     }
     .gm-level-badge {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 6px 12px; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 10px 18px; border-radius: 999px;
       background: rgba(167,139,250,.18); border: 1px solid rgba(167,139,250,.32);
-      font-size: 12px; font-weight: 700; color: #C4B5FD;
-      margin-bottom: 14px;
+      font-size: 14px; font-weight: 800; color: #C4B5FD;
+      margin: 0 auto 22px;
     }
-    .gm-level-badge .xp { color: #94A3B8; font-weight: 600; font-size: 11px; }
+    .gm-level-row {
+      display: flex; justify-content: center;
+    }
+    .gm-level-badge .xp { color: #94A3B8; font-weight: 600; font-size: 12px; }
 
     .gm-cards-strip {
-      display: flex; gap: 8px;
+      display: flex; gap: 12px;
       position: relative;
     }
     .gm-card {
       flex: 1;
-      background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
-      border: 1px solid rgba(255,255,255,.14);
-      border-radius: 12px;
-      padding: 10px;
-      font-size: 11px; color: #E2E8F0;
-      box-shadow: 0 8px 20px -8px rgba(0,0,0,.4);
+      background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 14px;
+      padding: 16px 14px;
+      font-size: 13px; color: #E2E8F0;
+      box-shadow: 0 12px 24px -8px rgba(0,0,0,.5);
       position: relative;
+      line-height: 1.45;
     }
     .gm-card .gm-tag {
       display: inline-block;
-      font-size: 9px; font-weight: 800; text-transform: uppercase;
-      letter-spacing: .08em; color: #93C5FD;
+      font-size: 10px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .1em; color: #93C5FD;
+      margin-bottom: 8px;
+    }
+    .gm-card.tilt-l { transform: rotate(-3deg) translateY(4px); }
+    .gm-card.tilt-r { transform: rotate(3deg)  translateY(4px); }
+    .gm-card strong {
+      color: white; font-weight: 800;
+      font-size: 16px;
+      display: block;
       margin-bottom: 4px;
     }
-    .gm-card.tilt-l { transform: rotate(-3deg) translateY(2px); }
-    .gm-card.tilt-r { transform: rotate(3deg)  translateY(2px); }
-    .gm-card strong { color: white; font-weight: 800; }
+
+    /* ── Direct-message chat mock (Coach in real time card) ───────────── */
+    .chat-mock {
+      margin-top: auto;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 12px;
+      padding: 14px;
+      display: grid; gap: 8px;
+    }
+    .chat-bubble {
+      max-width: 82%;
+      padding: 8px 12px;
+      border-radius: 14px;
+      font-size: 12.5px;
+      line-height: 1.4;
+      position: relative;
+    }
+    .chat-bubble.them {
+      background: rgba(255,255,255,.10);
+      color: #E2E8F0;
+      border-top-left-radius: 4px;
+      justify-self: start;
+    }
+    .chat-bubble.me {
+      background: linear-gradient(135deg, #2E6BFF 0%, #6366F1 100%);
+      color: white;
+      border-top-right-radius: 4px;
+      justify-self: end;
+    }
+    .chat-meta {
+      font-size: 10px; color: #64748B; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      padding: 0 2px;
+    }
+    .chat-meta.right { text-align: right; }
 
     /* Mini activity feed mock for verified-activity card */
     .feed-mock {
@@ -1513,10 +1563,11 @@
     .feed-tag.motion{ background: rgba(196,181,253,.16); color: #C4B5FD; }
     .feed-tag.dnk   { background: rgba(248,113,113,.16); color: #FCA5A5; }
 
-    /* ═══ NEW v2: TERRITORY MANAGEMENT (light) ═════════════════════════════ */
+    /* ═══ NEW v2: TERRITORY MANAGEMENT (light) ═════════════════════════════
+       Blue/violet palette to stay consistent with the rest of the site. */
     .territory-feat {
       background:
-        radial-gradient(700px 320px at 90% 0%, rgba(245,158,11,.10), transparent 60%),
+        radial-gradient(700px 320px at 90% 0%, rgba(99,102,241,.10), transparent 60%),
         radial-gradient(700px 320px at 0% 100%, rgba(27,79,204,.08), transparent 60%),
         var(--white);
     }
@@ -1525,9 +1576,9 @@
       gap: 56px; align-items: center;
     }
     .territory-copy .tag-new {
-      background: linear-gradient(135deg, #FEF3C7, #EEF3FF);
-      border-color: #FDE68A;
-      color: #B45309;
+      background: linear-gradient(135deg, #EEF3FF, #F3E8FF);
+      border-color: #CBE3FF;
+      color: var(--blue-600);
     }
     .territory-copy h2 {
       font-size: clamp(28px, 3.2vw, 42px);
@@ -1535,7 +1586,7 @@
       font-weight: 800; margin-top: 18px;
     }
     .territory-copy h2 .grad {
-      background: linear-gradient(135deg, #F59E0B, #1B4FCC);
+      background: linear-gradient(135deg, var(--blue-600), var(--violet));
       -webkit-background-clip: text; background-clip: text; color: transparent;
     }
     .territory-copy > p {
@@ -1550,7 +1601,7 @@
     .territory-list .tl-icon {
       flex-shrink: 0;
       width: 32px; height: 32px; border-radius: 9px;
-      background: #FEF3C7; color: var(--amber);
+      background: var(--blue-50); color: var(--blue-600);
       display: grid; place-items: center;
       font-size: 14px; font-weight: 800;
     }
@@ -1632,7 +1683,7 @@
   <div class="showcase">
     <div class="showcase-inner">
       <div class="floating-badge fb-top pink">
-        <span class="em">✨</span> Sales rep motivation built in
+        <span class="em">🔁</span> Every yes turns into an appointment
       </div>
       <div class="floating-badge fb-right lime">
         <span class="em">📈</span> Live team performance
@@ -1828,8 +1879,9 @@
       <span class="eyebrow">Rep tracking + coaching</span>
       <h2 class="section-h">Know what every rep is doing.<br/><span class="grad">Coach them in the moment.</span></h2>
       <p class="section-sub">
-        Verified GPS activity ends self-reporting. Team chat ends "let me text you
-        about that door." Game mechanics keep reps pushing through the no-answers.
+        Doors are auto-tracked by GPS, so the count is always honest. Team chat
+        ends "let me text you about that door." Game mechanics keep reps pushing
+        through the no-answers.
       </p>
     </div>
 
@@ -1837,15 +1889,17 @@
 
       <!-- Card 1: Verified activity -->
       <div class="dark-card">
-        <h4><span class="ico">📡</span> Verified activity, no self-reporting</h4>
+        <h4><span class="ico">📡</span> Auto-tracked doors, honest counts</h4>
         <p>
-          Every knock, every interaction, every minute on territory — captured
-          by GPS + motion and tied to the rep, the address, and the time.
+          Every door is logged by GPS in the background — tied to the rep, the
+          address, and the time. Reps tap to log what actually happened at the
+          door; KnockIQ handles everything else.
         </p>
         <ul class="dark-card-meta" style="margin-bottom: 14px;">
-          <li><span class="dot"></span><span>Time-stamped knock log, no manual entry</span></li>
+          <li><span class="dot"></span><span>Doors auto-tracked — no end-of-day estimating</span></li>
+          <li><span class="dot"></span><span>One-tap interaction logging at the door</span></li>
           <li><span class="dot"></span><span>DNK zones suppress activity silently</span></li>
-          <li><span class="dot"></span><span>Session timer + GPS smoothing in background</span></li>
+          <li><span class="dot"></span><span>Session timer + GPS smoothing always on</span></li>
         </ul>
         <div class="feed-mock">
           <div class="feed-row">
@@ -1866,17 +1920,19 @@
         </div>
       </div>
 
-      <!-- Card 2: Team chat (lightweight — no graphic) -->
+      <!-- Card 2: Coach in real time (small DM mock) -->
       <div class="dark-card dense">
         <h4><span class="ico">💬</span> Coach in real time</h4>
         <p>
           Drop a message to a rep mid-session — it surfaces on their active
-          canvas screen without breaking their flow. Two-way and threaded.
+          canvas screen without breaking their flow.
         </p>
-        <ul class="dark-card-meta">
-          <li><span class="dot"></span><span>In-session bubble on the rep app</span></li>
-          <li><span class="dot"></span><span>Tied to the session, not just the person</span></li>
-        </ul>
+        <div class="chat-mock" aria-label="Direct message preview">
+          <div class="chat-meta">Manager → Jake · 2:51 pm</div>
+          <div class="chat-bubble me">Hit the back side of Maple — Maya's crushing it over there 🔥</div>
+          <div class="chat-bubble them">Already on it 👊</div>
+          <div class="chat-meta right">Jake · 2:52 pm</div>
+        </div>
       </div>
 
       <!-- Card 3: Leaderboards (custom HTML/CSS mock) -->
@@ -1955,23 +2011,25 @@
             <span class="gm-orb gold"   title="Gold">🥇</span>
             <span class="gm-orb god"    title="Knock God">👑</span>
           </div>
-          <div class="gm-level-badge">
-            Level 6 · Ninja <span class="xp">· 1,430 XP</span>
+          <div class="gm-level-row">
+            <div class="gm-level-badge">
+              Level 6 · Ninja <span class="xp">· 1,430 XP</span>
+            </div>
           </div>
           <div class="gm-cards-strip">
             <div class="gm-card tilt-l">
               <span class="gm-tag">Hot hour</span>
-              <strong>4–5pm</strong><br/>
+              <strong>4–5pm</strong>
               2.4× more bookings
             </div>
             <div class="gm-card">
               <span class="gm-tag">Streak</span>
-              <strong>3 closes</strong><br/>
+              <strong>3 closes</strong>
               don't stop now
             </div>
             <div class="gm-card tilt-r">
               <span class="gm-tag">Milestone</span>
-              <strong>3 doors</strong><br/>
+              <strong>3 doors</strong>
               to next level
             </div>
           </div>
@@ -2108,13 +2166,14 @@
             <div class="d r"></div><div class="d a"></div><div class="d g"></div>
             <div class="ss-browser-url">knockiq.app/manager/insights</div>
           </div>
-          <div class="ss-frame" data-img="screenshots/ai-insights.png" style="min-height: 180px;">
+          <div class="ss-frame" data-img="screenshots/top-territories.png" style="min-height: 180px;">
             <div class="ss-placeholder">
-              <strong>📸 AI insights panel</strong>
-              Heatmap or recommended-area card.
-              <code>/screenshots/ai-insights.png</code>
+              <strong>📸 Top territories</strong>
+              Ranked list / heatmap of highest-converting<br/>
+              neighborhoods or streets.
+              <code>/screenshots/top-territories.png</code>
             </div>
-            <img src="screenshots/ai-insights.png" alt="KnockIQ AI insights" loading="lazy" />
+            <img src="screenshots/top-territories.png" alt="KnockIQ top territories" loading="lazy" />
           </div>
         </div>
       </div>
@@ -2130,13 +2189,13 @@
             <div class="d r"></div><div class="d a"></div><div class="d g"></div>
             <div class="ss-browser-url">knockiq.app/manager/funnel</div>
           </div>
-          <div class="ss-frame" data-img="screenshots/funnel.png" style="min-height: 220px;">
+          <div class="ss-frame" data-img="screenshots/ai-insights.png" style="min-height: 220px;">
             <div class="ss-placeholder">
               <strong>📸 Funnel drop-off chart</strong>
               Conversion percentages between each phase.
-              <code>/screenshots/funnel.png</code>
+              <code>/screenshots/ai-insights.png</code>
             </div>
-            <img src="screenshots/funnel.png" alt="KnockIQ funnel analysis" loading="lazy" />
+            <img src="screenshots/ai-insights.png" alt="KnockIQ funnel analysis" loading="lazy" />
           </div>
         </div>
       </div>
