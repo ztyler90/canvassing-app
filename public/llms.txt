@@ -1,0 +1,64 @@
+# KnockIQ
+
+> KnockIQ is the all-in-one door-to-door sales operations platform. It auto-tracks knocks via GPS, routes every qualified lead from setter to closer in under 60 seconds, gives managers a live view of their team in the field, and uses AI to surface the highest-converting neighborhoods.
+
+KnockIQ is built for door-to-door sales teams of any size — from a single crew running a roofing route to multi-region pest-control, solar, and home-services operations. The product replaces the spreadsheet stack most D2D teams cobble together (CRM, dispatch, route map, leaderboard, pay calculator) with one cohesive platform.
+
+## Core features
+
+- **Pipeline & appointment setting** — A pipeline built specifically for door-to-door sales. When a setter marks a lead as interested, KnockIQ auto-routes it to the assigned closer with the address, pitch notes, and rep context. Supports both appointment-setting and book-at-the-door sales motions.
+- **Live view** — Managers see every active rep in real time on the map, every knock as it's logged, and every booked appointment as it lands. Reps see the same data on their phone in their active canvassing session.
+- **Sales rep tracking & coaching** — Doors are auto-tracked by GPS so the door-count is always honest. Reps log what happened at the door in one tap. Managers can chat with reps mid-session via an in-session bubble that doesn't break flow.
+- **Game mechanics & motivational cards** — Levels (Rookie → Bronze → Silver → Ninja → Gold → Knock God), XP, weighted leaderboards, and motivational cards (Hot Hour, Streak, Milestone) that surface when reps hit a milestone or stall.
+- **Territory management** — Draw territories on a map as free-hand polygons, assign reps in two clicks, and overlay DNK (do-not-knock) zones that silently suppress activity inside them.
+- **Performance & insights** — Sparkline KPIs, doors/bookings/revenue trends, conversion funnels with drop-off percentages, AI-surfaced top-performing areas, and monthly goal tracking with on-pace forecasting.
+
+## Pricing
+
+- **Starter** — $25 / seat / month — manager dashboard, automatic knock tracking, territory assignments, rep app
+- **Standard** — $50 / seat / month — adds full game mechanics & motivational cards, advanced territory planning, rep analytics, goal tracking
+- **Pro** — $100 / seat / month — adds Zapier webhook integration, Google Sheets export, Excel export, 6,000+ app integrations via Zapier
+
+All plans are billed per active seat, monthly, cancel anytime. No contracts. 14-day free trial, no credit card required.
+
+## Industries
+
+- Solar sales
+- Pest control
+- Home security
+- Roofing
+- Window cleaning
+- Landscaping
+- Pressure washing
+- Internet & cable
+- Political canvassing
+
+## Key pages
+
+- Home: https://www.getknockiq.com/
+- Book a demo: https://www.getknockiq.com/demo
+- Blog: https://www.getknockiq.com/blog.html
+- Sign up: https://www.getknockiq.com/signup
+- Sign in: https://www.getknockiq.com/login
+
+## Resources & Blog
+
+KnockIQ publishes long-form content on door-to-door operations. Topics include buyer's guides, competitive comparisons, manager playbooks, industry-specific tactics, and rep onboarding. The full library:
+
+- [Door Knocking Software in 2026](https://www.getknockiq.com/blog/01-door-knocking-software.html) — Buyer's guide. What to look for, what to avoid, and why most tools miss the mark for field teams.
+- [Why Tracking Every Door Changes Everything](https://www.getknockiq.com/blog/02-tracking-every-door.html) — Field guide. The difference between guessing and knowing starts at the front door.
+- [The Hidden Cost of a Whiteboard](https://www.getknockiq.com/blog/03-hidden-cost-whiteboard.html) — Operations. How manual tracking is quietly costing your team deals, time, and morale.
+- [7 Metrics Every D2D Manager Should Watch Daily](https://www.getknockiq.com/blog/04-seven-metrics.html) — Manager's guide. The numbers that actually predict revenue, retention, and rep performance.
+- [KnockIQ vs SalesRabbit vs Spotio](https://www.getknockiq.com/blog/05-competitor-comparison.html) — Comparison. Side-by-side look at the top canvassing platforms for field sales teams.
+- [Closing More Solar Deals](https://www.getknockiq.com/blog/06-solar-pipeline.html) — Solar. How top solar teams use canvassing data to shorten sales cycles.
+- [After the Storm: Roofing Canvassing](https://www.getknockiq.com/blog/07-roofing-storm.html) — Roofing. Storm-chasing done right with territory mapping and real-time team coordination.
+- [Pest Control: Summer Blitz to Year-Round](https://www.getknockiq.com/blog/08-pest-control-seasonal.html) — Pest control. Turning seasonal spikes into a twelve-month pipeline.
+- [Onboarding a New Rep in Their First Week](https://www.getknockiq.com/blog/09-onboarding-rep.html) — Onboarding. Get new reps knocking with confidence from day one.
+- [Setting Realistic Knock Goals](https://www.getknockiq.com/blog/10-knock-goals.html) — Manager's guide. Data-backed benchmarks that push reps without burning them out.
+- [Why Your Reps Quit](https://www.getknockiq.com/blog/11-why-reps-quit.html) — Founder's take. It's not the doors — it's the lack of support, visibility, and purpose.
+- [From Door to Deal: Building a Sales Process](https://www.getknockiq.com/blog/12-door-to-deal.html) — Process. A step-by-step framework for turning knocks into closed deals.
+
+## Contact
+
+- Email: hello@knockiq.com
+- Demo booking: https://www.getknockiq.com/demo

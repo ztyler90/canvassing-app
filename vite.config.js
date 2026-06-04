@@ -8,10 +8,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Shack Shine Canvassing',
-        short_name: 'Canvassing',
-        description: 'Field canvassing tracker for Shack Shine reps',
-        theme_color: '#1A6B3A',
+        name: 'KnockIQ',
+        short_name: 'KnockIQ',
+        description: 'Door-to-door sales operations platform for reps and managers.',
+        theme_color: '#1B4FCC',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
@@ -21,7 +21,7 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,txt,xml}'],
         // CRITICAL: do NOT let the SW intercept "/" or "/welcome.html".
         // Vercel rewrites "/" → /welcome.html (the marketing landing page).
         // Without these denylist entries, the default Workbox NavigationRoute

@@ -3,93 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- ═══ Primary SEO ═══ -->
-  <title>KnockIQ — The all-in-one door-to-door sales platform</title>
-  <meta name="description" content="KnockIQ is the door-to-door operations platform: auto-tracked knocks, a pipeline that routes every yes to a closer, live coaching, AI insights for top territories, and goal tracking — all in one app." />
-  <meta name="keywords" content="door-to-door sales software, D2D CRM, canvassing app, appointment setting, pipeline management, sales rep tracking, territory management, leaderboard, motivational sales app, knockiq" />
-  <meta name="author" content="KnockIQ" />
-  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />
-  <link rel="canonical" href="https://www.getknockiq.com/" />
-
-  <!-- ═══ Open Graph ═══ -->
-  <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="KnockIQ" />
-  <meta property="og:title" content="KnockIQ — The all-in-one door-to-door sales platform" />
-  <meta property="og:description" content="Auto-tracked knocks, a pipeline that books appointments, live coaching, and AI insights — built for door-to-door sales teams of any size." />
-  <meta property="og:url" content="https://www.getknockiq.com/" />
-  <meta property="og:image" content="https://www.getknockiq.com/og-image.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:locale" content="en_US" />
-
-  <!-- ═══ Twitter / X Card ═══ -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="KnockIQ — The all-in-one door-to-door sales platform" />
-  <meta name="twitter:description" content="Auto-tracked knocks, a pipeline that books appointments, live coaching, and AI insights — built for door-to-door sales teams of any size." />
-  <meta name="twitter:image" content="https://www.getknockiq.com/og-image.png" />
-
-  <!-- ═══ Favicons / theme ═══ -->
-  <link rel="icon" type="image/png" href="/logo.png" />
-  <meta name="theme-color" content="#1B4FCC" />
-
-  <!-- ═══ Resource hints — fonts ═══ -->
+  <title>KnockIQ — Complete visibility into your door-to-door team</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preload" as="image" href="screenshots/mobile-dashboard.webp" fetchpriority="high" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-
-  <!-- ═══ Structured data — SoftwareApplication + Organization (helps Google rich results and AI crawlers) ═══ -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "SoftwareApplication",
-        "name": "KnockIQ",
-        "applicationCategory": "BusinessApplication",
-        "applicationSubCategory": "SalesApplication",
-        "operatingSystem": "iOS, Android, Web",
-        "url": "https://www.getknockiq.com/",
-        "description": "Door-to-door sales operations platform with auto-tracked knocks, appointment-setting pipeline, live team coaching, AI insights for top territories, leaderboards with game mechanics, and goal tracking.",
-        "featureList": [
-          "Automatic GPS door-knock tracking",
-          "Pipeline with setter-to-closer routing",
-          "Live manager view of active reps",
-          "In-session team chat",
-          "Game mechanics + motivational cards",
-          "Leaderboards with weighted scoring",
-          "Territory management with DNK zones",
-          "AI insights for top-performing areas",
-          "Funnel drop-off analysis",
-          "Monthly goal tracking with on-pace forecasting"
-        ],
-        "offers": [
-          { "@type": "Offer", "name": "Starter",  "price": "25",  "priceCurrency": "USD", "description": "Per seat / month" },
-          { "@type": "Offer", "name": "Standard", "price": "50",  "priceCurrency": "USD", "description": "Per seat / month" },
-          { "@type": "Offer", "name": "Pro",      "price": "100", "priceCurrency": "USD", "description": "Per seat / month" }
-        ],
-        "publisher": { "@id": "https://www.getknockiq.com/#organization" }
-      },
-      {
-        "@type": "Organization",
-        "@id": "https://www.getknockiq.com/#organization",
-        "name": "KnockIQ",
-        "url": "https://www.getknockiq.com/",
-        "logo": "https://www.getknockiq.com/logo.png",
-        "email": "hello@knockiq.com",
-        "sameAs": []
-      },
-      {
-        "@type": "WebSite",
-        "url": "https://www.getknockiq.com/",
-        "name": "KnockIQ",
-        "publisher": { "@id": "https://www.getknockiq.com/#organization" },
-        "inLanguage": "en-US"
-      }
-    ]
-  }
-  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1132,589 +1048,9 @@
       .auto-compare { grid-template-columns: 1fr; }
       .hero-trust { flex-direction: column; gap: 8px; }
     }
-
-    /* ═══ NEW v2: SCREENSHOT FRAMES ═════════════════════════════════════════ */
-    /* Frame wraps a real screenshot in browser chrome. The placeholder shows
-       the expected filename so we can preview which screenshots are missing.
-       When the <img> loads, .has-image is added and the placeholder hides. */
-    .ss-browser {
-      background: white;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: var(--sh-xl);
-    }
-    .ss-browser-bar {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 14px;
-      background: #FAFBFF;
-      border-bottom: 1px solid var(--line);
-    }
-    .ss-browser-bar .d {
-      width: 10px; height: 10px; border-radius: 50%;
-    }
-    .ss-browser-bar .d.r { background: #FF5F57; }
-    .ss-browser-bar .d.a { background: #FEBC2E; }
-    .ss-browser-bar .d.g { background: #28C840; }
-    .ss-browser-url {
-      flex: 1; text-align: center;
-      font-size: 12px; color: var(--muted);
-      background: white; padding: 5px 14px;
-      border-radius: 999px; border: 1px solid var(--line);
-      max-width: 360px; margin: 0 auto;
-    }
-    .ss-frame {
-      position: relative;
-      background: linear-gradient(135deg, var(--blue-50) 0%, var(--lime-50) 100%);
-      min-height: 280px;
-      overflow: hidden;
-    }
-    /* Placeholder fills the frame as a fallback layer; image sits on top.
-       When the image loads, it covers the placeholder. When it 404s the
-       JS sets display:none on the img and the placeholder shows through. */
-    .ss-placeholder {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      padding: 60px 32px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 600;
-      z-index: 1;
-    }
-    .ss-placeholder > div { max-width: 360px; }
-    .ss-frame img {
-      display: block;
-      width: 100%;
-      height: auto;
-      position: relative;
-      z-index: 2;
-    }
-    .ss-placeholder strong {
-      display: block;
-      font-size: 16px;
-      color: var(--ink-2);
-      margin-bottom: 8px;
-      font-weight: 800;
-    }
-    .ss-placeholder code {
-      display: inline-block;
-      background: white;
-      border: 1px dashed var(--line);
-      padding: 6px 12px; border-radius: 8px;
-      font-family: 'SF Mono', Menlo, monospace;
-      font-size: 12px; color: var(--blue-600);
-      margin-top: 10px;
-    }
-    .ss-frame.has-image .ss-placeholder { display: none; }
-
-    /* Phone-framed screenshot (native app shots) */
-    .ss-phone {
-      width: 300px;
-      margin: 0 auto;
-      background: #0B1020;
-      border-radius: 42px;
-      padding: 10px;
-      box-shadow: var(--sh-xl);
-      position: relative;
-    }
-    .ss-phone::before {
-      content: ''; position: absolute;
-      top: 18px; left: 50%; transform: translateX(-50%);
-      width: 96px; height: 22px;
-      background: #0B1020; border-radius: 14px; z-index: 2;
-    }
-    .ss-phone .ss-frame {
-      border-radius: 34px;
-      overflow: hidden;
-      /* Aspect ratio matches active-session-phone.png (996×1740 ≈ 9:16) so
-         the frame hugs the image with no dead space at the bottom. */
-      aspect-ratio: 996 / 1740;
-      min-height: 0;
-    }
-    .ss-phone .ss-placeholder { padding: 200px 24px; }
-
-    /* Draft banner across the top of the page */
-    .draft-banner {
-      background: linear-gradient(135deg, #F59E0B 0%, #DB2777 100%);
-      color: white;
-      padding: 10px 20px;
-      text-align: center;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: .02em;
-    }
-    .draft-banner code {
-      background: rgba(0,0,0,.18);
-      padding: 2px 8px;
-      border-radius: 6px;
-      font-family: 'SF Mono', Menlo, monospace;
-      font-size: 12px;
-    }
-
-    /* ═══ NEW v2: PIPELINE SECTION ══════════════════════════════════════════ */
-    .pipeline-feat {
-      position: relative;
-      background:
-        radial-gradient(700px 360px at 90% 10%, rgba(109,40,217,.10), transparent 60%),
-        radial-gradient(900px 420px at 10% 90%, rgba(27,79,204,.08), transparent 60%),
-        var(--white);
-    }
-    .pipeline-grid {
-      display: grid; grid-template-columns: 1fr 1.15fr;
-      gap: 56px; align-items: center;
-    }
-    .pipeline-copy .tag-new {
-      background: linear-gradient(135deg, #F3E8FF, #EEF3FF);
-      border-color: #DDD6FE;
-      color: var(--violet);
-    }
-    .pipeline-copy h2 {
-      font-size: clamp(28px, 3.2vw, 42px);
-      line-height: 1.08; letter-spacing: -0.03em;
-      font-weight: 800; margin-top: 18px;
-    }
-    .pipeline-copy h2 .grad {
-      background: linear-gradient(135deg, var(--violet), var(--pink));
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
-    .pipeline-copy > p {
-      color: var(--text); font-size: 16px; margin-top: 16px; max-width: 48ch;
-    }
-    .pipeline-stats {
-      display: grid; grid-template-columns: repeat(3, 1fr);
-      gap: 12px; margin-top: 24px;
-    }
-    .pipeline-stat {
-      padding: 14px; border-radius: 12px;
-      background: var(--bg); border: 1px solid var(--line);
-    }
-    .pipeline-stat .num {
-      font-size: 24px; font-weight: 800; letter-spacing: -0.02em;
-      color: var(--violet);
-    }
-    .pipeline-stat .lbl {
-      font-size: 11px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .06em; color: var(--muted); margin-top: 2px;
-    }
-    .pipeline-features {
-      list-style: none; margin-top: 26px; display: grid; gap: 14px;
-    }
-    .pipeline-features li {
-      display: flex; gap: 12px; align-items: flex-start;
-    }
-    .pipeline-features .pf-icon {
-      flex-shrink: 0;
-      width: 32px; height: 32px; border-radius: 9px;
-      background: #F3E8FF; color: var(--violet);
-      display: grid; place-items: center;
-      font-size: 14px; font-weight: 800;
-    }
-    .pipeline-features strong {
-      display: block; font-weight: 700; font-size: 15px; color: var(--ink);
-    }
-    .pipeline-features span {
-      display: block; font-size: 13.5px; color: var(--muted);
-      margin-top: 2px; line-height: 1.5;
-    }
-
-    /* ═══ NEW v2: ACTIVE SESSION SHOWCASE ══════════════════════════════════
-       Same overall styling, but no green — palette is blue/violet/ink. */
-    .active-session-strip {
-      position: relative;
-      background: linear-gradient(180deg, var(--white) 0%, var(--bg) 100%);
-      padding: 80px 0;
-      border-top: 1px solid var(--line);
-      border-bottom: 1px solid var(--line);
-    }
-    .as-head {
-      text-align: center; max-width: 760px; margin: 0 auto 48px;
-    }
-    .as-head .eyebrow { color: var(--blue-600); }
-    .as-head h3 {
-      font-size: clamp(28px, 3vw, 40px);
-      line-height: 1.1; letter-spacing: -0.02em;
-      font-weight: 800; margin-top: 12px;
-    }
-    .as-head h3 .grad {
-      background: linear-gradient(135deg, var(--blue-600), var(--violet));
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
-    .as-head > p {
-      color: var(--text); font-size: 16px; margin: 14px auto 0; max-width: 60ch;
-    }
-    .as-chips {
-      display: flex; flex-wrap: wrap; gap: 8px; margin: 22px auto 0;
-      justify-content: center;
-    }
-    .as-chip {
-      padding: 6px 12px; border-radius: 999px;
-      background: white; border: 1px solid var(--line);
-      font-size: 12px; font-weight: 700; color: var(--ink-2);
-      display: inline-flex; align-items: center; gap: 6px;
-      box-shadow: var(--sh-sm);
-    }
-    .as-chip .pulse {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: var(--blue-600); animation: pulse 1.8s infinite;
-    }
-    .as-split {
-      display: grid; grid-template-columns: 0.85fr 1.15fr;
-      gap: 48px; align-items: center;
-      max-width: 1140px; margin: 0 auto;
-    }
-    .as-side {
-      text-align: center;
-    }
-    .as-side .as-label {
-      font-size: 11px; font-weight: 800; text-transform: uppercase;
-      letter-spacing: .12em; color: var(--blue-600);
-      margin-bottom: 14px;
-    }
-    .as-side .as-caption {
-      font-size: 13.5px; color: var(--muted); margin-top: 14px;
-      max-width: 32ch; margin-left: auto; margin-right: auto;
-    }
-
-    /* ═══ NEW v2: DARK SECTION FRAMEWORK ═══════════════════════════════════
-       Generic dark-bg section used by Rep Tracking + Coaching and
-       Performance & Insights. Accents are blue/violet (no green/lime). */
-    .dark-section {
-      background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
-      color: white; padding: 96px 0;
-      position: relative; overflow: hidden;
-    }
-    .dark-section::before {
-      content: ''; position: absolute; inset: 0;
-      background:
-        radial-gradient(700px 320px at 10% 10%, rgba(124,58,237,.18), transparent 60%),
-        radial-gradient(700px 320px at 90% 90%, rgba(56,189,248,.14), transparent 60%);
-      pointer-events: none;
-    }
-    .dark-section .container { position: relative; }
-    .dark-section .section-head h2,
-    .dark-section .section-h { color: white; }
-    .dark-section .section-sub { color: #CBD5E1; }
-    .dark-section .eyebrow { color: #93C5FD; }
-    .dark-section h2 .grad,
-    .dark-section h3 .grad {
-      background: linear-gradient(135deg, #93C5FD 0%, #C4B5FD 50%, #F0ABFC 100%);
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
-
-    .dark-card {
-      background: rgba(255,255,255,.04);
-      border: 1px solid rgba(255,255,255,.12);
-      border-radius: 20px;
-      padding: 24px;
-      backdrop-filter: blur(8px);
-      display: flex; flex-direction: column;
-    }
-    .dark-card h4 {
-      font-size: 19px; font-weight: 800; letter-spacing: -0.01em;
-      margin-bottom: 8px;
-      display: flex; align-items: center; gap: 10px;
-    }
-    .dark-card h4 .ico {
-      width: 32px; height: 32px; border-radius: 9px;
-      background: rgba(147,197,253,.18); color: #93C5FD;
-      display: inline-grid; place-items: center;
-      font-size: 15px;
-    }
-    .dark-card p {
-      font-size: 14px; color: #CBD5E1; line-height: 1.6;
-      margin-bottom: 18px;
-    }
-    .dark-card .ss-browser { box-shadow: 0 20px 40px -12px rgba(0,0,0,.45); }
-    .dark-card .ss-phone   { box-shadow: 0 20px 40px -12px rgba(0,0,0,.55); }
-    .dark-card .ss-frame { min-height: 220px; }
-    .dark-card-meta {
-      list-style: none; display: grid; gap: 12px; margin-top: auto;
-    }
-    .dark-card-meta li {
-      display: flex; gap: 10px; align-items: flex-start;
-      font-size: 13px; color: #E2E8F0;
-    }
-    .dark-card-meta .dot {
-      flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%;
-      background: #93C5FD; margin-top: 7px;
-    }
-
-    /* ═══ NEW v2: SALES REP TRACKING + COACHING ═══════════════════════════ */
-    .rep-coach-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 22px; align-items: stretch;
-    }
-    /* Chat card is intentionally lightweight — no graphic, just copy */
-    .dark-card.dense p { margin-bottom: 12px; }
-
-    /* ── Leaderboard mock (HTML/CSS, inspired by getknockiq.com) ──────── */
-    .lb-mock {
-      background: rgba(255,255,255,.04);
-      border: 1px solid rgba(255,255,255,.10);
-      border-radius: 14px;
-      padding: 14px;
-      margin-top: auto;
-    }
-    .lb-mock-head {
-      display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 12px;
-      font-size: 11px; font-weight: 800; text-transform: uppercase;
-      letter-spacing: .1em; color: #93C5FD;
-    }
-    .lb-mock-head .lb-mock-tag {
-      font-size: 10px; color: #94A3B8; font-weight: 700;
-      text-transform: none; letter-spacing: .02em;
-    }
-    .lb-row {
-      display: grid; grid-template-columns: 28px 1fr auto;
-      gap: 12px; align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(255,255,255,.06);
-    }
-    .lb-row:last-child { border-bottom: none; }
-    .lb-medal {
-      width: 26px; height: 26px; border-radius: 50%;
-      display: grid; place-items: center;
-      font-size: 11px; font-weight: 900;
-      color: #0F172A;
-    }
-    .lb-medal.gold   { background: linear-gradient(135deg, #FDE68A, #F59E0B); }
-    .lb-medal.silver { background: linear-gradient(135deg, #F1F5F9, #94A3B8); }
-    .lb-medal.bronze { background: linear-gradient(135deg, #FCD9B3, #B45309); color: white; }
-    .lb-medal.plain  { background: rgba(255,255,255,.08); color: #94A3B8; border: 1px solid rgba(255,255,255,.12); }
-    .lb-rep { display: flex; gap: 10px; align-items: center; }
-    .lb-ava {
-      width: 28px; height: 28px; border-radius: 50%;
-      background: linear-gradient(135deg, #6366F1, #DB2777);
-      color: white; font-size: 11px; font-weight: 800;
-      display: grid; place-items: center;
-    }
-    .lb-ava.b { background: linear-gradient(135deg, #0EA5E9, #6366F1); }
-    .lb-ava.c { background: linear-gradient(135deg, #F59E0B, #DB2777); }
-    .lb-ava.d { background: linear-gradient(135deg, #06B6D4, #6D28D9); }
-    .lb-name {
-      font-size: 13px; font-weight: 700; color: white;
-      line-height: 1.2;
-    }
-    .lb-sub {
-      font-size: 11px; color: #94A3B8;
-      margin-top: 2px;
-    }
-    .lb-rev {
-      font-size: 13px; font-weight: 800; color: #93C5FD;
-      letter-spacing: -0.01em;
-    }
-
-    /* ── Game mechanics mock (orbs + motivational cards) ──────────────── */
-    .gm-mock {
-      margin-top: auto;
-      padding-top: 8px;
-    }
-    .gm-orbs {
-      display: flex; gap: 0; padding-left: 12px;
-      margin-bottom: 22px;
-      justify-content: center;
-    }
-    .gm-orb {
-      width: 56px; height: 56px; border-radius: 50%;
-      display: grid; place-items: center;
-      font-size: 26px;
-      border: 3px solid #0F172A;
-      margin-left: -14px;
-      box-shadow: 0 8px 18px -4px rgba(0,0,0,.5);
-    }
-    .gm-orb:first-child { margin-left: 0; }
-    .gm-orb.rookie  { background: linear-gradient(135deg, #d1fae5, #86efac); }
-    .gm-orb.bronze  { background: linear-gradient(135deg, #fcd9b3, #c77a3a); }
-    .gm-orb.silver  { background: linear-gradient(135deg, #f1f5f9, #94a3b8); }
-    .gm-orb.ninja   { background: linear-gradient(135deg, #a78bfa, #6d28d9); color: white; }
-    .gm-orb.gold    { background: linear-gradient(135deg, #fde68a, #f59e0b); }
-    .gm-orb.god     {
-      background: conic-gradient(from 0deg, #fde047, #fb7185, #a78bfa, #60a5fa, #4ade80, #fde047);
-      box-shadow: 0 0 22px rgba(253,224,71,.6), 0 8px 18px -4px rgba(0,0,0,.5);
-    }
-    .gm-level-badge {
-      display: inline-flex; align-items: center; gap: 10px;
-      padding: 10px 18px; border-radius: 999px;
-      background: rgba(167,139,250,.18); border: 1px solid rgba(167,139,250,.32);
-      font-size: 14px; font-weight: 800; color: #C4B5FD;
-      margin: 0 auto 22px;
-    }
-    .gm-level-row {
-      display: flex; justify-content: center;
-    }
-    .gm-level-badge .xp { color: #94A3B8; font-weight: 600; font-size: 12px; }
-
-    .gm-cards-strip {
-      display: flex; gap: 12px;
-      position: relative;
-    }
-    .gm-card {
-      flex: 1;
-      background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
-      border: 1px solid rgba(255,255,255,.16);
-      border-radius: 14px;
-      padding: 16px 14px;
-      font-size: 13px; color: #E2E8F0;
-      box-shadow: 0 12px 24px -8px rgba(0,0,0,.5);
-      position: relative;
-      line-height: 1.45;
-    }
-    .gm-card .gm-tag {
-      display: inline-block;
-      font-size: 10px; font-weight: 800; text-transform: uppercase;
-      letter-spacing: .1em; color: #93C5FD;
-      margin-bottom: 8px;
-    }
-    .gm-card.tilt-l { transform: rotate(-3deg) translateY(4px); }
-    .gm-card.tilt-r { transform: rotate(3deg)  translateY(4px); }
-    .gm-card strong {
-      color: white; font-weight: 800;
-      font-size: 16px;
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    /* ── Direct-message chat mock (Coach in real time card) ───────────── */
-    .chat-mock {
-      margin-top: auto;
-      background: rgba(255,255,255,.04);
-      border: 1px solid rgba(255,255,255,.10);
-      border-radius: 12px;
-      padding: 14px;
-      display: grid; gap: 8px;
-    }
-    .chat-bubble {
-      max-width: 82%;
-      padding: 8px 12px;
-      border-radius: 14px;
-      font-size: 12.5px;
-      line-height: 1.4;
-      position: relative;
-    }
-    .chat-bubble.them {
-      background: rgba(255,255,255,.10);
-      color: #E2E8F0;
-      border-top-left-radius: 4px;
-      justify-self: start;
-    }
-    .chat-bubble.me {
-      background: linear-gradient(135deg, #2E6BFF 0%, #6366F1 100%);
-      color: white;
-      border-top-right-radius: 4px;
-      justify-self: end;
-    }
-    .chat-meta {
-      font-size: 10px; color: #64748B; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .06em;
-      padding: 0 2px;
-    }
-    .chat-meta.right { text-align: right; }
-
-    /* Mini activity feed mock for verified-activity card */
-    .feed-mock {
-      margin-top: auto;
-      background: rgba(255,255,255,.04);
-      border: 1px solid rgba(255,255,255,.10);
-      border-radius: 12px;
-      padding: 10px;
-      display: grid; gap: 6px;
-    }
-    .feed-row {
-      display: grid; grid-template-columns: 44px 1fr auto;
-      gap: 8px; align-items: center;
-      padding: 6px 8px; border-radius: 8px;
-      background: rgba(255,255,255,.03);
-      font-size: 11px;
-    }
-    .feed-row .feed-time {
-      font-size: 10px; color: #64748B; font-weight: 700;
-      font-variant-numeric: tabular-nums;
-    }
-    .feed-row .feed-ev { color: #E2E8F0; font-weight: 600; }
-    .feed-row .feed-tag {
-      font-size: 9px; font-weight: 800; padding: 3px 7px;
-      border-radius: 999px;
-      text-transform: uppercase; letter-spacing: .06em;
-    }
-    .feed-tag.auto  { background: rgba(147,197,253,.16); color: #93C5FD; }
-    .feed-tag.motion{ background: rgba(196,181,253,.16); color: #C4B5FD; }
-    .feed-tag.dnk   { background: rgba(248,113,113,.16); color: #FCA5A5; }
-
-    /* ═══ NEW v2: TERRITORY MANAGEMENT (light) ═════════════════════════════
-       Blue/violet palette to stay consistent with the rest of the site. */
-    .territory-feat {
-      background:
-        radial-gradient(700px 320px at 90% 0%, rgba(99,102,241,.10), transparent 60%),
-        radial-gradient(700px 320px at 0% 100%, rgba(27,79,204,.08), transparent 60%),
-        var(--white);
-    }
-    .territory-grid {
-      display: grid; grid-template-columns: 1.1fr 1fr;
-      gap: 56px; align-items: center;
-    }
-    .territory-copy .tag-new {
-      background: linear-gradient(135deg, #EEF3FF, #F3E8FF);
-      border-color: #CBE3FF;
-      color: var(--blue-600);
-    }
-    .territory-copy h2 {
-      font-size: clamp(28px, 3.2vw, 42px);
-      line-height: 1.08; letter-spacing: -0.03em;
-      font-weight: 800; margin-top: 18px;
-    }
-    .territory-copy h2 .grad {
-      background: linear-gradient(135deg, var(--blue-600), var(--violet));
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
-    .territory-copy > p {
-      color: var(--text); font-size: 16px; margin-top: 16px; max-width: 48ch;
-    }
-    .territory-list {
-      list-style: none; margin-top: 26px; display: grid; gap: 14px;
-    }
-    .territory-list li {
-      display: flex; gap: 12px; align-items: flex-start;
-    }
-    .territory-list .tl-icon {
-      flex-shrink: 0;
-      width: 32px; height: 32px; border-radius: 9px;
-      background: var(--blue-50); color: var(--blue-600);
-      display: grid; place-items: center;
-      font-size: 14px; font-weight: 800;
-    }
-    .territory-list strong { display: block; font-weight: 700; font-size: 15px; color: var(--ink); }
-    .territory-list span  { display: block; font-size: 13.5px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
-
-    /* ═══ NEW v2: PERFORMANCE & INSIGHTS — 2x2 grid of sub-cards ═════════ */
-    .perf-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 22px;
-    }
-
-    @media (max-width: 1000px) {
-      .pipeline-grid { grid-template-columns: 1fr; }
-      .as-split { grid-template-columns: 1fr; gap: 32px; }
-      .pipeline-stats { grid-template-columns: 1fr; }
-      .rep-coach-grid { grid-template-columns: 1fr; }
-      .territory-grid { grid-template-columns: 1fr; }
-      .perf-grid { grid-template-columns: 1fr; }
-    }
   </style>
 </head>
 <body>
-
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     DRAFT BANNER — remove before promoting to /welcome.html
-═══════════════════════════════════════════════════════════════════════════ -->
-<div class="draft-banner">
-  Draft v2 · preview only · live page is still <code>/welcome.html</code>
-</div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      NAV
@@ -1725,12 +1061,11 @@
       <img src="/logo.png" alt="KnockIQ" />
     </a>
     <ul class="nav-links">
-      <li><a href="#live-session">Live View</a></li>
-      <li><a href="#pipeline">Pipeline</a></li>
-      <li><a href="#rep-coach">Coach Reps</a></li>
-      <li><a href="#territory">Territory</a></li>
-      <li><a href="#insights">Insights</a></li>
+      <li><a href="#auto">Auto Knocking</a></li>
+      <li><a href="#for-managers">For Managers</a></li>
+      <li><a href="#for-reps">For Reps</a></li>
       <li><a href="#pricing">Pricing</a></li>
+      <li><a href="/blog.html">Blog</a></li>
     </ul>
     <div class="nav-actions">
       <a href="/login" class="nav-signin">Sign In</a>
@@ -1746,18 +1081,23 @@
   <div class="container hero-head">
     <span class="pill">
       <span class="dot"></span>
-      The all-in-one door-to-door operations platform
+      Built for small and mid-sized door-to-door teams
     </span>
     <h1>
       Complete visibility into your <span class="grad">door-to-door team's</span> performance.
     </h1>
     <p class="sub">
-      KnockIQ is the field sales system that ties every knock to a rep, a street, and a dollar —
-      with a manager dashboard, a rep app built to motivate, and a pipeline built to close.
+      KnockIQ is the field sales system with a powerful manager dashboard and a rep app built to motivate.
+      All of the features small and mid-sized teams need — without the enterprise price tag or bloat.
     </p>
     <div class="hero-ctas">
       <a href="/signup" class="btn btn-blue btn-lg">Start free 14-day trial →</a>
-      <a href="#live-session" class="btn btn-ghost btn-lg">See how it works</a>
+      <a href="#auto" class="btn btn-ghost btn-lg">See how it works</a>
+    </div>
+    <div class="hero-trust">
+      <span><span class="check">✓</span> No credit card required</span>
+      <span><span class="check">✓</span> Setup in under 10 minutes</span>
+      <span><span class="check">✓</span> Cancel anytime</span>
     </div>
   </div>
 
@@ -1765,29 +1105,142 @@
   <div class="showcase">
     <div class="showcase-inner">
       <div class="floating-badge fb-top pink">
-        <span class="em">🔁</span> Every yes turns into an appointment
+        <span class="em">✨</span> Sales rep motivation built in
       </div>
       <div class="floating-badge fb-right lime">
         <span class="em">📈</span> Live team performance
       </div>
 
-      <!-- Manager desktop — real Overview screenshot (v2) -->
+      <!-- Manager desktop -->
       <div class="browser">
         <div class="browser-bar">
           <div class="dot-row">
             <div class="d red"></div><div class="d amber"></div><div class="d green"></div>
           </div>
-          <div class="browser-url">knockiq.app/manager/overview</div>
+          <div class="browser-url">knockiq.app/manager/dashboard</div>
         </div>
-        <div class="browser-body" style="padding:0;">
-          <div class="ss-frame" data-img="screenshots/overview.webp" style="min-height: 480px; border-radius: 0;">
-            <div class="ss-placeholder">
-              <strong>📸 Manager Overview page</strong>
-              KPI sparkline strip, doors & bookings chart,<br/>
-              leaderboard column. Goal ring at 60–80%.
-              <code>/screenshots/overview.webp</code>
+        <div class="browser-body">
+          <div class="dash-head">
+            <h3>Redwood Home Services — Team Pulse</h3>
+            <div class="dash-head-tag"><span class="pulse"></span> Live</div>
+          </div>
+
+          <div class="kpi-strip">
+            <div class="kpi kpi-blue">
+              <div class="kpi-label">Doors</div>
+              <div class="kpi-val">1,284</div>
+              <div class="kpi-trend">↑ 12% wk/wk</div>
             </div>
-            <img src="screenshots/overview.webp" width="1600" height="926" alt="KnockIQ manager overview dashboard" loading="eager" decoding="async" />
+            <div class="kpi kpi-lime">
+              <div class="kpi-label">Estimates</div>
+              <div class="kpi-val">89</div>
+              <div class="kpi-trend">↑ 18%</div>
+            </div>
+            <div class="kpi kpi-green">
+              <div class="kpi-label">Bookings</div>
+              <div class="kpi-val">34</div>
+              <div class="kpi-trend">↑ 22%</div>
+            </div>
+            <div class="kpi kpi-amber">
+              <div class="kpi-label">Revenue</div>
+              <div class="kpi-val">$48.2k</div>
+              <div class="kpi-trend">↑ 31%</div>
+            </div>
+          </div>
+
+          <div class="dash-two">
+            <div class="dash-panel">
+              <div class="panel-title">
+                Doors &amp; Bookings · last 14 days
+                <div class="chart-legend">
+                  <span><span class="sw" style="background:#1B4FCC;"></span>Doors</span>
+                  <span><span class="sw" style="background:#7DC31E;"></span>Bookings</span>
+                </div>
+              </div>
+              <svg class="line-chart" viewBox="0 0 420 150" preserveAspectRatio="none">
+                <line x1="0" y1="38"  x2="420" y2="38"  stroke="#E2E8F0" stroke-dasharray="4 4"/>
+                <line x1="0" y1="76"  x2="420" y2="76"  stroke="#E2E8F0" stroke-dasharray="4 4"/>
+                <line x1="0" y1="114" x2="420" y2="114" stroke="#E2E8F0" stroke-dasharray="4 4"/>
+
+                <defs>
+                  <linearGradient id="dg" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%"  stop-color="#1B4FCC" stop-opacity=".36"/>
+                    <stop offset="100%" stop-color="#1B4FCC" stop-opacity="0"/>
+                  </linearGradient>
+                  <linearGradient id="lg" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%"  stop-color="#7DC31E" stop-opacity=".32"/>
+                    <stop offset="100%" stop-color="#7DC31E" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+
+                <path d="M0,105 L30,90 L60,96 L90,73 L120,80 L150,58 L180,70 L210,48 L240,52 L270,38 L300,46 L330,28 L360,36 L390,22 L420,30 L420,150 L0,150 Z"
+                      fill="url(#dg)"/>
+                <polyline
+                  points="0,105 30,90 60,96 90,73 120,80 150,58 180,70 210,48 240,52 270,38 300,46 330,28 360,36 390,22 420,30"
+                  fill="none" stroke="#1B4FCC" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+                <path d="M0,132 L30,130 L60,126 L90,120 L120,118 L150,110 L180,112 L210,100 L240,102 L270,92 L300,90 L330,80 L360,84 L390,72 L420,76 L420,150 L0,150 Z"
+                      fill="url(#lg)"/>
+                <polyline
+                  points="0,132 30,130 60,126 90,120 120,118 150,110 180,112 210,100 240,102 270,92 300,90 330,80 360,84 390,72 420,76"
+                  fill="none" stroke="#7DC31E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+                <circle cx="420" cy="30" r="4" fill="#1B4FCC"/>
+                <circle cx="420" cy="30" r="8" fill="#1B4FCC" opacity=".25"/>
+                <circle cx="420" cy="76" r="4" fill="#7DC31E"/>
+                <circle cx="420" cy="76" r="8" fill="#7DC31E" opacity=".25"/>
+              </svg>
+            </div>
+
+            <div class="dash-panel">
+              <div class="panel-title">
+                Leaderboard <span>14 reps this week</span>
+              </div>
+              <div class="lb-row">
+                <div class="medal gold">1</div>
+                <div class="lb-rep">
+                  <span class="lb-ava">MR</span>
+                  <span>
+                    <span class="lb-name">Maya R.</span><br/>
+                    <span class="lb-sub">312 doors</span>
+                  </span>
+                </div>
+                <span class="lb-rev">$18.4k</span>
+              </div>
+              <div class="lb-row">
+                <div class="medal silver">2</div>
+                <div class="lb-rep">
+                  <span class="lb-ava">DC</span>
+                  <span>
+                    <span class="lb-name">Darius C.</span><br/>
+                    <span class="lb-sub">284 doors</span>
+                  </span>
+                </div>
+                <span class="lb-rev">$14.1k</span>
+              </div>
+              <div class="lb-row">
+                <div class="medal bronze">3</div>
+                <div class="lb-rep">
+                  <span class="lb-ava">JS</span>
+                  <span>
+                    <span class="lb-name">Jake S.</span><br/>
+                    <span class="lb-sub">248 doors</span>
+                  </span>
+                </div>
+                <span class="lb-rev">$9.8k</span>
+              </div>
+              <div class="lb-row">
+                <div class="medal plain">4</div>
+                <div class="lb-rep">
+                  <span class="lb-ava">AK</span>
+                  <span>
+                    <span class="lb-name">Amara K.</span><br/>
+                    <span class="lb-sub">221 doors</span>
+                  </span>
+                </div>
+                <span class="lb-rev">$7.2k</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1798,8 +1251,8 @@
           <div class="phone-notch"></div>
           <img
             class="phone-shot"
-            src="screenshots/mobile-dashboard.webp" width="880" height="3274"
-            alt="KnockIQ rep mobile dashboard — hot hour, goal ring, level, and daily stats"
+            src="/hero-phone.png"
+            alt="KnockIQ rep home — hot hour, goal ring, level, and daily stats"
             loading="eager"
             decoding="async"
           />
@@ -1810,141 +1263,97 @@
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     ACTIVE CANVAS SESSION SHOWCASE (NEW v2)
-     A real screenshot of a rep mid-session — the most "this thing is alive"
-     visual on the page.
+     AUTOMATIC DOOR KNOCKING (the differentiator)
 ═══════════════════════════════════════════════════════════════════════════ -->
-<section id="live-session" class="active-session-strip">
+<section id="auto" class="section auto-feat">
   <div class="container">
-    <div class="as-head">
-      <span class="eyebrow">Live from the field</span>
-      <h3>One canvas. <span class="grad">Two real-time views.</span></h3>
-      <p>
-        The moment a rep starts a session, auto-knock fires, interactions log
-        themselves, and the manager dashboard updates in real time — so what
-        the rep sees on their phone and what the manager sees on the dashboard
-        are always the same source of truth.
-      </p>
-      <div class="as-chips">
-        <span class="as-chip"><span class="pulse"></span> Auto-knock running</span>
-        <span class="as-chip">⏱️ Session timer</span>
-        <span class="as-chip">📍 GPS verified</span>
-        <span class="as-chip">💬 Two-way chat</span>
-      </div>
-    </div>
-
-    <div class="as-split">
-      <div class="as-side">
-        <div class="as-label">Rep view · in the field</div>
-        <div class="ss-phone">
-          <div class="ss-frame" data-img="screenshots/active-session-phone.webp">
-            <div class="ss-placeholder">
-              <strong>📸 Rep mid-session</strong>
-              ActiveCanvassing screen with auto-knock<br/>pulsing and recent knocks logged.
-              <code>/screenshots/active-session-phone.webp</code>
-            </div>
-            <img src="screenshots/active-session-phone.webp" width="880" height="1532" alt="KnockIQ rep mid-canvass" loading="lazy" />
-          </div>
-        </div>
-        <p class="as-caption">Heads-up at the door — the phone tracks what the rep would otherwise have to remember.</p>
-      </div>
-
-      <div class="as-side">
-        <div class="as-label">Manager view · at the desk</div>
-        <div class="ss-browser">
-          <div class="ss-browser-bar">
-            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
-            <div class="ss-browser-url">knockiq.app/manager/live</div>
-          </div>
-          <div class="ss-frame" data-img="screenshots/live-manager-view.webp" style="min-height: 360px;">
-            <div class="ss-placeholder">
-              <strong>📸 Manager live view</strong>
-              The same active session from the manager's<br/>
-              dashboard — reps on the map, knocks streaming in.
-              <code>/screenshots/live-manager-view.webp</code>
-            </div>
-            <img src="screenshots/live-manager-view.webp" width="1600" height="927" alt="KnockIQ manager live view" loading="lazy" />
-          </div>
-        </div>
-        <p class="as-caption">Watch the team in motion — every active rep, every knock, every booked appointment in real time.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- (v2: removed Auto Door Knocking section — folded into the Live Session
-     showcase above.) -->
-
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     PIPELINE → APPOINTMENTS (NEW v2)
-     The week's big story: the pipeline rework with closer routing.
-═══════════════════════════════════════════════════════════════════════════ -->
-<section id="pipeline" class="section pipeline-feat">
-  <div class="container">
-    <div class="pipeline-grid">
-      <div class="pipeline-copy">
-        <span class="tag-new">◆ Pipeline</span>
-        <h2>Built to run the <span class="grad">whole sales cycle</span> — not just track it.</h2>
+    <div class="auto-grid">
+      <div class="auto-copy">
+        <span class="tag-new">◆ Less tapping, more knocking</span>
+        <h2 class="auto-h">
+          Door knock detection <span class="grad">that works in the background.</span>
+        </h2>
         <p>
-          From the moment a rep knocks a door to the moment the deal is signed,
-          KnockIQ's pipeline keeps every lead, every closer, and every appointment
-          moving — whether you set appointments for next Tuesday or close at the door.
+          KnockIQ uses GPS and phone-motion signals to log knocks without pulling your
+          reps out of the sales conversation. They stay heads-up at the door — and
+          managers still get verified, time-stamped activity when the day is done.
         </p>
-
-        <ul class="pipeline-features">
-          <li>
-            <div class="pf-icon">📅</div>
-            <div>
-              <strong>Appointment setting</strong>
-              <span>Setters mark a lead as interested and the calendar/closer hand-off happens automatically — no texts, no shared spreadsheets.</span>
-            </div>
-          </li>
-          <li>
-            <div class="pf-icon">🤝</div>
-            <div>
-              <strong>Assigning leads to closers</strong>
-              <span>Route by territory, by setter, or round-robin. Closers get notified the second a qualified lead lands in their queue.</span>
-            </div>
-          </li>
-          <li>
-            <div class="pf-icon">🛡️</div>
-            <div>
-              <strong>Zero dropped leads</strong>
-              <span>Stale-deal alerts, follow-up reminders, and lead-aging surfaced on the board mean nothing rots in a phase.</span>
-            </div>
-          </li>
-          <li>
-            <div class="pf-icon">🔁</div>
-            <div>
-              <strong>Manage the full sales cycle</strong>
-              <span>Custom phases, required fields per phase, and conversion at every step — so you see exactly where leads stall and where dollars come from.</span>
-            </div>
-          </li>
-          <li>
-            <div class="pf-icon">⚙️</div>
-            <div>
-              <strong>Configured for how your team sells</strong>
-              <span>Appointment-setting model or book-at-the-door model — both first-class. Switch motions per crew, per region, or per campaign.</span>
-            </div>
-          </li>
+        <ul class="auto-list">
+          <li><span class="tick">✓</span> Reps focus on the pitch — not on remembering to tap a button between doors.</li>
+          <li><span class="tick">✓</span> Activity is logged in real time, so end-of-day self-reporting goes away.</li>
+          <li><span class="tick">✓</span> DNK polygons quietly suppress activity inside no-knock zones.</li>
+          <li><span class="tick">✓</span> Adaptive polling keeps phones alive through a full day of canvassing.</li>
         </ul>
       </div>
 
-      <div class="pipeline-visual">
-        <div class="ss-browser">
-          <div class="ss-browser-bar">
-            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
-            <div class="ss-browser-url">knockiq.app/manager/pipeline</div>
+      <div class="auto-visual">
+        <div class="auto-phone-screen">
+        <div class="auto-visual-head">
+          <h5>Live session · Jake S.</h5>
+          <div class="av-status"><span class="dot"></span> Auto-tracking</div>
+        </div>
+
+        <div class="av-map">
+          <svg viewBox="0 0 420 280" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <pattern id="grid-a" width="28" height="28" patternUnits="userSpaceOnUse">
+                <path d="M 28 0 L 0 0 0 28" fill="none" stroke="#CBD5E1" stroke-width=".6"/>
+              </pattern>
+            </defs>
+            <rect width="420" height="280" fill="url(#grid-a)"/>
+
+            <!-- Streets -->
+            <line x1="0"  y1="80"  x2="420" y2="80"  stroke="#CDE8CD" stroke-width="10"/>
+            <line x1="0"  y1="160" x2="420" y2="160" stroke="#CDE8CD" stroke-width="10"/>
+            <line x1="0"  y1="240" x2="420" y2="240" stroke="#CDE8CD" stroke-width="10"/>
+            <line x1="100" y1="0"  x2="100" y2="280" stroke="#CDE8CD" stroke-width="10"/>
+            <line x1="260" y1="0"  x2="260" y2="280" stroke="#CDE8CD" stroke-width="10"/>
+
+            <!-- DNK polygon -->
+            <polygon points="280,180 410,180 410,260 280,260"
+              fill="rgba(239,68,68,.16)" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="5 3"/>
+            <text x="295" y="216" font-size="11" fill="#B91C1C" font-family="Inter" font-weight="700">DO NOT KNOCK</text>
+
+            <!-- Route trail -->
+            <polyline points="30,80 100,80 100,160 180,160 180,80 260,80 260,160 340,160"
+              stroke="#1B4FCC" stroke-width="3" fill="none" stroke-dasharray="6 3" opacity=".85"/>
+
+            <!-- Detected knocks (auto) -->
+            <circle cx="130" cy="80"  r="6" fill="#7DC31E"/>
+            <circle cx="130" cy="80"  r="12" fill="#7DC31E" opacity=".25">
+              <animate attributeName="r" from="6" to="18" dur="1.8s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" from=".45" to="0" dur="1.8s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="160" cy="80"  r="6" fill="#7DC31E"/>
+            <circle cx="210" cy="80"  r="6" fill="#EF4444"/>
+            <circle cx="130" cy="160" r="6" fill="#7DC31E"/>
+            <circle cx="210" cy="160" r="6" fill="#F59E0B"/>
+            <circle cx="290" cy="160" r="6" fill="#7DC31E"/>
+            <circle cx="60"  cy="160" r="6" fill="#7DC31E"/>
+
+            <!-- Current position -->
+            <circle cx="340" cy="160" r="12" fill="#1B4FCC" opacity=".25"/>
+            <circle cx="340" cy="160" r="6"  fill="#1B4FCC"/>
+          </svg>
+        </div>
+
+        <div class="detect-log">
+          <div class="detect-row lime">
+            <div class="time">2:47 pm</div>
+            <div class="ev">Knock detected · 4812 Maple Ave</div>
+            <div class="tag">AUTO</div>
           </div>
-          <div class="ss-frame" data-img="screenshots/pipeline-board.webp">
-            <div class="ss-placeholder">
-              <strong>📸 Pipeline board</strong>
-              Full board with all phase columns — cards in each column,<br/>
-              including at least one with a closer assigned.
-              <code>/screenshots/pipeline-board.webp</code>
-            </div>
-            <img src="screenshots/pipeline-board.webp" width="1400" height="925" alt="KnockIQ pipeline board" loading="lazy" />
+          <div class="detect-row blue">
+            <div class="time">2:48 pm</div>
+            <div class="ev">Moving · GPS smoothing engaged</div>
+            <div class="tag">MOTION</div>
           </div>
+          <div class="detect-row amber">
+            <div class="time">2:49 pm</div>
+            <div class="ev">Suppressed · inside DNK zone</div>
+            <div class="tag">DNK</div>
+          </div>
+        </div>
         </div>
       </div>
     </div>
@@ -1952,357 +1361,313 @@
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     SALES REP TRACKING + COACHING (NEW v2 · dark)
-     Real-time accountability + the tools to coach reps mid-canvas.
+     FOR THE MANAGER
 ═══════════════════════════════════════════════════════════════════════════ -->
-<section id="rep-coach" class="dark-section">
+<section id="for-managers" class="section">
   <div class="container">
     <div class="section-head">
-      <span class="eyebrow">Rep tracking + coaching</span>
-      <h2 class="section-h">Know what every rep is doing.<br/><span class="grad">Coach them in the moment.</span></h2>
+      <span class="eyebrow">For the sales manager</span>
+      <h2 class="section-h">Complete insight into your team's performance<br/>and <span class="grad">your ROI on D2D</span>.</h2>
       <p class="section-sub">
-        Doors are auto-tracked by GPS, so the count is always honest. Team chat
-        ends "let me text you about that door." Game mechanics keep reps pushing
-        through the no-answers.
+        Give your technicians the best chance to succeed — and finally know whether
+        door-to-door is actually paying off for your business.
       </p>
     </div>
 
-    <div class="rep-coach-grid">
-
-      <!-- Card 1: Verified activity -->
-      <div class="dark-card">
-        <h4><span class="ico">📡</span> Auto-tracked doors, honest counts</h4>
+    <div class="persona">
+      <div class="p-copy">
+        <span class="eyebrow lime">Built to help managers win</span>
+        <h3>
+          The dashboard that answers<br/><span class="hi-blue">"is this actually working?"</span>
+        </h3>
         <p>
-          Every door is logged by GPS in the background — tied to the rep, the
-          address, and the time. Reps tap to log what actually happened at the
-          door; KnockIQ handles everything else.
+          Every knock is verified by GPS. Every dollar ties back to a rep, a street, and an hour.
+          No more spreadsheets. No more "I knocked 80 today, I swear."
         </p>
-        <ul class="dark-card-meta" style="margin-bottom: 14px;">
-          <li><span class="dot"></span><span>Doors auto-tracked — no end-of-day estimating</span></li>
-          <li><span class="dot"></span><span>One-tap interaction logging at the door</span></li>
-          <li><span class="dot"></span><span>DNK zones suppress activity silently</span></li>
-          <li><span class="dot"></span><span>Session timer + GPS smoothing always on</span></li>
-        </ul>
-        <div class="feed-mock">
-          <div class="feed-row">
-            <div class="feed-time">2:47 pm</div>
-            <div class="feed-ev">Knock · 4812 Maple Ave</div>
-            <div class="feed-tag auto">AUTO</div>
-          </div>
-          <div class="feed-row">
-            <div class="feed-time">2:48 pm</div>
-            <div class="feed-ev">GPS smoothing engaged</div>
-            <div class="feed-tag motion">MOTION</div>
-          </div>
-          <div class="feed-row">
-            <div class="feed-time">2:49 pm</div>
-            <div class="feed-ev">Suppressed · inside DNK zone</div>
-            <div class="feed-tag dnk">DNK</div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Card 2: Coach in real time (small DM mock) -->
-      <div class="dark-card dense">
-        <h4><span class="ico">💬</span> Coach in real time</h4>
-        <p>
-          Drop a message to a rep mid-session — it surfaces on their active
-          canvas screen without breaking their flow.
-        </p>
-        <div class="chat-mock" aria-label="Direct message preview">
-          <div class="chat-meta">Manager → Jake · 2:51 pm</div>
-          <div class="chat-bubble me">Hit the back side of Maple — Maya's crushing it over there 🔥</div>
-          <div class="chat-bubble them">Already on it 👊</div>
-          <div class="chat-meta right">Jake · 2:52 pm</div>
-        </div>
-      </div>
-
-      <!-- Card 3: Leaderboards (custom HTML/CSS mock) -->
-      <div class="dark-card">
-        <h4><span class="ico">🏆</span> Leaderboards that reward depth</h4>
-        <p>
-          Ranks on the metrics that actually matter — set rate, close rate,
-          dollars closed. Re-scored this week so volume alone doesn't win.
-        </p>
-        <div class="lb-mock">
-          <div class="lb-mock-head">
-            <span>Leaderboard · this week</span>
-            <span class="lb-mock-tag">14 reps</span>
-          </div>
-          <div class="lb-row">
-            <div class="lb-medal gold">1</div>
-            <div class="lb-rep">
-              <div class="lb-ava">MR</div>
-              <div>
-                <div class="lb-name">Maya R.</div>
-                <div class="lb-sub">312 doors · 19% set rate</div>
-              </div>
-            </div>
-            <div class="lb-rev">$18.4k</div>
-          </div>
-          <div class="lb-row">
-            <div class="lb-medal silver">2</div>
-            <div class="lb-rep">
-              <div class="lb-ava b">DC</div>
-              <div>
-                <div class="lb-name">Darius C.</div>
-                <div class="lb-sub">284 doors · 16% set rate</div>
-              </div>
-            </div>
-            <div class="lb-rev">$14.1k</div>
-          </div>
-          <div class="lb-row">
-            <div class="lb-medal bronze">3</div>
-            <div class="lb-rep">
-              <div class="lb-ava c">JS</div>
-              <div>
-                <div class="lb-name">Jake S.</div>
-                <div class="lb-sub">248 doors · 14% set rate</div>
-              </div>
-            </div>
-            <div class="lb-rev">$9.8k</div>
-          </div>
-          <div class="lb-row">
-            <div class="lb-medal plain">4</div>
-            <div class="lb-rep">
-              <div class="lb-ava d">AK</div>
-              <div>
-                <div class="lb-name">Amara K.</div>
-                <div class="lb-sub">221 doors · 12% set rate</div>
-              </div>
-            </div>
-            <div class="lb-rev">$7.2k</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Card 4: Game mechanics + Motivational cards (custom HTML/CSS mock) -->
-      <div class="dark-card">
-        <h4><span class="ico">🎮</span> Game mechanics + motivational cards</h4>
-        <p>
-          Levels, XP, medals — paired with motivational cards that drop into
-          the rep's app when they hit a milestone or stall out. Keeps reps
-          pushing through the no-answers.
-        </p>
-        <div class="gm-mock">
-          <div class="gm-orbs" aria-label="Level progression: Rookie to Knock God">
-            <span class="gm-orb rookie" title="Rookie">🌱</span>
-            <span class="gm-orb bronze" title="Bronze">🥉</span>
-            <span class="gm-orb silver" title="Silver">🥈</span>
-            <span class="gm-orb ninja"  title="Ninja">🥷</span>
-            <span class="gm-orb gold"   title="Gold">🥇</span>
-            <span class="gm-orb god"    title="Knock God">👑</span>
-          </div>
-          <div class="gm-level-row">
-            <div class="gm-level-badge">
-              Level 6 · Ninja <span class="xp">· 1,430 XP</span>
-            </div>
-          </div>
-          <div class="gm-cards-strip">
-            <div class="gm-card tilt-l">
-              <span class="gm-tag">Hot hour</span>
-              <strong>4–5pm</strong>
-              2.4× more bookings
-            </div>
-            <div class="gm-card">
-              <span class="gm-tag">Streak</span>
-              <strong>3 closes</strong>
-              don't stop now
-            </div>
-            <div class="gm-card tilt-r">
-              <span class="gm-tag">Milestone</span>
-              <strong>3 doors</strong>
-              to next level
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     TERRITORY MANAGEMENT (NEW v2 · light)
-═══════════════════════════════════════════════════════════════════════════ -->
-<section id="territory" class="section territory-feat">
-  <div class="container">
-    <div class="territory-grid">
-      <div class="territory-visual">
-        <div class="ss-browser">
-          <div class="ss-browser-bar">
-            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
-            <div class="ss-browser-url">knockiq.app/manager/territories</div>
-          </div>
-          <div class="ss-frame" data-img="screenshots/territory-map.webp" style="min-height: 360px;">
-            <div class="ss-placeholder">
-              <strong>📸 Territory map</strong>
-              Manager map with 3-4 drawn polygons, each<br/>
-              labeled and color-coded by assigned rep.
-              Optional DNK overlay visible.
-              <code>/screenshots/territory-map.webp</code>
-            </div>
-            <img src="screenshots/territory-map.webp" width="1200" height="804" alt="KnockIQ territory management" loading="lazy" />
-          </div>
-        </div>
-      </div>
-
-      <div class="territory-copy">
-        <span class="tag-new">◆ Territory management</span>
-        <h2>Draw it. Assign it. <span class="grad">Own the street.</span></h2>
-        <p>
-          Carve up neighborhoods on a map, assign reps in two clicks, and
-          stop reps from stepping on each other — or knocking where they
-          shouldn't.
-        </p>
-        <ul class="territory-list">
-          <li>
-            <div class="tl-icon">✎</div>
+        <ul class="p-list">
+          <li class="p-item">
+            <div class="p-icon blue">📊</div>
             <div>
-              <strong>Draw territories on the map</strong>
-              <span>Free-hand polygons, named, colored, sized to what your crew can cover in a shift.</span>
+              <strong>Complete team insights</strong>
+              <span>Live KPIs, conversion funnels, and rep-by-rep performance in one view.</span>
             </div>
           </li>
-          <li>
-            <div class="tl-icon">👥</div>
+          <li class="p-item">
+            <div class="p-icon violet">🎮</div>
             <div>
-              <strong>Assign in two clicks</strong>
-              <span>One rep, multiple reps, or rotate weekly. Reassign as fast as the schedule changes.</span>
+              <strong>Game mechanics that motivate</strong>
+              <span>Levels, XP, medals, and motivational callouts keep reps pushing through the no-answers — because that's what D2D success is all about.</span>
             </div>
           </li>
-          <li>
-            <div class="tl-icon">🚫</div>
+          <li class="p-item">
+            <div class="p-icon amber">🗺️</div>
             <div>
-              <strong>DNK zones, baked in</strong>
-              <span>Layer do-not-knock polygons over any territory and the rep app silently suppresses logs inside them.</span>
+              <strong>Draw routes &amp; assign reps</strong>
+              <span>Define territories on a map and assign them to reps in two clicks. Overlay DNK zones so nobody accidentally knocks where they shouldn't.</span>
             </div>
           </li>
-          <li>
-            <div class="tl-icon">📍</div>
+          <li class="p-item">
+            <div class="p-icon lime">📑</div>
             <div>
-              <strong>Live view of who's where</strong>
-              <span>The same map shows active reps in real time — so you always know whose street is being worked.</span>
+              <strong>One-click Google Sheets export</strong>
+              <span>Every session, every rep, every dollar — exportable to Sheets or Excel for payroll and commissioning (Pro plan).</span>
+            </div>
+          </li>
+          <li class="p-item">
+            <div class="p-icon sky">🛰️</div>
+            <div>
+              <strong>Automatic GPS + motion tracking</strong>
+              <span>Keeps your canvassing team focused on the task at hand. You get verified activity, not self-reported guesses.</span>
             </div>
           </li>
         </ul>
+      </div>
+
+      <div class="p-visual">
+        <div class="mgr-visual">
+          <div class="mgr-topbar">
+            <div class="dot-row">
+              <div class="d red"></div><div class="d amber"></div><div class="d green"></div>
+            </div>
+            <div class="mgr-title">Manager ·</div>
+            <div class="mgr-sub">Territories &amp; assignments</div>
+            <div class="dash-head-tag" style="margin-left:auto;"><span class="pulse"></span> Live</div>
+          </div>
+
+          <div class="mgr-body">
+            <div class="mgr-kpis">
+              <div class="mgr-kpi blue">
+                <div class="lbl">Active reps</div><div class="val">14</div>
+              </div>
+              <div class="mgr-kpi lime">
+                <div class="lbl">Doors today</div><div class="val">287</div>
+              </div>
+              <div class="mgr-kpi green">
+                <div class="lbl">Close rate</div><div class="val">19%</div>
+              </div>
+              <div class="mgr-kpi amber">
+                <div class="lbl">Revenue</div><div class="val">$9.2k</div>
+              </div>
+            </div>
+
+            <div class="mgr-map">
+              <svg viewBox="0 0 520 220" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                  <pattern id="grid-m" width="28" height="28" patternUnits="userSpaceOnUse">
+                    <path d="M 28 0 L 0 0 0 28" fill="none" stroke="#CBD5E1" stroke-width=".6"/>
+                  </pattern>
+                </defs>
+                <rect width="520" height="220" fill="url(#grid-m)"/>
+
+                <line x1="0" y1="60"  x2="520" y2="60"  stroke="#CDE8CD" stroke-width="9"/>
+                <line x1="0" y1="140" x2="520" y2="140" stroke="#CDE8CD" stroke-width="9"/>
+                <line x1="120" y1="0" x2="120" y2="220" stroke="#CDE8CD" stroke-width="9"/>
+                <line x1="300" y1="0" x2="300" y2="220" stroke="#CDE8CD" stroke-width="9"/>
+
+                <!-- Territory A (Maya) -->
+                <polygon points="20,20 180,20 220,90 160,180 30,170"
+                  fill="rgba(27,79,204,.14)" stroke="#1B4FCC" stroke-width="2.2"/>
+                <text x="70" y="100" font-size="11" font-weight="700" fill="#1B4FCC" font-family="Inter">Maple District · Maya R.</text>
+
+                <!-- Territory B (Darius) -->
+                <polygon points="240,30 430,40 460,150 290,170 230,110"
+                  fill="rgba(125,195,30,.14)" stroke="#7DC31E" stroke-width="2.2"/>
+                <text x="310" y="100" font-size="11" font-weight="700" fill="#4D7A13" font-family="Inter">Oakwood · Darius C.</text>
+
+                <!-- Territory C (Jake) -->
+                <polygon points="170,175 290,175 360,210 180,215"
+                  fill="rgba(245,158,11,.14)" stroke="#F59E0B" stroke-width="2.2"/>
+                <text x="210" y="205" font-size="10" font-weight="700" fill="#B45309" font-family="Inter">Riverside · Jake S.</text>
+
+                <!-- Rep pins -->
+                <circle cx="110" cy="75" r="7" fill="#1B4FCC"/>
+                <circle cx="110" cy="75" r="11" fill="#1B4FCC" opacity=".25"/>
+                <circle cx="330" cy="85" r="7" fill="#7DC31E"/>
+                <circle cx="330" cy="85" r="11" fill="#7DC31E" opacity=".25"/>
+                <circle cx="260" cy="195" r="7" fill="#F59E0B"/>
+                <circle cx="260" cy="195" r="11" fill="#F59E0B" opacity=".25"/>
+
+                <!-- Knock dots -->
+                <circle cx="70" cy="60" r="3" fill="#059669"/>
+                <circle cx="95" cy="60" r="3" fill="#059669"/>
+                <circle cx="130" cy="60" r="3" fill="#EF4444"/>
+                <circle cx="65" cy="140" r="3" fill="#059669"/>
+                <circle cx="100" cy="140" r="3" fill="#059669"/>
+                <circle cx="250" cy="60" r="3" fill="#059669"/>
+                <circle cx="280" cy="60" r="3" fill="#F59E0B"/>
+                <circle cx="350" cy="60" r="3" fill="#059669"/>
+                <circle cx="270" cy="140" r="3" fill="#059669"/>
+                <circle cx="400" cy="140" r="3" fill="#EF4444"/>
+                <circle cx="200" cy="195" r="3" fill="#059669"/>
+                <circle cx="240" cy="195" r="3" fill="#059669"/>
+                <circle cx="280" cy="195" r="3" fill="#F59E0B"/>
+              </svg>
+            </div>
+
+            <div class="export-chip">
+              <div class="sheet-icon">G</div>
+              <span>Export last 30 days to Google Sheets</span>
+              <span style="color:var(--muted); font-weight:500;">· 1 click · free on every plan</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Game mechanics strip -->
+        <div class="game-strip">
+          <div class="orbs">
+            <span class="orb rookie" title="Rookie">🌱</span>
+            <span class="orb bronze" title="Bronze">🥉</span>
+            <span class="orb silver" title="Silver">🥈</span>
+            <span class="orb ninja" title="Ninja">🥷</span>
+            <span class="orb gold" title="Gold">🥇</span>
+            <span class="orb god" title="Knock God">👑</span>
+          </div>
+          <div>
+            <h4>Game mechanics, built in.</h4>
+            <p>Levels, XP, and medals keep reps motivated through the no-answers. That's the difference between a team that quits at 3pm and one that books at 5:30.</p>
+          </div>
+          <a href="#for-reps" class="btn btn-blue">See rep view →</a>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     PERFORMANCE & INSIGHTS (NEW v2 · dark)
-     Overall canvassing performance, AI top-area insights, funnel drop-off,
-     goal tracking — the full D2D optimization story.
+     FOR THE SALES REP
 ═══════════════════════════════════════════════════════════════════════════ -->
-<section id="insights" class="dark-section">
+<section id="for-reps" class="section rep-section">
   <div class="container">
     <div class="section-head">
-      <span class="eyebrow">Performance & insights</span>
-      <h2 class="section-h">Know what's working.<br/><span class="grad">Fix what isn't.</span></h2>
+      <span class="eyebrow violet">For the sales rep</span>
+      <h2 class="section-h">Know your numbers. <span class="grad">Own your territory.</span><br/>Close more doors.</h2>
       <p class="section-sub">
-        Canvassing isn't just knocking — it's knowing which neighborhoods,
-        which hours, and which reps are generating dollars, and which aren't.
-        KnockIQ turns every door into a data point and every data point into
-        a decision.
+        A field app that actually works for the rep — built around the four things that matter
+        most when you're knocking: your commission, your stats, your streets, and your follow-ups.
       </p>
     </div>
 
-    <div class="perf-grid">
-      <div class="dark-card">
-        <h4><span class="ico">📊</span> Overall canvassing performance</h4>
-        <p>
-          Sparkline KPIs for doors, estimates, bookings, and revenue — with
-          week-over-week and month-over-month deltas baked in. Glance, decide, move.
-        </p>
-        <div class="ss-browser">
-          <div class="ss-browser-bar">
-            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
-            <div class="ss-browser-url">knockiq.app/manager/overview</div>
-          </div>
-          <div class="ss-frame" data-img="screenshots/overview.webp" style="min-height: 220px;">
-            <div class="ss-placeholder">
-              <strong>📸 Overview page</strong>
-              KPI sparklines + 14-day chart.
-              <code>/screenshots/overview.webp</code>
+    <div class="persona flip">
+      <div class="p-visual">
+        <div class="rep-visual-wrap">
+          <div class="phone-big">
+            <div class="phone-screen">
+              <div class="phone-notch"></div>
+              <div class="phone-header">
+                <div class="phone-header-row">
+                  <div class="phone-avatar">J</div>
+                  <div>
+                    <div class="phone-greet">Good afternoon</div>
+                    <div class="phone-name">Jake Stephens</div>
+                  </div>
+                </div>
+              </div>
+              <div class="phone-body">
+                <div class="phone-start">
+                  <span class="play">▶</span> Start Canvassing
+                </div>
+
+                <div class="callout c-hot">
+                  <div class="eyebrow">Your hot hour</div>
+                  <div class="headline">4pm–5pm · 2.4× more bookings</div>
+                  <div class="sub">Based on 62 doors over 60 days.</div>
+                  <div class="ico">⏰</div>
+                </div>
+
+                <!-- Commission highlight -->
+                <div class="commission">
+                  <div class="lbl">My commission · this week</div>
+                  <div class="val">$842.60</div>
+                  <div class="sub">8% of revenue booked · 3 closes pending</div>
+                </div>
+
+                <!-- 3 stat tiles -->
+                <div class="rep-row-3">
+                  <div class="rep-tile blue">
+                    <div class="lbl">Doors</div>
+                    <div class="val">87</div>
+                    <div class="sub">today</div>
+                  </div>
+                  <div class="rep-tile lime">
+                    <div class="lbl">Ests</div>
+                    <div class="val">12</div>
+                    <div class="sub">14% rate</div>
+                  </div>
+                  <div class="rep-tile green">
+                    <div class="lbl">Rev</div>
+                    <div class="val">$700</div>
+                    <div class="sub">of $1k</div>
+                  </div>
+                </div>
+
+                <div class="mini-row">
+                  <div class="mini-card">
+                    <div class="mini-ring"><div class="mini-ring-inner">70%</div></div>
+                    <div class="mini-label">Today's Goal</div>
+                    <div class="mini-val">$700</div>
+                  </div>
+                  <div class="mini-card">
+                    <div class="mini-label">Level 6 · Ninja</div>
+                    <div class="mini-val">1,430<span style="font-size:8px;color:var(--muted);"> XP</span></div>
+                    <div class="mini-bar"><span></span></div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <img src="screenshots/overview.webp" width="1600" height="926" alt="KnockIQ overview" loading="lazy" />
+          </div>
+
+          <!-- Simple callout pointing to motivational card stack -->
+          <div class="annotation">
+            <div class="rainbow">✨</div>
+            <div>
+              <div>7 motivational cards</div>
+              <div style="font-size:11px; color:var(--muted); font-weight:500; margin-top:2px;">
+                keep reps pushing through slumps
+              </div>
+            </div>
+            <div class="line"></div>
           </div>
         </div>
       </div>
 
-      <div class="dark-card">
-        <h4><span class="ico">🤖</span> AI insights · top-performing areas</h4>
-        <p>
-          KnockIQ analyzes every street, every hour, every rep — then surfaces
-          where the dollars actually come from. Stop guessing which subdivisions
-          are worth a second pass.
-        </p>
-        <ul class="dark-card-meta">
-          <li><span class="dot"></span><span>Heatmaps of revenue-per-door by zip + street</span></li>
-          <li><span class="dot"></span><span>"Hot hour" detection — when your team converts</span></li>
-          <li><span class="dot"></span><span>Rep + area combos that outperform the average</span></li>
+      <div class="p-copy">
+        <span class="eyebrow amber">Built to help reps close</span>
+        <h3>
+          Everything you need on a knock —<br/>
+          <span class="hi-pink">nothing that gets in the way.</span>
+        </h3>
+
+        <ul class="p-list">
+          <li class="p-item">
+            <div class="p-icon green">💰</div>
+            <div>
+              <strong>Commission tracking, live</strong>
+              <span>See exactly what you've earned this week, this month, this year — as each booking lands.</span>
+            </div>
+          </li>
+          <li class="p-item">
+            <div class="p-icon sky">🛰️</div>
+            <div>
+              <strong>Automatic door tracking</strong>
+              <span>Knocks get logged in the background so you can stay focused on the pitch — not on remembering to tap a button between doors.</span>
+            </div>
+          </li>
+          <li class="p-item">
+            <div class="p-icon amber">🗺️</div>
+            <div>
+              <strong>Receive territory assignments</strong>
+              <span>The polygon your manager assigned you shows up on your phone automatically — streets you've hit, streets you haven't, and DNK zones all marked.</span>
+            </div>
+          </li>
+          <li class="p-item">
+            <div class="p-icon pink">🔁</div>
+            <div>
+              <strong>Clear view of who to follow up with</strong>
+              <span>Every door you didn't close but still has potential gets pulled into one tidy list — sorted by best time to circle back.</span>
+            </div>
+          </li>
         </ul>
-        <div class="ss-browser" style="margin-top:6px;">
-          <div class="ss-browser-bar">
-            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
-            <div class="ss-browser-url">knockiq.app/manager/insights</div>
-          </div>
-          <div class="ss-frame" data-img="screenshots/top-territories.webp" style="min-height: 180px;">
-            <div class="ss-placeholder">
-              <strong>📸 Top territories</strong>
-              Ranked list / heatmap of highest-converting<br/>
-              neighborhoods or streets.
-              <code>/screenshots/top-territories.webp</code>
-            </div>
-            <img src="screenshots/top-territories.webp" width="1200" height="811" alt="KnockIQ top territories" loading="lazy" />
-          </div>
-        </div>
-      </div>
-
-      <div class="dark-card">
-        <h4><span class="ico">📉</span> Funnel drop-off · find where leads stall</h4>
-        <p>
-          Conversion at every phase — doors to interested, interested to set,
-          set to closed. See exactly which step is the leak so you can fix it.
-        </p>
-        <div class="ss-browser">
-          <div class="ss-browser-bar">
-            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
-            <div class="ss-browser-url">knockiq.app/manager/funnel</div>
-          </div>
-          <div class="ss-frame" data-img="screenshots/ai-insights.webp" style="min-height: 220px;">
-            <div class="ss-placeholder">
-              <strong>📸 Funnel drop-off chart</strong>
-              Conversion percentages between each phase.
-              <code>/screenshots/ai-insights.webp</code>
-            </div>
-            <img src="screenshots/ai-insights.webp" width="1200" height="766" alt="KnockIQ funnel analysis" loading="lazy" />
-          </div>
-        </div>
-      </div>
-
-      <div class="dark-card">
-        <h4><span class="ico">🎯</span> Goal tracking · on-pace forecasting</h4>
-        <p>
-          Set a monthly revenue target and watch the team chase it in real
-          time. The ring fills as bookings close — and projects forward so
-          you know by the 15th whether you'll hit the 30th.
-        </p>
-        <div class="ss-browser">
-          <div class="ss-browser-bar">
-            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
-            <div class="ss-browser-url">knockiq.app/manager/goals</div>
-          </div>
-          <div class="ss-frame" data-img="screenshots/goal-tracking.webp" style="min-height: 220px;">
-            <div class="ss-placeholder">
-              <strong>📸 Goal tracking ring</strong>
-              Monthly goal ring + on-pace projection.
-              <code>/screenshots/goal-tracking.webp</code>
-            </div>
-            <img src="screenshots/goal-tracking.webp" width="1200" height="1007" alt="KnockIQ goal tracking" loading="lazy" />
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -2505,30 +1870,6 @@
     <div style="margin-top:16px; opacity:.6;">© 2026 KnockIQ · Built for the field.</div>
   </div>
 </footer>
-
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     SCREENSHOT LOAD HANDLER (v2)
-     When a real screenshot loads, mark its frame so the placeholder hides.
-     If the image 404s, the placeholder stays visible so we can tell which
-     files are still missing.
-═══════════════════════════════════════════════════════════════════════════ -->
-<script>
-  (function () {
-    document.querySelectorAll('.ss-frame img').forEach(function (img) {
-      var markLoaded = function () {
-        if (img.naturalWidth > 0) {
-          img.closest('.ss-frame').classList.add('has-image');
-        }
-      };
-      if (img.complete) markLoaded();
-      img.addEventListener('load', markLoaded);
-      img.addEventListener('error', function () {
-        // Hide the broken image icon so the placeholder reads clean
-        img.style.display = 'none';
-      });
-    });
-  })();
-</script>
 
 </body>
 </html>

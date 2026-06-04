@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /manager/
+Disallow: /rep/
+Disallow: /closer/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+Disallow: /set-password
+Disallow: /pending-approval
+
+Sitemap: https://www.getknockiq.com/sitemap.xml
