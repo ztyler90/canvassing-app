@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Screenshot serving test</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <style>
+    body { font-family: -apple-system, sans-serif; padding: 24px; max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 20px; margin-bottom: 8px; }
+    p  { color: #555; margin-bottom: 24px; font-size: 14px; }
+    .row { margin: 18px 0; border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
+    .row code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    .row img { display: block; max-width: 100%; height: auto; margin-top: 10px; border: 1px solid #eee; }
+    .status { font-size: 13px; font-weight: 600; margin-top: 8px; }
+    .ok   { color: #0a7d39; }
+    .fail { color: #c91212; }
+  </style>
+</head>
+<body>
+  <h1>Screenshot serving test</h1>
+  <p>If you see the image below each path, the serving layer works and the bug is in welcome-v2.html's CSS. If you see "Failed to load", the file isn't being served — check the dev server.</p>
+
+  <div class="row">
+    <code>/screenshots/overview.png</code>
+    <div class="status" id="s1">Loading…</div>
+    <img src="/screenshots/overview.png" onload="document.getElementById('s1').textContent='✓ Loaded'; document.getElementById('s1').className='status ok';" onerror="document.getElementById('s1').textContent='✗ Failed to load'; document.getElementById('s1').className='status fail';" />
+  </div>
+
+  <div class="row">
+    <code>/screenshots/active-session-phone.png</code>
+    <div class="status" id="s2">Loading…</div>
+    <img src="/screenshots/active-session-phone.png" onload="document.getElementById('s2').textContent='✓ Loaded'; document.getElementById('s2').className='status ok';" onerror="document.getElementById('s2').textContent='✗ Failed to load'; document.getElementById('s2').className='status fail';" />
+  </div>
+
+  <div class="row">
+    <code>/screenshots/live-manager-view.png</code>
+    <div class="status" id="s3">Loading…</div>
+    <img src="/screenshots/live-manager-view.png" onload="document.getElementById('s3').textContent='✓ Loaded'; document.getElementById('s3').className='status ok';" onerror="document.getElementById('s3').textContent='✗ Failed to load'; document.getElementById('s3').className='status fail';" />
+  </div>
+
+  <div class="row">
+    <code>/screenshots/pipeline-board.png</code>
+    <div class="status" id="s4">Loading…</div>
+    <img src="/screenshots/pipeline-board.png" onload="document.getElementById('s4').textContent='✓ Loaded'; document.getElementById('s4').className='status ok';" onerror="document.getElementById('s4').textContent='✗ Failed to load'; document.getElementById('s4').className='status fail';" />
+  </div>
+
+  <div class="row">
+    <code>/screenshots/leaderboard.png</code>
+    <div class="status" id="s5">Loading…</div>
+    <img src="/screenshots/leaderboard.png" onload="document.getElementById('s5').textContent='✓ Loaded'; document.getElementById('s5').className='status ok';" onerror="document.getElementById('s5').textContent='✗ Failed to load'; document.getElementById('s5').className='status fail';" />
+  </div>
+</body>
+</html>
