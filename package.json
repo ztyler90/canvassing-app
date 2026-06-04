@@ -5,9 +5,18 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "ios:sync": "vite build && cap sync ios",
+    "ios:open": "cap open ios",
+    "ios:run": "vite build && cap sync ios && cap open ios"
   },
   "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.2.20",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/geolocation": "^6.0.2",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/status-bar": "^6.0.2",
+    "@capacitor/splash-screen": "^6.0.2",
     "@headlessui/react": "^1.7.17",
     "@stripe/react-stripe-js": "^2.4.0",
     "@stripe/stripe-js": "^2.4.0",
@@ -21,6 +30,7 @@
     "react-router-dom": "^6.21.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
     "@types/leaflet": "^1.9.8",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.16",

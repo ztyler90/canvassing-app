@@ -1,0 +1,22 @@
+{
+  "appId": "com.getknockiq.app",
+  "appName": "KnockIQ",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "always",
+    "scheme": "KnockIQ",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "backgroundColor": "#1B4FCC",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#1B4FCC"
+    }
+  }
+}
