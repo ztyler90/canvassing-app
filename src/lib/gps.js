@@ -78,7 +78,12 @@ let _bgGeoPromise = null
 function loadBgGeo() {
   if (!Capacitor.isNativePlatform()) return Promise.resolve(null)
   if (!_bgGeoPromise) {
-    _bgGeoPromise = import('@capacitor-community/background-geolocation')
+    // The /* @vite-ignore */ directive tells Vite/Rollup not to statically
+    // analyze this import at build time. The web bundle can't resolve the
+    // native-only Capacitor plugin, so without this hint the build fails
+    // with "Failed to resolve entry for package". The runtime check above
+    // ensures this import only actually executes on iOS/Android.
+    _bgGeoPromise = import(/* @vite-ignore */ '@capacitor-community/background-geolocation')
       .then((mod) => mod.BackgroundGeolocation || mod.default || mod)
       .catch((err) => {
         console.warn('[GPS] background-geolocation plugin failed to load:', err)
