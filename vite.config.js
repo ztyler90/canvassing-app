@@ -31,7 +31,7 @@ export default defineConfig({
         // again, infinite redirect loop = "loading screen blinks forever".
         // The denylist makes "/" fall through to the network so Vercel's
         // rewrite to welcome.html actually gets a chance to fire.
-        navigateFallbackDenylist: [/^\/$/, /^\/welcome\.html$/],
+        navigateFallbackDenylist: [/^\/$/, /^\/welcome\.html$/, /^\/welcome-v2\.html$/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/tile\.openstreetmap\.org\/.*/i,

@@ -1085,19 +1085,30 @@
       position: relative;
       background: linear-gradient(135deg, var(--blue-50) 0%, var(--lime-50) 100%);
       min-height: 280px;
-      display: grid; place-items: center;
+      overflow: hidden;
     }
-    .ss-frame img {
-      display: block;
-      width: 100%;
-      height: auto;
-    }
+    /* Placeholder fills the frame as a fallback layer; image sits on top.
+       When the image loads, it covers the placeholder. When it 404s the
+       JS sets display:none on the img and the placeholder shows through. */
     .ss-placeholder {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
       padding: 60px 32px;
       text-align: center;
       color: var(--muted);
       font-size: 13px;
       font-weight: 600;
+      z-index: 1;
+    }
+    .ss-placeholder > div { max-width: 360px; }
+    .ss-frame img {
+      display: block;
+      width: 100%;
+      height: auto;
+      position: relative;
+      z-index: 2;
     }
     .ss-placeholder strong {
       display: block;
