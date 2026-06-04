@@ -1360,10 +1360,158 @@
     /* ═══ NEW v2: SALES REP TRACKING + COACHING ═══════════════════════════ */
     .rep-coach-grid {
       display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      gap: 28px; align-items: stretch;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 22px; align-items: stretch;
     }
-    .rep-coach-grid .dark-card.tall { grid-row: span 2; }
+    /* Chat card is intentionally lightweight — no graphic, just copy */
+    .dark-card.dense p { margin-bottom: 12px; }
+
+    /* ── Leaderboard mock (HTML/CSS, inspired by getknockiq.com) ──────── */
+    .lb-mock {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 14px;
+      padding: 14px;
+      margin-top: auto;
+    }
+    .lb-mock-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+      font-size: 11px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .1em; color: #93C5FD;
+    }
+    .lb-mock-head .lb-mock-tag {
+      font-size: 10px; color: #94A3B8; font-weight: 700;
+      text-transform: none; letter-spacing: .02em;
+    }
+    .lb-row {
+      display: grid; grid-template-columns: 28px 1fr auto;
+      gap: 12px; align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .lb-row:last-child { border-bottom: none; }
+    .lb-medal {
+      width: 26px; height: 26px; border-radius: 50%;
+      display: grid; place-items: center;
+      font-size: 11px; font-weight: 900;
+      color: #0F172A;
+    }
+    .lb-medal.gold   { background: linear-gradient(135deg, #FDE68A, #F59E0B); }
+    .lb-medal.silver { background: linear-gradient(135deg, #F1F5F9, #94A3B8); }
+    .lb-medal.bronze { background: linear-gradient(135deg, #FCD9B3, #B45309); color: white; }
+    .lb-medal.plain  { background: rgba(255,255,255,.08); color: #94A3B8; border: 1px solid rgba(255,255,255,.12); }
+    .lb-rep { display: flex; gap: 10px; align-items: center; }
+    .lb-ava {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: linear-gradient(135deg, #6366F1, #DB2777);
+      color: white; font-size: 11px; font-weight: 800;
+      display: grid; place-items: center;
+    }
+    .lb-ava.b { background: linear-gradient(135deg, #0EA5E9, #6366F1); }
+    .lb-ava.c { background: linear-gradient(135deg, #F59E0B, #DB2777); }
+    .lb-ava.d { background: linear-gradient(135deg, #06B6D4, #6D28D9); }
+    .lb-name {
+      font-size: 13px; font-weight: 700; color: white;
+      line-height: 1.2;
+    }
+    .lb-sub {
+      font-size: 11px; color: #94A3B8;
+      margin-top: 2px;
+    }
+    .lb-rev {
+      font-size: 13px; font-weight: 800; color: #93C5FD;
+      letter-spacing: -0.01em;
+    }
+
+    /* ── Game mechanics mock (orbs + motivational cards) ──────────────── */
+    .gm-mock {
+      margin-top: auto;
+    }
+    .gm-orbs {
+      display: flex; gap: 0; padding-left: 8px;
+      margin-bottom: 16px;
+    }
+    .gm-orb {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: grid; place-items: center;
+      font-size: 16px;
+      border: 2px solid #0F172A;
+      margin-left: -8px;
+      box-shadow: 0 4px 10px -2px rgba(0,0,0,.4);
+    }
+    .gm-orb:first-child { margin-left: 0; }
+    .gm-orb.rookie  { background: linear-gradient(135deg, #d1fae5, #86efac); }
+    .gm-orb.bronze  { background: linear-gradient(135deg, #fcd9b3, #c77a3a); }
+    .gm-orb.silver  { background: linear-gradient(135deg, #f1f5f9, #94a3b8); }
+    .gm-orb.ninja   { background: linear-gradient(135deg, #a78bfa, #6d28d9); color: white; }
+    .gm-orb.gold    { background: linear-gradient(135deg, #fde68a, #f59e0b); }
+    .gm-orb.god     {
+      background: conic-gradient(from 0deg, #fde047, #fb7185, #a78bfa, #60a5fa, #4ade80, #fde047);
+      box-shadow: 0 0 14px rgba(253,224,71,.55), 0 4px 10px -2px rgba(0,0,0,.4);
+    }
+    .gm-level-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px; border-radius: 999px;
+      background: rgba(167,139,250,.18); border: 1px solid rgba(167,139,250,.32);
+      font-size: 12px; font-weight: 700; color: #C4B5FD;
+      margin-bottom: 14px;
+    }
+    .gm-level-badge .xp { color: #94A3B8; font-weight: 600; font-size: 11px; }
+
+    .gm-cards-strip {
+      display: flex; gap: 8px;
+      position: relative;
+    }
+    .gm-card {
+      flex: 1;
+      background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 12px;
+      padding: 10px;
+      font-size: 11px; color: #E2E8F0;
+      box-shadow: 0 8px 20px -8px rgba(0,0,0,.4);
+      position: relative;
+    }
+    .gm-card .gm-tag {
+      display: inline-block;
+      font-size: 9px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .08em; color: #93C5FD;
+      margin-bottom: 4px;
+    }
+    .gm-card.tilt-l { transform: rotate(-3deg) translateY(2px); }
+    .gm-card.tilt-r { transform: rotate(3deg)  translateY(2px); }
+    .gm-card strong { color: white; font-weight: 800; }
+
+    /* Mini activity feed mock for verified-activity card */
+    .feed-mock {
+      margin-top: auto;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 12px;
+      padding: 10px;
+      display: grid; gap: 6px;
+    }
+    .feed-row {
+      display: grid; grid-template-columns: 44px 1fr auto;
+      gap: 8px; align-items: center;
+      padding: 6px 8px; border-radius: 8px;
+      background: rgba(255,255,255,.03);
+      font-size: 11px;
+    }
+    .feed-row .feed-time {
+      font-size: 10px; color: #64748B; font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .feed-row .feed-ev { color: #E2E8F0; font-weight: 600; }
+    .feed-row .feed-tag {
+      font-size: 9px; font-weight: 800; padding: 3px 7px;
+      border-radius: 999px;
+      text-transform: uppercase; letter-spacing: .06em;
+    }
+    .feed-tag.auto  { background: rgba(147,197,253,.16); color: #93C5FD; }
+    .feed-tag.motion{ background: rgba(196,181,253,.16); color: #C4B5FD; }
+    .feed-tag.dnk   { background: rgba(248,113,113,.16); color: #FCA5A5; }
 
     /* ═══ NEW v2: TERRITORY MANAGEMENT (light) ═════════════════════════════ */
     .territory-feat {
@@ -1517,8 +1665,8 @@
           <div class="phone-notch"></div>
           <img
             class="phone-shot"
-            src="/hero-phone.png"
-            alt="KnockIQ rep home — hot hour, goal ring, level, and daily stats"
+            src="screenshots/mobile-dashboard.png"
+            alt="KnockIQ rep mobile dashboard — hot hour, goal ring, level, and daily stats"
             loading="eager"
             decoding="async"
           />
@@ -1686,64 +1834,150 @@
     </div>
 
     <div class="rep-coach-grid">
-      <div class="dark-card tall">
-        <h4><span class="ico">💬</span> In-session team chat</h4>
-        <p>
-          Messages surface on the rep's active canvas screen — coach the next
-          door, not the last one. Two-way, threaded, and tied to the session.
-        </p>
-        <div class="ss-browser">
-          <div class="ss-browser-bar">
-            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
-            <div class="ss-browser-url">knockiq.app/chat</div>
-          </div>
-          <div class="ss-frame" data-img="screenshots/team-chat.png">
-            <div class="ss-placeholder">
-              <strong>📸 Team chat</strong>
-              Manager chat panel or rep in-session<br/>chat bubble — your pick.
-              <code>/screenshots/team-chat.png</code>
-            </div>
-            <img src="screenshots/team-chat.png" alt="KnockIQ team chat" loading="lazy" />
-          </div>
-        </div>
-      </div>
 
+      <!-- Card 1: Verified activity -->
       <div class="dark-card">
         <h4><span class="ico">📡</span> Verified activity, no self-reporting</h4>
         <p>
           Every knock, every interaction, every minute on territory — captured
           by GPS + motion and tied to the rep, the address, and the time.
         </p>
-        <ul class="dark-card-meta">
+        <ul class="dark-card-meta" style="margin-bottom: 14px;">
           <li><span class="dot"></span><span>Time-stamped knock log, no manual entry</span></li>
           <li><span class="dot"></span><span>DNK zones suppress activity silently</span></li>
           <li><span class="dot"></span><span>Session timer + GPS smoothing in background</span></li>
         </ul>
-      </div>
-
-      <div class="dark-card">
-        <h4><span class="ico">🏆</span> Leaderboards + game mechanics</h4>
-        <p>
-          Levels, XP, medals, and a leaderboard that ranks on the metrics that
-          actually matter — set rate, close rate, dollars closed. Re-scored
-          this week to reward depth, not just volume.
-        </p>
-        <div class="ss-browser" style="margin-top:6px;">
-          <div class="ss-browser-bar">
-            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
-            <div class="ss-browser-url">knockiq.app/manager/leaderboard</div>
+        <div class="feed-mock">
+          <div class="feed-row">
+            <div class="feed-time">2:47 pm</div>
+            <div class="feed-ev">Knock · 4812 Maple Ave</div>
+            <div class="feed-tag auto">AUTO</div>
           </div>
-          <div class="ss-frame" data-img="screenshots/leaderboard.png" style="min-height: 200px;">
-            <div class="ss-placeholder">
-              <strong>📸 Leaderboard (improved scoring)</strong>
-              Top 5 reps with the new weighted scoring.<br/>
-              Medals on top 3.
-              <code>/screenshots/leaderboard.png</code>
-            </div>
-            <img src="screenshots/leaderboard.png" alt="KnockIQ leaderboard" loading="lazy" />
+          <div class="feed-row">
+            <div class="feed-time">2:48 pm</div>
+            <div class="feed-ev">GPS smoothing engaged</div>
+            <div class="feed-tag motion">MOTION</div>
+          </div>
+          <div class="feed-row">
+            <div class="feed-time">2:49 pm</div>
+            <div class="feed-ev">Suppressed · inside DNK zone</div>
+            <div class="feed-tag dnk">DNK</div>
           </div>
         </div>
       </div>
+
+      <!-- Card 2: Team chat (lightweight — no graphic) -->
+      <div class="dark-card dense">
+        <h4><span class="ico">💬</span> Coach in real time</h4>
+        <p>
+          Drop a message to a rep mid-session — it surfaces on their active
+          canvas screen without breaking their flow. Two-way and threaded.
+        </p>
+        <ul class="dark-card-meta">
+          <li><span class="dot"></span><span>In-session bubble on the rep app</span></li>
+          <li><span class="dot"></span><span>Tied to the session, not just the person</span></li>
+        </ul>
+      </div>
+
+      <!-- Card 3: Leaderboards (custom HTML/CSS mock) -->
+      <div class="dark-card">
+        <h4><span class="ico">🏆</span> Leaderboards that reward depth</h4>
+        <p>
+          Ranks on the metrics that actually matter — set rate, close rate,
+          dollars closed. Re-scored this week so volume alone doesn't win.
+        </p>
+        <div class="lb-mock">
+          <div class="lb-mock-head">
+            <span>Leaderboard · this week</span>
+            <span class="lb-mock-tag">14 reps</span>
+          </div>
+          <div class="lb-row">
+            <div class="lb-medal gold">1</div>
+            <div class="lb-rep">
+              <div class="lb-ava">MR</div>
+              <div>
+                <div class="lb-name">Maya R.</div>
+                <div class="lb-sub">312 doors · 19% set rate</div>
+              </div>
+            </div>
+            <div class="lb-rev">$18.4k</div>
+          </div>
+          <div class="lb-row">
+            <div class="lb-medal silver">2</div>
+            <div class="lb-rep">
+              <div class="lb-ava b">DC</div>
+              <div>
+                <div class="lb-name">Darius C.</div>
+                <div class="lb-sub">284 doors · 16% set rate</div>
+              </div>
+            </div>
+            <div class="lb-rev">$14.1k</div>
+          </div>
+          <div class="lb-row">
+            <div class="lb-medal bronze">3</div>
+            <div class="lb-rep">
+              <div class="lb-ava c">JS</div>
+              <div>
+                <div class="lb-name">Jake S.</div>
+                <div class="lb-sub">248 doors · 14% set rate</div>
+              </div>
+            </div>
+            <div class="lb-rev">$9.8k</div>
+          </div>
+          <div class="lb-row">
+            <div class="lb-medal plain">4</div>
+            <div class="lb-rep">
+              <div class="lb-ava d">AK</div>
+              <div>
+                <div class="lb-name">Amara K.</div>
+                <div class="lb-sub">221 doors · 12% set rate</div>
+              </div>
+            </div>
+            <div class="lb-rev">$7.2k</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 4: Game mechanics + Motivational cards (custom HTML/CSS mock) -->
+      <div class="dark-card">
+        <h4><span class="ico">🎮</span> Game mechanics + motivational cards</h4>
+        <p>
+          Levels, XP, medals — paired with motivational cards that drop into
+          the rep's app when they hit a milestone or stall out. Keeps reps
+          pushing through the no-answers.
+        </p>
+        <div class="gm-mock">
+          <div class="gm-orbs" aria-label="Level progression: Rookie to Knock God">
+            <span class="gm-orb rookie" title="Rookie">🌱</span>
+            <span class="gm-orb bronze" title="Bronze">🥉</span>
+            <span class="gm-orb silver" title="Silver">🥈</span>
+            <span class="gm-orb ninja"  title="Ninja">🥷</span>
+            <span class="gm-orb gold"   title="Gold">🥇</span>
+            <span class="gm-orb god"    title="Knock God">👑</span>
+          </div>
+          <div class="gm-level-badge">
+            Level 6 · Ninja <span class="xp">· 1,430 XP</span>
+          </div>
+          <div class="gm-cards-strip">
+            <div class="gm-card tilt-l">
+              <span class="gm-tag">Hot hour</span>
+              <strong>4–5pm</strong><br/>
+              2.4× more bookings
+            </div>
+            <div class="gm-card">
+              <span class="gm-tag">Streak</span>
+              <strong>3 closes</strong><br/>
+              don't stop now
+            </div>
+            <div class="gm-card tilt-r">
+              <span class="gm-tag">Milestone</span>
+              <strong>3 doors</strong><br/>
+              to next level
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </section>

@@ -12,6 +12,7 @@ Drop PNG files into this folder using the exact filenames below. The home page (
 
 | Filename | What to capture | Demo data state | Used in section |
 |---|---|---|---|
+| `mobile-dashboard.png` | Rep phone → home/dashboard screen. Hot hour, goal ring, level/XP, daily stats tiles. Should look unique from `active-session-phone.png` — this is the rep's *at-rest* mobile view, not mid-session. | Demo rep with healthy daily numbers. | Hero (rep phone alongside the manager overview). |
 | `overview.png` | Manager → **Overview** tab. KPI sparkline strip on top, doors/bookings line chart middle. | Last 14 days populated. | Hero + Performance & Insights. |
 | `active-session-phone.png` | Rep phone → **ActiveCanvassing** screen mid-session. Auto-knock pulsing, recent knocks list, timer running. | "Auto-tracking" badge visible, 30-50 knocks logged. Same session as `live-manager-view.png`. | Live View (rep side of split). |
 | `live-manager-view.png` | Manager → full dashboard while the same rep is in an active session. Map + active session indicator visible. | Match the rep visible in `active-session-phone.png` — same session, both sides. | Live View (manager side of split). |
