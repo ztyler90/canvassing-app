@@ -9,7 +9,7 @@
  * Lives in its own file because the surface grew large enough that nesting
  * it inside ManagerDashboard.jsx would dwarf the rest of the dashboard.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Trophy, Crosshair, Share2, Layers, SlidersHorizontal, X, Eye, EyeOff } from 'lucide-react'
 import MapView from './MapView.jsx'
 import { getTerritories, addDoNotKnock, getOrgRegionFallback } from '../lib/supabase.js'
@@ -188,10 +188,16 @@ export default function ManagerMap({ interactions = [], allReps = [] }) {
   }
 
   // ── Right-click handlers wired into MapView ──────────────────────────────
-  const handleEmptyContextMenu = (latlng, screenPos) =>
-    setCtxMenu({ kind: 'empty', x: screenPos.x, y: screenPos.y, latlng })
-  const handlePinContextMenu = (interaction, screenPos) =>
-    setCtxMenu({ kind: 'pin', x: screenPos.x, y: screenPos.y, interaction })
+  // Memoized so their identity is stable across renders. MapView uses these
+  // as effect dependencies; if they changed every render, MapView would tear
+  // down and rebuild every pin/cluster marker on each render — which swallows
+  // cluster clicks (the marker's DOM node is replaced mid-click) and also
+  // drives a fireViewport→setViewport re-render loop. Stable identity keeps
+  // the markers mounted so a cluster click reliably zooms in.
+  const handleEmptyContextMenu = useCallback((latlng, screenPos) =>
+    setCtxMenu({ kind: 'empty', x: screenPos.x, y: screenPos.y, latlng }), [])
+  const handlePinContextMenu = useCallback((interaction, screenPos) =>
+    setCtxMenu({ kind: 'pin', x: screenPos.x, y: screenPos.y, interaction }), [])
 
   // ── Quick action handlers ────────────────────────────────────────────────
   async function addDnkHere(latlng) {
