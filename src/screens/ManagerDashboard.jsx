@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay, differenceInCalendarDays } from 'date-fns'
-import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight, Target, Flame, Share2, Copy, Eye, EyeOff, Award, Minus, MessageSquare } from 'lucide-react'
+import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight, Target, Flame, Share2, Copy, Eye, EyeOff, Award, Minus, MessageSquare, Lock } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllSessions, getAllReps, getManagerMapData, signOut,
@@ -12,6 +12,8 @@ import {
   getMyOrganization, getOrgRegionFallback,
 } from '../lib/supabase.js'
 import { computeConversion } from '../lib/repStats.js'
+import { isProTier, STANDARD_MAX_TERRITORIES, canCreateTerritory } from '../lib/tier.js'
+import { ProBadge, ProUpgradeModal } from '../components/ProGate.jsx'
 import { ConversionFunnel } from './RepHome.jsx'
 import MapView from '../components/MapView.jsx'
 import ManagerMap from '../components/ManagerMap.jsx'
@@ -389,7 +391,7 @@ export default function ManagerDashboard() {
             {tab === 'reps'        && <RepsTab repStats={repStats} allReps={reps} sessions={sessions} dateRange={dateRange} />}
             {tab === 'pipeline'    && <PipelineTab />}
             {tab === 'map'         && <ManagerMap interactions={mapData} allReps={reps} />}
-            {tab === 'territories' && <TerritoryTab allReps={reps} managerId={user?.id} />}
+            {tab === 'territories' && <TerritoryTab allReps={reps} managerId={user?.id} org={org} />}
           </div>
         )}
       </div>
@@ -405,6 +407,7 @@ function OverviewTab({
   dateRange = '7',
 }) {
   const navigate = useNavigate()
+  const [showExportUpsell, setShowExportUpsell] = useState(false)
   const totalHours     = sessions.reduce((sum, s) => {
     if (!s.started_at || !s.ended_at) return sum
     return sum + (new Date(s.ended_at) - new Date(s.started_at)) / 3600000
@@ -530,6 +533,14 @@ function OverviewTab({
     // Easiest reliable path: download CSV first, then link to sheets.new
     exportCSV()
     setTimeout(() => window.open('https://sheets.new', '_blank'), 600)
+  }
+
+  // Export (CSV + Google Sheets) is a Pro feature. Standard orgs see the
+  // buttons grayed out and get an upgrade prompt if they click.
+  const exportIsPro = isProTier(org)
+  function handleExport(fn) {
+    if (!exportIsPro) { setShowExportUpsell(true); return }
+    fn()
   }
 
   return (
@@ -711,23 +722,34 @@ function OverviewTab({
           <p className="text-sm mt-1">Try expanding the date range.</p>
         </div>
       )}
-      {/* Export buttons — compact, bottom of page */}
-      <div className="flex gap-2 justify-end pt-1">
-        <button onClick={exportCSV} title="Export CSV"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+      {/* Export buttons — compact, bottom of page. Pro feature: grayed for
+          Standard orgs with a Pro badge, upgrade prompt on click. */}
+      <div className="flex items-center gap-2 justify-end pt-1">
+        {!exportIsPro && <ProBadge />}
+        <button onClick={() => handleExport(exportCSV)} title={exportIsPro ? 'Export CSV' : 'Export is a Pro feature'}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white ${exportIsPro ? '' : 'opacity-50'}`}
           style={{ backgroundColor: BRAND_GREEN }}>
-          <Download className="w-3.5 h-3.5" />
+          {exportIsPro ? <Download className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
           CSV
         </button>
-        <button onClick={openInSheets} title="Open in Google Sheets"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-300 text-gray-600 bg-white">
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="3" width="18" height="18" rx="2" fill="#34A853" opacity=".15"/>
-            <path d="M3 9h18M3 15h18M9 3v18" stroke="#34A853" strokeWidth="1.5"/>
-          </svg>
+        <button onClick={() => handleExport(openInSheets)} title={exportIsPro ? 'Open in Google Sheets' : 'Export is a Pro feature'}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-300 text-gray-600 bg-white ${exportIsPro ? '' : 'opacity-50'}`}>
+          {exportIsPro ? (
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="18" height="18" rx="2" fill="#34A853" opacity=".15"/>
+              <path d="M3 9h18M3 15h18M9 3v18" stroke="#34A853" strokeWidth="1.5"/>
+            </svg>
+          ) : <Lock className="w-3.5 h-3.5" />}
           Sheets
         </button>
       </div>
+      <ProUpgradeModal
+        open={showExportUpsell}
+        onClose={() => setShowExportUpsell(false)}
+        feature="Export to CSV & Google Sheets"
+        blurb="Download your full team breakdown and session log, or push it straight into Google Sheets. Available on the Pro plan."
+        perks={['CSV export of summary, per-rep & session log', 'One-click Open in Google Sheets', 'Commission tracking & expanded pipeline']}
+      />
     </div>
   )
 }
@@ -1081,8 +1103,9 @@ function RepMetricMini({ label, value, variant, values, dates, color, fill, high
 // <ManagerMap interactions={mapData} allReps={reps} /> directly.
 
 // ─── Territory Tab ────────────────────────────────────────────────────────────
-function TerritoryTab({ allReps, managerId }) {
+function TerritoryTab({ allReps, managerId, org = null }) {
   const [territories, setTerritories] = useState([])
+  const [showTerritoryUpsell, setShowTerritoryUpsell] = useState(false)
   const [doorHistory, setDoorHistory] = useState([])
   const [doNotKnock, setDoNotKnock]   = useState([])
   const [loading, setLoading]         = useState(true)
@@ -1211,6 +1234,13 @@ function TerritoryTab({ allReps, managerId }) {
         if (updErr) throw updErr
         await setTerritoryAssignments(editingId, form.repIds, managerId)
       } else {
+        // Backstop: enforce the Standard cap even if the UI gate is bypassed.
+        if (atTerritoryCap) {
+          setShowForm(false); setNewPolygon(null)
+          setShowTerritoryUpsell(true)
+          setSaving(false)
+          return
+        }
         const { data, error } = await createTerritory({
           name:       form.name.trim(),
           color:      form.color,
@@ -1270,6 +1300,17 @@ function TerritoryTab({ allReps, managerId }) {
     repIds: f.repIds.includes(repId) ? f.repIds.filter((r) => r !== repId) : [...f.repIds, repId],
   }))
 
+  // Standard tier is capped at 50 territories; Pro is unlimited (51+).
+  const territoryIsPro = isProTier(org)
+  const atTerritoryCap = !canCreateTerritory(org, territories.length)
+
+  // Wrap the existing draw trigger so hitting the Standard cap shows an
+  // upgrade prompt instead of starting a draw that can't be saved.
+  function startDrawGated() {
+    if (atTerritoryCap) { setShowTerritoryUpsell(true); return }
+    startDraw()
+  }
+
   if (loading) return (
     <div className="flex justify-center py-24">
       <div className="animate-spin w-8 h-8 rounded-full"
@@ -1279,17 +1320,32 @@ function TerritoryTab({ allReps, managerId }) {
 
   return (
     <div className="flex flex-col max-w-7xl mx-auto w-full">
+      <ProUpgradeModal
+        open={showTerritoryUpsell}
+        onClose={() => setShowTerritoryUpsell(false)}
+        feature="51+ territories"
+        blurb={`The Standard plan covers up to ${STANDARD_MAX_TERRITORIES} territories. Upgrade to Pro to add unlimited territories as your team grows.`}
+        perks={['Unlimited territories (51+)', 'Expanded door history', 'Commission tracking & export']}
+      />
       {/* Control bar */}
       <div className="px-4 py-3 bg-white border-b">
         <div className="flex items-center justify-between gap-2">
-          <p className="font-semibold text-gray-800 text-sm">
-            {territories.length} {territories.length === 1 ? 'territory' : 'territories'}
-          </p>
+          <div className="flex items-center gap-2 min-w-0">
+            <p className="font-semibold text-gray-800 text-sm">
+              {territories.length} {territories.length === 1 ? 'territory' : 'territories'}
+            </p>
+            {!territoryIsPro && (
+              <span className="text-[11px] text-gray-400 font-medium">
+                {territories.length}/{STANDARD_MAX_TERRITORIES} on Standard
+              </span>
+            )}
+          </div>
           {!drawing && (
-            <button onClick={startDraw}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-xs font-semibold"
+            <button onClick={startDrawGated}
+              title={atTerritoryCap ? `Standard is capped at ${STANDARD_MAX_TERRITORIES} territories — upgrade to Pro for 51+` : 'Draw a new territory'}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-xs font-semibold ${atTerritoryCap ? 'opacity-50' : ''}`}
               style={{ backgroundColor: BRAND_GREEN }}>
-              <Plus className="w-3.5 h-3.5" /> Draw Territory
+              {atTerritoryCap ? <Lock className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />} Draw Territory
             </button>
           )}
         </div>

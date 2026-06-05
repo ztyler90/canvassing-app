@@ -3,7 +3,7 @@
  * Only visible to users with `is_super_admin = true` (Zach).
  *
  * Shows every organization in the KnockIQ platform: current tier, seat count,
- * monthly revenue, and controls to switch any org's tier (Standard $20/seat
+ * monthly revenue, and controls to switch any org's tier (Standard $25/seat
  * vs Pro $50/seat). This is the first visible piece of Phase 1 — the rest of
  * the app is unchanged for single-tenant users.
  */
@@ -24,7 +24,7 @@ import {
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
 
-const SEAT_PRICE = { standard: 20, pro: 50 }
+const SEAT_PRICE = { standard: 25, pro: 50 }
 
 export default function SuperAdminDashboard() {
   const { user } = useAuth()
@@ -282,7 +282,7 @@ export default function SuperAdminDashboard() {
                           : 'border-gray-200 text-gray-500 hover:border-gray-300'
                       }`}>
                       {!isPro && <CheckCircle className="w-3 h-3 inline mr-1" />}
-                      Standard · $20/seat
+                      Standard · $25/seat
                     </button>
                     <button
                       onClick={() => isPro ? null : handleSetTier(org.id, 'pro')}

@@ -504,6 +504,20 @@ export async function getMyOrganization() {
 }
 
 /**
+ * Toggle the Pro-only commission tracking add-on for an org. When false,
+ * reps don't see commission/total-pay and the manager can't edit rates.
+ */
+export async function setOrgCommissionEnabled(orgId, enabled) {
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({ commission_enabled: !!enabled })
+    .eq('id', orgId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+/**
  * List every organization in the system. Only super-admins see more than one
  * row — RLS filters non-super-admins to their own org.
  */

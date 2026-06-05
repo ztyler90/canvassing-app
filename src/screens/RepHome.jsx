@@ -22,8 +22,10 @@ import { dnkZones, pointInAnyZone, loadDnkZones } from '../lib/dnk.js'
 import {
   computePeriodStats, computeConversion,
   computeXP, computeLevel, calcCommission, describeCommission,
+  calcBasePay, calcTotalPay, getHourlyRate,
   computeBestHour,
 } from '../lib/repStats.js'
+import { isCommissionEnabled } from '../lib/tier.js'
 import {
   computeRankMovement, computeDrySpell, computePersonalBestCloseRate,
   computeCloseRateDiagnostic, computeLevelUpProximity, computeTeamPulse,
@@ -91,6 +93,7 @@ export default function RepHome() {
   const [loadingStart,  setLoadingStart]  = useState(false)
   const [gpsError,      setGpsError]      = useState('')
   const [commissionCfg, setCommissionCfg] = useState(null)
+  const [org,           setOrg]           = useState(null)
   const [goalCfg,       setGoalCfg]       = useState(DEFAULT_GOAL)
   const [period,        setPeriod]        = useState('week')  // 'week' | 'month' | 'lifetime'
   const [loadingData,   setLoadingData]   = useState(true)
@@ -126,6 +129,7 @@ export default function RepHome() {
     ])
     setAllSessions(sessions)
     setCommissionCfg(commission)
+    setOrg(org)
     if (org) {
       setGoalCfg({
         daily_goal_type:  org.daily_goal_type  || DEFAULT_GOAL.daily_goal_type,
@@ -327,6 +331,12 @@ export default function RepHome() {
   const lifetimeXP  = computeXP(periods.lifetime)
   const levelInfo   = computeLevel(lifetimeXP)
   const commission  = calcCommission(stats, commissionCfg)
+  // Commission tracking is a Pro opt-in add-on. Only surface pay to the rep
+  // when the org has it enabled.
+  const commissionOn = isCommissionEnabled(org)
+  const basePay      = calcBasePay(stats, commissionCfg)
+  const totalPay     = calcTotalPay(stats, commissionCfg)
+  const hourlyRate   = getHourlyRate(commissionCfg)
   const conversion  = computeConversion(stats)
 
   // Callout payloads — each helper returns null when the underlying data
@@ -557,10 +567,16 @@ export default function RepHome() {
                   />
                 </RichStatCard>
 
-                <CommissionCard
-                  amount={commission}
-                  config={commissionCfg}
-                />
+                {commissionOn && (
+                  <CommissionCard
+                    amount={commission}
+                    config={commissionCfg}
+                    basePay={basePay}
+                    totalPay={totalPay}
+                    hourlyRate={hourlyRate}
+                    hours={stats.hours}
+                  />
+                )}
               </div>
 
               {/* Funnel / Conversion */}
@@ -780,8 +796,13 @@ export function BigStatCard({ icon, label, value, accent = 'blue' }) {
   )
 }
 
-export function CommissionCard({ amount, config }) {
+export function CommissionCard({ amount, config, basePay = 0, totalPay = null, hourlyRate = 0, hours = 0 }) {
   const hasConfig = !!config && (config.type !== 'flat_pct' || Number(config.value) > 0)
+  const hasHourly = Number(hourlyRate) > 0
+  // When an hourly base is set, the headline number is total pay and we
+  // break out commission + base underneath. Otherwise it's commission-only.
+  const headline = hasHourly && totalPay != null ? totalPay : amount
+  const fmt = (n) => `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
   return (
     <div
       className="rounded-2xl p-4 shadow-sm text-white relative overflow-hidden"
@@ -791,14 +812,23 @@ export function CommissionCard({ amount, config }) {
         <div className="bg-white/25 w-7 h-7 rounded-lg flex items-center justify-center">
           <DollarSign className="w-4 h-4" />
         </div>
-        <p className="text-[11px] uppercase tracking-wide font-semibold text-green-50">My Commission</p>
+        <p className="text-[11px] uppercase tracking-wide font-semibold text-green-50">
+          {hasHourly ? 'My Total Pay' : 'My Commission'}
+        </p>
       </div>
       <p className="text-2xl font-extrabold leading-tight relative z-10">
-        ${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+        {fmt(headline)}
       </p>
-      <p className="text-[10px] text-green-50 mt-0.5 relative z-10 truncate">
-        {hasConfig ? describeCommission(config) : 'Manager has not set a rate yet'}
-      </p>
+      {hasHourly ? (
+        <div className="mt-1.5 relative z-10 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-green-50">
+          <span>Commission {fmt(amount)}</span>
+          <span>Base {fmt(basePay)} · ${Number(hourlyRate)}/hr × {Number(hours || 0).toFixed(1)}h</span>
+        </div>
+      ) : (
+        <p className="text-[10px] text-green-50 mt-0.5 relative z-10 truncate">
+          {hasConfig ? describeCommission(config) : 'Manager has not set a rate yet'}
+        </p>
+      )}
       <Trophy className="absolute -bottom-3 -right-2 w-16 h-16 text-white/10" />
     </div>
   )

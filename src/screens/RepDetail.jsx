@@ -29,7 +29,9 @@ import {
 import {
   computePeriodStats, computeConversion,
   computeXP, computeLevel, calcCommission,
+  calcBasePay, calcTotalPay, getHourlyRate,
 } from '../lib/repStats.js'
+import { isCommissionEnabled } from '../lib/tier.js'
 import {
   PeriodTabs, GoalCard, LevelCard, CommissionCard, ConversionFunnel, SessionRow,
 } from './RepHome.jsx'
@@ -75,6 +77,7 @@ export default function RepDetail() {
 
   const [rep,           setRep]           = useState(null)
   const [allSessions,   setAllSessions]   = useState([])
+  const [org,           setOrg]           = useState(null)
   const [goalCfg,       setGoalCfg]       = useState(DEFAULT_GOAL)
   const [period,        setPeriod]        = useState('week') // 'week' | 'month' | 'lifetime'
   const [loading,       setLoading]       = useState(true)
@@ -94,6 +97,7 @@ export default function RepDetail() {
       if (!profile) { setNotFound(true); setLoading(false); return }
       setRep(profile)
       setAllSessions(sessions)
+      setOrg(org)
       if (org) {
         setGoalCfg({
           daily_goal_type:  org.daily_goal_type  || DEFAULT_GOAL.daily_goal_type,
@@ -143,6 +147,10 @@ export default function RepDetail() {
   const lifetimeXP = computeXP(periods.lifetime)
   const levelInfo  = computeLevel(lifetimeXP)
   const commission = calcCommission(stats, rep?.commission_config)
+  const commissionOn = isCommissionEnabled(org)
+  const basePay    = calcBasePay(stats, rep?.commission_config)
+  const totalPay   = calcTotalPay(stats, rep?.commission_config)
+  const hourlyRate = getHourlyRate(rep?.commission_config)
   const conversion = computeConversion(stats)
 
   if (loading) return (
@@ -267,10 +275,16 @@ export default function RepDetail() {
               <MiniSparkArea values={repDaily.map((d) => d.revenue)} color="#5ea636" fill="#7ac94373" />
             </RichStatCard>
 
-            <CommissionCard
-              amount={commission}
-              config={rep?.commission_config}
-            />
+            {commissionOn && (
+              <CommissionCard
+                amount={commission}
+                config={rep?.commission_config}
+                basePay={basePay}
+                totalPay={totalPay}
+                hourlyRate={hourlyRate}
+                hours={stats.hours}
+              />
+            )}
           </div>
 
           {/* Funnel / Conversion */}

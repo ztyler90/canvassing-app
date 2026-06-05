@@ -4,7 +4,8 @@ import { Square, MapPin, Clock, Home, Pin, X, Signal } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import { gpsTracker } from '../lib/gps.js'
-import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, getWebhookUrl, fireZapierWebhook, getOrgRecentInteractions, getRepSessions, getMyCommissionConfig } from '../lib/supabase.js'
+import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, getWebhookUrl, fireZapierWebhook, getOrgRecentInteractions, getRepSessions, getMyCommissionConfig, getMyOrganization } from '../lib/supabase.js'
+import { isCommissionEnabled } from '../lib/tier.js'
 import { acquireWakeLock, releaseWakeLock, isWakeLockSupported } from '../lib/wakeLock.js'
 import { usePrefs } from '../lib/prefs.js'
 import { dnkZones, pointInAnyZone, loadDnkZones } from '../lib/dnk.js'
@@ -91,18 +92,21 @@ export default function ActiveCanvassing() {
   // so there's no need to re-poll during an active shift.
   const [pastSessions, setPastSessions] = useState([])
   const [commissionCfg, setCommissionCfg] = useState(null)
+  const [org, setOrg] = useState(null)
   useEffect(() => {
     if (!user?.id) return
     let cancelled = false
     ;(async () => {
       try {
-        const [sess, cfg] = await Promise.all([
+        const [sess, cfg, myOrg] = await Promise.all([
           getRepSessions(user.id, 50),
           getMyCommissionConfig(),
+          getMyOrganization(),
         ])
         if (cancelled) return
         setPastSessions(sess || [])
         setCommissionCfg(cfg)
+        setOrg(myOrg)
       } catch {
         // Soft-fail: the header still shows reasonable zero-state values
         // so a flaky network doesn't block the rep from canvassing.
@@ -315,6 +319,8 @@ export default function ActiveCanvassing() {
   })
   const levelInfo = computeLevel(lifetimeXPBase + sessionXP)
   // Commission dollars earned so far in this session (per manager config).
+  // Only shown when the org has the Pro commission add-on enabled.
+  const commissionOn = isCommissionEnabled(org)
   const sessionCommission = calcCommission(
     { revenue: state.stats.revenue, bookings: state.stats.bookings },
     commissionCfg,
@@ -516,8 +522,8 @@ export default function ActiveCanvassing() {
           Two compact micro-charts between the header and the existing
           secondary stats row. Both are read-only at-a-glance signals so
           the rep doesn't lose focus from knocking. */}
-      <div className="bg-white border-b grid grid-cols-2 divide-x divide-gray-100">
-        <CommissionChip amount={sessionCommission} config={commissionCfg} />
+      <div className={`bg-white border-b grid divide-x divide-gray-100 ${commissionOn ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        {commissionOn && <CommissionChip amount={sessionCommission} config={commissionCfg} />}
         <RevenueSparkline sessions={last7} />
       </div>
 

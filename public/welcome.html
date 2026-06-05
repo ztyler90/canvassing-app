@@ -68,9 +68,9 @@
           "Monthly goal tracking with on-pace forecasting"
         ],
         "offers": [
-          { "@type": "Offer", "name": "Starter",  "price": "25",  "priceCurrency": "USD", "description": "Per seat / month" },
-          { "@type": "Offer", "name": "Standard", "price": "50",  "priceCurrency": "USD", "description": "Per seat / month" },
-          { "@type": "Offer", "name": "Pro",      "price": "100", "priceCurrency": "USD", "description": "Per seat / month" }
+          { "@type": "Offer", "name": "Standard",   "price": "25",  "priceCurrency": "USD", "description": "Per seat / month" },
+          { "@type": "Offer", "name": "Pro",        "price": "50",  "priceCurrency": "USD", "description": "Per seat / month" },
+          { "@type": "Offer", "name": "Enterprise", "price": "100", "priceCurrency": "USD", "description": "Per seat / month" }
         ],
         "publisher": { "@id": "https://www.getknockiq.com/#organization" }
       },
@@ -1094,6 +1094,93 @@
       box-shadow: 0 10px 24px -8px rgba(125,195,30,.55);
     }
     .price.pro .cta:hover { filter: brightness(1.05); }
+
+    /* Enterprise card — premium dark treatment */
+    .price.enterprise {
+      background: linear-gradient(160deg, #0F172A 0%, #1E293B 100%);
+      border: 1px solid #334155;
+      color: #E2E8F0;
+    }
+    .price.enterprise h5 { color: #fff; }
+    .price.enterprise .tagline { color: #94A3B8; }
+    .price.enterprise .amount { color: #fff; }
+    .price.enterprise .amount small { color: #94A3B8; }
+    .price.enterprise .amount-sub { color: #94A3B8; }
+    .price.enterprise ul { border-top-color: rgba(255,255,255,.12); }
+    .price.enterprise li { color: #CBD5E1; }
+    .price.enterprise li .tick { background: rgba(125,195,30,.22); color: var(--lime); }
+    .price.enterprise .cta {
+      background: #fff; color: var(--ink);
+      box-shadow: 0 10px 24px -10px rgba(0,0,0,.5);
+    }
+    .price.enterprise .cta:hover { background: #F1F5F9; }
+
+    /* Trial / billing caption under each CTA */
+    .price .cta-note {
+      text-align: center; margin-top: 12px;
+      font-size: 12px; font-weight: 600; color: var(--muted);
+    }
+    .price.enterprise .cta-note { color: #94A3B8; }
+    .price .cta-note.trial { color: var(--green); }
+
+    /* Add-on chip in feature lists */
+    .addon-chip {
+      display: inline-block; margin-left: 6px;
+      font-size: 9.5px; font-weight: 800; letter-spacing: .04em;
+      padding: 1px 6px; border-radius: 999px;
+      background: var(--lime-50); color: #4d7a00;
+      vertical-align: middle; text-transform: uppercase;
+    }
+    .price.enterprise .addon-chip { background: rgba(125,195,30,.2); color: var(--lime); }
+
+    /* ═══ COMPARISON MATRIX (Calendly-style) ════════════════════════════════ */
+    .compare-wrap { max-width: 1100px; margin: 72px auto 0; }
+    .compare-head {
+      text-align: center; font-size: 15px; font-weight: 700;
+      color: var(--muted); margin-bottom: 18px;
+    }
+    .compare-table {
+      width: 100%; border-collapse: collapse;
+      background: white; border: 1px solid var(--line);
+      border-radius: 16px; overflow: hidden;
+      box-shadow: var(--sh-sm);
+    }
+    .compare-table th, .compare-table td {
+      padding: 13px 16px; text-align: center;
+      font-size: 13.5px; border-bottom: 1px solid var(--line);
+    }
+    .compare-table thead th {
+      font-size: 14px; font-weight: 800; color: var(--ink);
+      background: #F8FAFC; letter-spacing: -0.01em;
+    }
+    .compare-table thead th .th-price {
+      display: block; font-size: 11px; font-weight: 600; color: var(--muted);
+      margin-top: 2px;
+    }
+    .compare-table thead th.col-pro {
+      background: #EEF3FF; color: var(--blue-600);
+      box-shadow: inset 0 -2px 0 var(--blue-600);
+    }
+    .compare-table tbody th {
+      text-align: left; font-weight: 600; color: var(--text);
+      background: #fff; min-width: 220px;
+    }
+    .compare-table tbody tr:last-child th,
+    .compare-table tbody tr:last-child td { border-bottom: 0; }
+    .compare-table td.col-pro { background: rgba(238,243,255,.45); }
+    .compare-group th {
+      background: #F1F5F9 !important; font-size: 11px !important;
+      font-weight: 800 !important; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted) !important;
+      text-align: left;
+    }
+    .cmp-yes { color: var(--green); font-weight: 900; }
+    .cmp-no  { color: #CBD5E1; }
+    .cmp-val { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+    @media (max-width: 760px) {
+      .compare-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .compare-table { min-width: 640px; }
+    }
 
     /* ═══ INDUSTRY TAGS ═════════════════════════════════════════════════════ */
     .industries {
@@ -2387,67 +2474,71 @@
       <div class="billing-toggle" id="billingToggle" role="tablist" aria-label="Billing period">
         <button type="button" class="bt-opt active" data-period="monthly" role="tab" aria-selected="true">Monthly</button>
         <button type="button" class="bt-opt" data-period="annual" role="tab" aria-selected="false">
-          Annual <span class="bt-save">Save 15%</span>
+          Annual <span class="bt-save">Save 20%</span>
         </button>
       </div>
     </div>
 
     <div class="pricing-grid" id="pricingGrid">
-      <!-- Starter -->
+      <!-- Standard -->
       <div class="price">
-        <h5>Starter</h5>
-        <p class="tagline">For a lean crew getting started on D2D.</p>
+        <h5>Standard</h5>
+        <p class="tagline">Everything a field team needs to run the day.</p>
         <div class="amount amount-monthly">$25<small>/seat/mo</small></div>
-        <div class="amount amount-annual">$21.25<small>/seat/mo</small></div>
+        <div class="amount amount-annual">$20<small>/seat/mo</small></div>
         <div class="amount-sub amount-monthly">per seat · billed monthly</div>
-        <div class="amount-sub amount-annual">per seat · billed annually · 15% off</div>
+        <div class="amount-sub amount-annual">per seat · billed annually · 20% off</div>
         <ul>
           <li><span class="tick">✓</span> Manager dashboard &amp; live leaderboard</li>
-          <li><span class="tick">✓</span> Automatic door knock tracking</li>
-          <li><span class="tick">✓</span> Territory assignments &amp; DNK zones</li>
-          <li><span class="tick">✓</span> Rep app with core callouts</li>
-          <li><span class="tick">✓</span> Unlimited territories, zones &amp; door history</li>
+          <li><span class="tick">✓</span> Automatic door tracking</li>
+          <li><span class="tick">✓</span> Pipeline &amp; lead management</li>
+          <li><span class="tick">✓</span> Territory management</li>
+          <li><span class="tick">✓</span> Full game mechanics &amp; motivational cards</li>
+          <li><span class="tick">✓</span> Up to 50 territories</li>
         </ul>
         <a href="/signup" class="btn btn-ghost cta">Start free trial</a>
+        <div class="cta-note trial">14-day free trial · no card required</div>
       </div>
 
-      <!-- Standard (featured) -->
+      <!-- Pro (featured / recommended) -->
       <div class="price featured">
         <span class="price-badge">MOST POPULAR</span>
-        <h5>Standard</h5>
-        <p class="tagline">Everything growing teams need.</p>
-        <div class="amount amount-monthly">$50<small>/seat/mo</small></div>
-        <div class="amount amount-annual">$42.50<small>/seat/mo</small></div>
-        <div class="amount-sub amount-monthly">per seat · billed monthly</div>
-        <div class="amount-sub amount-annual">per seat · billed annually · 15% off</div>
-        <ul>
-          <li><span class="tick">✓</span> Everything in Starter</li>
-          <li><span class="tick">✓</span> Full game mechanics &amp; motivational cards</li>
-          <li><span class="tick">✓</span> Advanced territory &amp; route planning</li>
-          <li><span class="tick">✓</span> Rep analytics &amp; goal tracking</li>
-          <li><span class="tick">✓</span> Priority email support</li>
-        </ul>
-        <a href="/signup" class="btn btn-blue cta">Start free trial →</a>
-      </div>
-
-      <!-- Pro -->
-      <div class="price pro">
-        <span class="price-badge">⚡ PRO</span>
         <h5>Pro</h5>
-        <p class="tagline">Plug into your stack.</p>
-        <div class="amount amount-monthly">$100<small>/seat/mo</small></div>
-        <div class="amount amount-annual">$85<small>/seat/mo</small></div>
+        <p class="tagline">For growing teams that need every lead to convert.</p>
+        <div class="amount amount-monthly">$50<small>/seat/mo</small></div>
+        <div class="amount amount-annual">$40<small>/seat/mo</small></div>
         <div class="amount-sub amount-monthly">per seat · billed monthly</div>
-        <div class="amount-sub amount-annual">per seat · billed annually · 15% off</div>
+        <div class="amount-sub amount-annual">per seat · billed annually · 20% off</div>
         <ul>
           <li><span class="tick">✓</span> Everything in Standard</li>
-          <li><span class="tick">✓</span> Zapier webhook integration</li>
-          <li><span class="tick">✓</span> Google Sheets export</li>
-          <li><span class="tick">✓</span> Excel export</li>
-          <li><span class="tick">✓</span> Connects to 6,000+ apps via Zapier</li>
-          <li><span class="tick">✓</span> Priority support</li>
+          <li><span class="tick">✓</span> Expanded Pipeline View — never let a lead fall through the cracks</li>
+          <li><span class="tick">✓</span> Expanded door history &amp; 51+ territories</li>
+          <li><span class="tick">✓</span> Commission tracking + base pay<span class="addon-chip">Add-on</span></li>
+          <li><span class="tick">✓</span> Export to CSV &amp; Google Sheets</li>
+          <li><span class="tick">✓</span> Phone support</li>
         </ul>
-        <a href="/signup" class="btn btn-blue cta" style="background: var(--lime); color:#1a3a00; box-shadow: 0 10px 24px -8px rgba(125,195,30,.55);">Start free trial →</a>
+        <a href="/signup" class="btn btn-blue cta">Start free trial →</a>
+        <div class="cta-note trial">14-day free trial · no card required</div>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="price enterprise">
+        <span class="price-badge" style="background:#fff;color:var(--ink);">ENTERPRISE</span>
+        <h5>Enterprise</h5>
+        <p class="tagline">For larger organizations with custom needs.</p>
+        <div class="amount amount-monthly">$100<small>/seat/mo</small></div>
+        <div class="amount amount-annual">$80<small>/seat/mo</small></div>
+        <div class="amount-sub amount-monthly">per seat · billed monthly</div>
+        <div class="amount-sub amount-annual">per seat · billed annually · 20% off</div>
+        <ul>
+          <li><span class="tick">✓</span> Everything in Pro</li>
+          <li><span class="tick">✓</span> Added security &amp; controls</li>
+          <li><span class="tick">✓</span> CRM integration via Zapier — 6,000+ apps</li>
+          <li><span class="tick">✓</span> Dedicated rep</li>
+          <li><span class="tick">✓</span> "New Home" third-party data<span class="addon-chip">Add-on</span></li>
+        </ul>
+        <a href="/demo.html" class="btn cta">Contact sales →</a>
+        <div class="cta-note">Custom onboarding · talk to our team</div>
       </div>
     </div>
 
@@ -2469,6 +2560,46 @@
         });
       })();
     </script>
+
+    <!-- Compare features (Calendly-style matrix) -->
+    <div class="compare-wrap">
+      <div class="compare-head">Compare plans feature by feature</div>
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th style="text-align:left;">Features</th>
+            <th>Standard<span class="th-price">$25/seat/mo</span></th>
+            <th class="col-pro">Pro<span class="th-price">$50/seat/mo</span></th>
+            <th>Enterprise<span class="th-price">$100/seat/mo</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="compare-group"><th colspan="4">Core</th></tr>
+          <tr><th>Manager dashboard &amp; live leaderboard</th><td class="cmp-yes">✓</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>Automatic door tracking</th><td class="cmp-yes">✓</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>Pipeline &amp; lead management</th><td class="cmp-yes">✓</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>Territory management</th><td class="cmp-yes">✓</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>Full game mechanics &amp; motivational cards</th><td class="cmp-yes">✓</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>Territories</th><td class="cmp-val">Up to 50</td><td class="col-pro cmp-val">51+ unlimited</td><td class="cmp-val">Unlimited</td></tr>
+
+          <tr class="compare-group"><th colspan="4">Pro</th></tr>
+          <tr><th>Expanded Pipeline View (Needs Action, Closed, Health)</th><td class="cmp-no">—</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>Expanded door history</th><td class="cmp-no">—</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>Commission tracking + base pay <span class="addon-chip">Add-on</span></th><td class="cmp-no">—</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>Export to CSV &amp; Google Sheets</th><td class="cmp-no">—</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+
+          <tr class="compare-group"><th colspan="4">Enterprise</th></tr>
+          <tr><th>Added security &amp; controls</th><td class="cmp-no">—</td><td class="col-pro cmp-no">—</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>CRM integration via Zapier</th><td class="cmp-no">—</td><td class="col-pro cmp-no">—</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>"New Home" third-party data <span class="addon-chip">Add-on</span></th><td class="cmp-no">—</td><td class="col-pro cmp-no">—</td><td class="cmp-yes">✓</td></tr>
+
+          <tr class="compare-group"><th colspan="4">Support</th></tr>
+          <tr><th>Email support</th><td class="cmp-yes">✓</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>Phone support</th><td class="cmp-no">—</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>Dedicated rep</th><td class="cmp-no">—</td><td class="col-pro cmp-no">—</td><td class="cmp-yes">✓</td></tr>
+        </tbody>
+      </table>
+    </div>
 
     <p style="text-align:center; margin-top: 32px; font-size: 14px; color: var(--muted);">
       Questions? <a href="mailto:hello@knockiq.com" style="color:var(--blue-600); font-weight: 600;">hello@knockiq.com</a> or <a href="/demo" style="color:var(--blue-600); font-weight: 600;">book a demo →</a>
