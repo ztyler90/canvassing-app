@@ -1,28 +1,8 @@
 import { useState } from 'react'
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
-import { loadStripe } from '@stripe/stripe-js'
 import { signInWithEmail } from '../lib/supabase.js'
-import { supabase } from '../lib/supabase.js'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
-
-// Initialise Stripe — publishable key comes from env var
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
-
-// ─── Card element appearance ──────────────────────────────────────────────────
-const CARD_ELEMENT_OPTIONS = {
-  style: {
-    base: {
-      fontSize: '16px',
-      color: '#111827',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      '::placeholder': { color: '#9ca3af' },
-    },
-    invalid: { color: '#dc2626' },
-  },
-  hidePostalCode: false,
-}
 
 // ─── Logo ─────────────────────────────────────────────────────────────────────
 // Wrapped in a plain <a href="/"> (NOT a React Router <Link>) so the click
@@ -106,157 +86,6 @@ function SignInForm({ onMessage }) {
   )
 }
 
-// ─── Sign-Up form (with Stripe card) ─────────────────────────────────────────
-function SignUpFormInner({ onSuccess }) {
-  const stripe   = useStripe()
-  const elements = useElements()
-
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [showPass, setShowPass] = useState(false)
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [cardReady, setCardReady] = useState(false)
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-
-    if (!fullName || !email || !password) { setError('Please fill in all fields.'); return }
-    if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
-    if (!stripe || !elements) { setError('Stripe is still loading — please try again.'); return }
-
-    const cardElement = elements.getElement(CardElement)
-    if (!cardElement) { setError('Card field not found.'); return }
-
-    setLoading(true)
-
-    // 1. Tokenise card → PaymentMethod
-    const { paymentMethod, error: pmError } = await stripe.createPaymentMethod({
-      type: 'card',
-      card: cardElement,
-      billing_details: { name: fullName, email: email.trim().toLowerCase() },
-    })
-
-    if (pmError) {
-      setLoading(false)
-      setError(pmError.message ?? 'Card error.')
-      return
-    }
-
-    // 2. Call Supabase Edge Function — creates Stripe customer + subscription +
-    //    Supabase auth user all in one atomic server-side operation.
-    try {
-      const { data, error: fnError } = await supabase.functions.invoke('create-subscription', {
-        body: {
-          email:             email.trim().toLowerCase(),
-          password,
-          full_name:         fullName.trim(),
-          payment_method_id: paymentMethod.id,
-        },
-      })
-
-      if (fnError || !data?.success) {
-        setLoading(false)
-        setError(data?.error ?? fnError?.message ?? 'Signup failed. Please try again.')
-        return
-      }
-
-      // 3. Account + subscription created — sign in automatically
-      const { error: signInError } = await signInWithEmail(email.trim().toLowerCase(), password)
-      if (signInError) {
-        // Account was created; direct them to sign in manually
-        setLoading(false)
-        onSuccess('Account created! Please sign in.')
-        return
-      }
-      // onAuthStateChange in AuthContext will navigate to home
-
-    } catch (err) {
-      setLoading(false)
-      setError('An unexpected error occurred. Please try again.')
-      console.error('[SignUp]', err)
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-        <input type="text" autoComplete="name" placeholder="Jane Smith"
-          value={fullName} onChange={(e) => setFullName(e.target.value)}
-          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-700 focus:outline-none text-base"
-          autoFocus />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-        <input type="email" inputMode="email" autoComplete="email" placeholder="you@example.com"
-          value={email} onChange={(e) => setEmail(e.target.value)}
-          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-700 focus:outline-none text-base" />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-        <div className="relative">
-          <input type={showPass ? 'text' : 'password'} autoComplete="new-password"
-            placeholder="Min. 6 characters"
-            value={password} onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-700 focus:outline-none text-base pr-12" />
-          <button type="button" onClick={() => setShowPass(!showPass)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
-            {showPass ? 'Hide' : 'Show'}
-          </button>
-        </div>
-      </div>
-
-      {/* Stripe card element */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Payment Card
-          <span className="ml-2 text-xs font-normal text-gray-400">(charged after 7-day trial)</span>
-        </label>
-        <div className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus-within:border-blue-700 transition-colors bg-white">
-          <CardElement
-            options={CARD_ELEMENT_OPTIONS}
-            onChange={(e) => {
-              setCardReady(e.complete)
-              if (e.error) setError(e.error.message)
-              else if (error && error.includes('card')) setError('')
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Trial reminder */}
-      <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
-        <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <p className="text-xs text-blue-700">
-          Your card won't be charged today. Your 7-day free trial starts now — billing begins on day 8.
-        </p>
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm">{error}</div>
-      )}
-
-      <button type="submit"
-        disabled={loading || !stripe}
-        className="btn-brand w-full py-4 rounded-xl font-semibold text-lg">
-        {loading ? 'Setting up your account…' : 'Start Free Trial →'}
-      </button>
-
-      <p className="text-xs text-gray-400 text-center">
-        New accounts are pending until a manager assigns your rep role.
-      </p>
-    </form>
-  )
-}
-
 // ─── Root Login screen ────────────────────────────────────────────────────────
 export default function Login() {
   const [message] = useState('')
@@ -274,8 +103,8 @@ export default function Login() {
         )}
 
         {/* Sign-in only. New accounts go through /signup, which provisions the
-            org and collects a card via hosted Stripe Checkout (the old in-page
-            Elements signup here didn't create an organization and is retired). */}
+            org and collects a card via hosted Stripe Checkout. The old in-page
+            Elements signup (and its publishable-key dependency) has been removed. */}
         <SignInForm />
 
         <p className="mt-6 text-sm text-gray-500">

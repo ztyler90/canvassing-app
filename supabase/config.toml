@@ -52,5 +52,12 @@ inspector_port = 8083
 [functions.manage-team]
 verify_jwt = false
 
+# stripe-webhook is called by Stripe's servers, which never send a Supabase
+# JWT. It authenticates instead by verifying the Stripe webhook signature
+# (STRIPE_WEBHOOK_SECRET). The built-in JWT pre-verifier would 401 every
+# event before the function runs, so it must be disabled here.
+[functions.stripe-webhook]
+verify_jwt = false
+
 [[analytics]]
 enabled = false

@@ -40,10 +40,12 @@ function pip(lat, lng, polygon) {
 }
 
 function makeInteractionPin(color) {
+  // Size/border/shadow matched to MapView's makePin (22px) so the fully
+  // zoomed-in house markers look identical across the Map and Territories tabs.
   return L.divIcon({
     className: '',
-    html: `<div style="width:10px;height:10px;background:${color};border:2px solid white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>`,
-    iconSize: [10, 10], iconAnchor: [5, 5],
+    html: `<div style="width:22px;height:22px;background:${color};border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.35)"></div>`,
+    iconSize: [22, 22], iconAnchor: [11, 11],
   })
 }
 
