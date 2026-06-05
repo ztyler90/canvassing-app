@@ -105,6 +105,14 @@ function AppRoutes() {
     </Routes>
   )
 
+  // Account-setup gate. Right after signup the auth session exists for a beat
+  // before the org is provisioned/attached — during that window the user has no
+  // organization_id yet. Without this, the app falls through to the manager
+  // dashboard for a couple seconds before the billing gate engages (the "flash"
+  // users reported). A real rep/manager always has an organization_id, so this
+  // only catches the transient setup window; show a loading screen instead.
+  if (!user.organization_id) return <LoadingScreen />
+
   // Pending-approval gate. Reps who self-registered via an invite link
   // land here in `status='pending'` until their manager taps Approve in
   // Settings. The check sits ABOVE force_password_change because invite-
