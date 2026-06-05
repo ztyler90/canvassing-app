@@ -49,7 +49,9 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/$/, /^\/welcome\.html$/, /^\/welcome-v2\.html$/, /^\/screenshot-test\.html$/],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/tile\.openstreetmap\.org\/.*/i,
+            // Satellite (aerial) tiles + label overlays served from Esri.
+            // CacheFirst so canvassers keep imagery offline / on flaky data.
+            urlPattern: /^https:\/\/server\.arcgisonline\.com\/.*/i,
             handler: 'CacheFirst',
             options: { cacheName: 'map-tiles', expiration: { maxEntries: 500, maxAgeSeconds: 604800 } }
           }
