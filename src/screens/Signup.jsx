@@ -34,6 +34,9 @@ export default function Signup() {
   // Plan the visitor clicked on the pricing page ('standard' | 'pro'). Drives
   // the post-trial plan they'll be billed for; the trial itself is full Pro.
   const selectedPlan = searchParams.get('plan') === 'pro' ? 'pro' : 'standard'
+  // Private beta discount: a ?promo=beta on the signup link pre-applies the
+  // 50%-off-for-life coupon at checkout. Absent/anything else → no discount.
+  const promo = searchParams.get('promo') || null
 
   const [businessName, setBusinessName] = useState('')
   const [fullName,     setFullName]     = useState('')
@@ -92,7 +95,7 @@ export default function Signup() {
     //    to add a card and start the 14-day trial. If anything goes wrong
     //    creating the session, fall through to the app — the CompleteCheckout
     //    gate (billing_required) will catch them and let them retry.
-    const { url, error: checkoutErr } = await createCheckoutSession({ plan: selectedPlan, interval: 'month' })
+    const { url, error: checkoutErr } = await createCheckoutSession({ plan: selectedPlan, interval: 'month', promo })
     if (url) {
       window.location.href = url
       return

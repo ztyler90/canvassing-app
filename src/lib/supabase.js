@@ -1687,9 +1687,9 @@ export async function deleteOrganization() {
  *
  * @returns {Promise<{ url: string|null, error: Error|null }>}
  */
-export async function createCheckoutSession({ plan, interval } = {}) {
+export async function createCheckoutSession({ plan, interval, promo } = {}) {
   const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-    body: { plan, interval },
+    body: { plan, interval, promo: promo || null },
   })
   if (error) return { url: null, error }
   if (data?.error) return { url: null, error: new Error(data.error) }

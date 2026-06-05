@@ -44,6 +44,10 @@ function stripeEnv(base: string): string {
   return Deno.env.get(base + suffix) || Deno.env.get(base) || ''
 }
 const STRIPE_SECRET_KEY = stripeEnv('STRIPE_SECRET_KEY')
+// Private beta coupon (50% off for life). Mapped from the 'beta' promo token so
+// the raw coupon id is never exposed in a URL. Set STRIPE_BETA_COUPON_LIVE /
+// STRIPE_BETA_COUPON_TEST in secrets.
+const STRIPE_BETA_COUPON = stripeEnv('STRIPE_BETA_COUPON')
 
 // Resolve the price id for a plan ('standard'|'pro') + interval ('month'|'year').
 function priceFor(plan: string, interval: string): string {
@@ -128,6 +132,10 @@ serve(async (req) => {
       await admin.from('organizations').update({ stripe_customer_id: customerId }).eq('id', org.id)
     }
 
+    // Private beta discount: applied only when the signup carried ?promo=beta.
+    // Invisible to everyone else — the public checkout never shows a promo field.
+    const applyBeta = String(body.promo || '').toLowerCase() === 'beta' && !!STRIPE_BETA_COUPON
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
@@ -135,11 +143,15 @@ serve(async (req) => {
       line_items: [{ price, quantity }],
       subscription_data: {
         trial_period_days: 14,
-        metadata: { organization_id: org.id, selected_plan: plan, interval },
+        metadata: { organization_id: org.id, selected_plan: plan, interval, promo: applyBeta ? 'beta' : '' },
       },
       // Collect a card even though the trial is free, so day-15 conversion is automatic.
       payment_method_collection: 'always',
-      allow_promotion_codes: true,
+      // Either pre-apply the private beta coupon, or show NO promo field at all.
+      // (`discounts` and `allow_promotion_codes` are mutually exclusive in Stripe.)
+      ...(applyBeta
+        ? { discounts: [{ coupon: STRIPE_BETA_COUPON }] }
+        : { allow_promotion_codes: false }),
       metadata: { organization_id: org.id, selected_plan: plan, interval },
       // Return into the APP, not '/' — Vercel rewrites '/' to the marketing
       // page (welcome.html), which looks logged-out. '/manager' serves the SPA,
