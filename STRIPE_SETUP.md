@@ -108,25 +108,75 @@ supabase secrets set STRIPE_PRICE_PRO_MONTHLY=price_...
 supabase secrets set STRIPE_PRICE_PRO_ANNUAL=price_...
 supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...   # from step 7
 
-# Keep-warm price for the off-season "Pause account" flow. Already created in
-# the KnockIQ Stripe account ($5.00/mo, "KnockIQ Keep-Warm (Paused)"):
-supabase secrets set STRIPE_PRICE_KEEPWARM=price_1Teo3NPhaKH0vmLVLRszoN6O
+# Pause / keep-warm billing — MODE-AWARE. STRIPE_MODE selects which key + price
+# the manage-team function uses, so you can test against test-mode Stripe first.
+supabase secrets set STRIPE_MODE=live            # 'test' or 'live' (default live)
+
+# Live pair — keep-warm price already created in the KnockIQ Stripe account
+# ($5.00/mo, "KnockIQ Keep-Warm (Paused)"):
+supabase secrets set STRIPE_SECRET_KEY_LIVE=sk_live_...
+supabase secrets set STRIPE_PRICE_KEEPWARM_LIVE=price_1Teo3NPhaKH0vmLVLRszoN6O
+
+# Test pair — create a $5/mo recurring price in Stripe TEST mode, then:
+supabase secrets set STRIPE_SECRET_KEY_TEST=sk_test_...
+supabase secrets set STRIPE_PRICE_KEEPWARM_TEST=price_...   # your test-mode price
+
+# ── Checkout plan prices (mode-aware; used by create-checkout-session) ──
+# LIVE plan prices already exist in the KnockIQ Stripe account:
+supabase secrets set STRIPE_PRICE_STANDARD_MONTHLY_LIVE=price_1TenrDPhaKH0vmLVmlSW8QNa  # $25/mo
+supabase secrets set STRIPE_PRICE_STANDARD_ANNUAL_LIVE=price_1TenrEPhaKH0vmLVCS4IBzn9   # $240/yr
+supabase secrets set STRIPE_PRICE_PRO_MONTHLY_LIVE=price_1TenrKPhaKH0vmLVtQ7YskFd       # $50/mo
+supabase secrets set STRIPE_PRICE_PRO_ANNUAL_LIVE=price_1TenrLPhaKH0vmLV06gvscbE        # $480/yr
+# TEST plan prices — create the 4 in Stripe TEST mode, then set:
+supabase secrets set STRIPE_PRICE_STANDARD_MONTHLY_TEST=price_...
+supabase secrets set STRIPE_PRICE_STANDARD_ANNUAL_TEST=price_...
+supabase secrets set STRIPE_PRICE_PRO_MONTHLY_TEST=price_...
+supabase secrets set STRIPE_PRICE_PRO_ANNUAL_TEST=price_...
+
+# Webhook signing secret is mode-aware too (stripe-webhook reads
+# STRIPE_WEBHOOK_SECRET_{TEST,LIVE} per STRIPE_MODE — one per endpoint):
+supabase secrets set STRIPE_WEBHOOK_SECRET_TEST=whsec_...   # from the TEST webhook endpoint
+supabase secrets set STRIPE_WEBHOOK_SECRET_LIVE=whsec_...   # from the LIVE webhook endpoint
 ```
+
+> **Checkout + webhook (deployed).** `create-checkout-session` (hosted
+> Checkout, 14-day trial, qty = seats), `create-portal-session` (Billing
+> Portal), and the rewritten `stripe-webhook` (writes to `organizations`) are
+> live. The webhook is deployed with **verify_jwt = false** — Stripe
+> authenticates by signature, not a JWT. Point a Stripe webhook endpoint at
+> `https://mcwspvhihekhkytfxggv.supabase.co/functions/v1/stripe-webhook` and
+> subscribe to: `checkout.session.completed`, `customer.subscription.created`,
+> `customer.subscription.updated`, `customer.subscription.deleted`,
+> `invoice.payment_failed`, `invoice.payment_succeeded`. Card-up-front is
+> enforced by `organizations.billing_required` (true for new orgs, false for
+> the grandfathered ones); the app's CompleteCheckout gate holds a new org
+> until the webhook stamps `stripe_subscription_id`.
 
 > **Pause / keep-warm billing (manage-team Edge Function).** When an owner
 > pauses their account (Settings → Manage subscription → Pause), `manage-team`
-> swaps their subscription onto `STRIPE_PRICE_KEEPWARM` at quantity 1 and
+> swaps their subscription onto the active keep-warm price at quantity 1 and
 > snapshots the previous per-seat price + seat count onto
 > `organizations.pause_prev_price_id` / `pause_prev_quantity`. Reactivating
 > restores that exact plan; cancelling sets `cancel_at_period_end`; permanent
-> delete cancels the subscription outright. Every one of these degrades to a
-> status-only change if `STRIPE_SECRET_KEY` / `STRIPE_PRICE_KEEPWARM` are unset
-> or the org has no subscription yet — so the access controls work even before
-> the checkout flow above goes live. The dollar figure shown in the pause UI
-> comes from `organizations.pause_fee_cents` (default **500** = $5); keep it in
-> sync if you ever change the keep-warm price. Reading the owner's
-> `stripe_subscription_id` from `public.users` is a temporary bridge — move it
-> to `organizations.*` when the org-level billing migration (step 8) lands.
+> delete cancels the subscription outright.
+>
+> **Mode selection:** `STRIPE_MODE` (`test`|`live`, default `live`) decides
+> whether the function reads `STRIPE_SECRET_KEY_TEST` + `STRIPE_PRICE_KEEPWARM_TEST`
+> or `STRIPE_SECRET_KEY_LIVE` + `STRIPE_PRICE_KEEPWARM_LIVE`. Each mode-specific
+> name falls back to the un-suffixed `STRIPE_SECRET_KEY` / `STRIPE_PRICE_KEEPWARM`,
+> so an older single-key setup still works. The keep-warm price must be created in
+> the SAME mode as the secret key it's paired with (a live price won't resolve
+> under a test key and vice-versa).
+>
+> Every lifecycle action degrades to a status-only change if the resolved key is
+> empty or the org has no subscription yet — so the access controls work even
+> before the checkout flow above goes live. The dollar figure shown in the pause
+> UI comes from `organizations.pause_fee_cents` (default **500** = $5); keep it in
+> sync if you change the keep-warm price. The function reads
+> `organizations.stripe_subscription_id` directly (added in
+> `20260605_org_stripe_billing`) — the checkout + webhook functions just need to
+> populate `organizations.stripe_customer_id` / `stripe_subscription_id` /
+> `subscription_status` and the pause/cancel/delete billing actions light up.
 
 ---
 
@@ -169,11 +219,14 @@ supabase functions deploy stripe-webhook
 
 ## 8. Run the billing migrations
 
-The earlier billing columns already exist (`20260412_billing.sql`). The Stripe build adds
-org-level billing identifiers — see `STRIPE_IMPLEMENTATION_PLAN.md` (a `*_stripe_org.sql`
-migration moving/duplicating `stripe_customer_id`, `stripe_subscription_id`,
-`subscription_status`, `trial_ends_at` onto `organizations`, since tier gating reads the
-org, not the user).
+Org-level billing identifiers now live on `organizations` — added by
+`20260605_org_stripe_billing.sql` (`stripe_customer_id`, `stripe_subscription_id`,
+`subscription_status`, plus unique partial indexes on the two Stripe ids).
+`trial_ends_at` already existed on the org. This is where tier gating, the
+reverse-trial, and the pause/cancel lifecycle read from, so the checkout +
+webhook functions should write the customer/subscription ids straight onto the
+org row. (The legacy `20260412_billing.sql`, which targeted `public.users`, was
+never applied to this project and is superseded by the org-level columns.)
 
 ---
 

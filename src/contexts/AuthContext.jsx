@@ -66,7 +66,7 @@ async function buildProfile(sessionUser) {
           const { data: org } = await withTimeout(
             supabase
               .from('organizations')
-              .select('id, name, tier, status, created_at, trial_ends_at, owner_user_id, paused_at, resume_at, cancelled_at, purge_at')
+              .select('id, name, tier, status, created_at, trial_ends_at, owner_user_id, paused_at, resume_at, cancelled_at, purge_at, billing_required, stripe_subscription_id, subscription_status, selected_plan')
               .eq('id', row.organization_id)
               .single(),
             4000,

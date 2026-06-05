@@ -7,6 +7,7 @@ import Signup            from './screens/Signup.jsx'
 import RepJoin           from './screens/RepJoin.jsx'
 import PendingApproval   from './screens/PendingApproval.jsx'
 import AccountInactive   from './screens/AccountInactive.jsx'
+import CompleteCheckout  from './screens/CompleteCheckout.jsx'
 import SetPassword       from './screens/SetPassword.jsx'
 import RepHome           from './screens/RepHome.jsx'
 import ActiveCanvassing  from './screens/ActiveCanvassing.jsx'
@@ -131,6 +132,18 @@ function AppRoutes() {
   if (orgAccessState(user.organization) !== 'ok') return (
     <Routes>
       <Route path="*" element={<AccountInactive />} />
+    </Routes>
+  )
+
+  // Card-up-front gate. New orgs are provisioned with billing_required = true
+  // and must complete Stripe Checkout before using the app; the gate releases
+  // once the webhook stamps a subscription onto the org. Orgs that existed
+  // before checkout launched have billing_required = false and are never gated.
+  // Sits below the paused/cancelled gate (that's a harder stop) and above
+  // force_password_change.
+  if (user.organization?.billing_required && !user.organization?.stripe_subscription_id) return (
+    <Routes>
+      <Route path="*" element={<CompleteCheckout />} />
     </Routes>
   )
 

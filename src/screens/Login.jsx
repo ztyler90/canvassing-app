@@ -259,13 +259,7 @@ function SignUpFormInner({ onSuccess }) {
 
 // ─── Root Login screen ────────────────────────────────────────────────────────
 export default function Login() {
-  const [mode, setMode]       = useState('signin')
-  const [message, setMessage] = useState('')
-
-  const handleModeChange = (m) => {
-    setMode(m)
-    setMessage('')
-  }
+  const [message] = useState('')
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -273,33 +267,21 @@ export default function Login() {
 
         <KnockIQLogo />
 
-        {/* Tab toggle */}
-        <div className="flex w-full max-w-sm rounded-xl overflow-hidden border border-gray-200 mb-6">
-          {['signin', 'signup'].map((m) => (
-            <button key={m} type="button"
-              onClick={() => handleModeChange(m)}
-              className="flex-1 py-3 text-sm font-semibold transition-colors"
-              style={mode === m
-                ? { background: 'linear-gradient(135deg, #2E6BFF 0%, #1B4FCC 100%)', color: '#fff' }
-                : { backgroundColor: '#f9fafb', color: '#6b7280' }}>
-              {m === 'signin' ? 'Sign In' : 'Start Free Trial'}
-            </button>
-          ))}
-        </div>
-
         {message && (
           <div className="w-full max-w-sm mb-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-green-700 text-sm">
             {message}
           </div>
         )}
 
-        {mode === 'signin' ? (
-          <SignInForm />
-        ) : (
-          <Elements stripe={stripePromise}>
-            <SignUpFormInner onSuccess={(msg) => { setMessage(msg); setMode('signin') }} />
-          </Elements>
-        )}
+        {/* Sign-in only. New accounts go through /signup, which provisions the
+            org and collects a card via hosted Stripe Checkout (the old in-page
+            Elements signup here didn't create an organization and is retired). */}
+        <SignInForm />
+
+        <p className="mt-6 text-sm text-gray-500">
+          New to KnockIQ?{' '}
+          <a href="/signup" className="font-semibold text-blue-600 hover:underline">Start your free trial →</a>
+        </p>
       </div>
 
       <p className="text-center text-xs text-gray-400 pb-8 px-4">

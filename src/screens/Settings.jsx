@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2, Workflow, HelpCircle, PauseCircle, AlertTriangle, Calendar, ShieldAlert } from 'lucide-react'
-import { getOrgWebhookConfig, saveOrgWebhookConfig, DEFAULT_WEBHOOK_EVENTS, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled, pauseOrganization, cancelOrganization, deleteOrganization, signOut } from '../lib/supabase.js'
+import { getOrgWebhookConfig, saveOrgWebhookConfig, DEFAULT_WEBHOOK_EVENTS, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled, pauseOrganization, cancelOrganization, deleteOrganization, signOut, createPortalSession, syncSeats } from '../lib/supabase.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { describeCommission, DEFAULT_COMMISSION_CONFIG, getHourlyRate } from '../lib/repStats.js'
 import { isProTier, isCommissionEnabled } from '../lib/tier.js'
@@ -27,6 +27,7 @@ export default function Settings() {
   // Which account-lifecycle modal is open: null | 'pause' | 'cancel'.
   // (Hard delete lives inside the cancel modal's danger step.)
   const [lifecycleModal, setLifecycleModal] = useState(null)
+  const [portalBusy, setPortalBusy] = useState(false)
   const [user, setUser]               = useState(null)
   const [org, setOrg]                 = useState(null)
   const [webhookUrl, setWebhookUrl]   = useState('')
@@ -242,6 +243,9 @@ export default function Settings() {
       { id: rep.id, email: rep.email, full_name: rep.full_name, phone: rep.phone || null, role: 'rep' },
     ])
     showToast(`${rep.full_name || rep.email} approved`)
+    // Approving adds a billable seat. Approve runs via RPC (not manage-team),
+    // so nudge Stripe to update the subscription quantity. Fire-and-forget.
+    syncSeats().catch(() => {})
   }
 
   async function handleRejectRep(rep) {
@@ -469,6 +473,17 @@ export default function Settings() {
   function showToast(msg, type = 'success') {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  async function handleManageBilling() {
+    setPortalBusy(true)
+    const { url, error } = await createPortalSession()
+    if (error || !url) {
+      setPortalBusy(false)
+      showToast(error?.message || 'Could not open the billing portal.', 'error')
+      return
+    }
+    window.location.href = url
   }
 
   async function handleSaveCommission(repId, config) {
@@ -1445,6 +1460,15 @@ export default function Settings() {
             <p className="text-gray-400 text-xs pt-1">
               ${seatPrice}/seat × {reps.length + 1} seats · {isPro ? 'Pro tier' : 'Standard tier'}
             </p>
+            {isOwner && org?.stripe_customer_id && (
+              <button
+                onClick={handleManageBilling}
+                disabled={portalBusy}
+                className="mt-2 w-full py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-gray-50 disabled:opacity-50">
+                {portalBusy ? <Loader className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
+                {portalBusy ? 'Opening…' : 'Manage billing & invoices'}
+              </button>
+            )}
           </div>
         </section>
 

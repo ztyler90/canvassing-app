@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { signUpWithEmail, signInWithEmail, provisionNewOrganization } from '../lib/supabase.js'
+import { signUpWithEmail, signInWithEmail, provisionNewOrganization, createCheckoutSession } from '../lib/supabase.js'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
@@ -88,9 +88,17 @@ export default function Signup() {
     //    new organization_id attached. onAuthStateChange will then route us.
     await signInWithEmail(em, password)
 
-    // AuthContext will see the new profile (role=manager, organization_id set)
-    // and render the manager router, which redirects "*" to /manager.
-    navigate('/manager', { replace: true })
+    // 4. Card up front: send the new owner straight to hosted Stripe Checkout
+    //    to add a card and start the 14-day trial. If anything goes wrong
+    //    creating the session, fall through to the app — the CompleteCheckout
+    //    gate (billing_required) will catch them and let them retry.
+    const { url, error: checkoutErr } = await createCheckoutSession({ plan: selectedPlan, interval: 'month' })
+    if (url) {
+      window.location.href = url
+      return
+    }
+    if (checkoutErr) console.warn('[Signup] checkout session failed:', checkoutErr.message)
+    navigate('/', { replace: true })
   }
 
   return (
@@ -153,7 +161,7 @@ export default function Signup() {
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p className="text-xs text-blue-700">
-              14-day free trial. No credit card required. Add reps and cancel anytime.
+              14-day free trial. Add a card to start — cancel anytime before you're billed.
             </p>
           </div>
 

@@ -1678,6 +1678,46 @@ export async function deleteOrganization() {
   return { error: error || null }
 }
 
+// ── Checkout / billing (hosted Stripe Checkout + Customer Portal) ─────────────
+
+/**
+ * Start a hosted Stripe Checkout session for the current org and return the
+ * redirect URL. plan ('standard'|'pro') and interval ('month'|'year') default
+ * to the org's selected_plan / monthly when omitted.
+ *
+ * @returns {Promise<{ url: string|null, error: Error|null }>}
+ */
+export async function createCheckoutSession({ plan, interval } = {}) {
+  const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+    body: { plan, interval },
+  })
+  if (error) return { url: null, error }
+  if (data?.error) return { url: null, error: new Error(data.error) }
+  return { url: data?.url || null, error: null }
+}
+
+/**
+ * Open the Stripe Billing Portal for the org (manage card, invoices, plan).
+ * @returns {Promise<{ url: string|null, error: Error|null }>}
+ */
+export async function createPortalSession() {
+  const { data, error } = await supabase.functions.invoke('create-portal-session', { body: {} })
+  if (error) return { url: null, error }
+  if (data?.error) return { url: null, error: new Error(data.error) }
+  return { url: data?.url || null, error: null }
+}
+
+/**
+ * Recompute billable seats and push the quantity to the org's Stripe
+ * subscription. Call after team changes that don't run through manage-team
+ * (invite-link approve / reject). No-op until the org has a subscription.
+ * @returns {Promise<{ error: Error|null }>}
+ */
+export async function syncSeats() {
+  const { error } = await callManageTeam({ action: 'sync_seats' })
+  return { error: error || null }
+}
+
 // ── Invite-code (shareable rep sign-up link) helpers ──────────────────────────
 //
 // The "Add Rep" form is fine when an owner has a handful of new hires, but it

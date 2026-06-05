@@ -19,30 +19,73 @@ const RESEND_FROM    = Deno.env.get('RESEND_FROM')    || 'KnockIQ <onboarding@re
 const APP_BASE_URL   = (Deno.env.get('APP_BASE_URL')  || 'https://app.knockiq.com').replace(/\/$/, '')
 
 // ── Stripe (org lifecycle billing) ───────────────────────────────────────────
-// STRIPE_SECRET_KEY: sk_live_… / sk_test_…. When unset, every lifecycle action
-// degrades gracefully to a status-only change — useful before billing is fully
-// switched on (the app's checkout flow is still being built).
-// STRIPE_PRICE_KEEPWARM: the flat $5/mo "keep-warm" price the subscription is
-// swapped to while paused (created in the KnockIQ Stripe account —
-// price_1Teo3NPhaKH0vmLVLRszoN6O). See STRIPE_SETUP.md.
-const STRIPE_SECRET_KEY     = Deno.env.get('STRIPE_SECRET_KEY')     || ''
-const STRIPE_PRICE_KEEPWARM = Deno.env.get('STRIPE_PRICE_KEEPWARM') || ''
+// Mode-aware so you can exercise the pause/cancel flow against TEST Stripe
+// before flipping to LIVE. STRIPE_MODE picks which key + keep-warm price the
+// function uses:
+//
+//   STRIPE_MODE = 'test'  → STRIPE_SECRET_KEY_TEST  + STRIPE_PRICE_KEEPWARM_TEST
+//   STRIPE_MODE = 'live'  → STRIPE_SECRET_KEY_LIVE  + STRIPE_PRICE_KEEPWARM_LIVE
+//   (default 'live')
+//
+// Each mode-specific name falls back to the un-suffixed STRIPE_SECRET_KEY /
+// STRIPE_PRICE_KEEPWARM, so an existing single-key setup keeps working.
+// When the resolved key is empty, every lifecycle action degrades gracefully
+// to a status-only change (no Stripe call) — which is the case before the
+// checkout flow exists and orgs actually have subscriptions.
+const STRIPE_MODE = (Deno.env.get('STRIPE_MODE') || 'live').toLowerCase() === 'test' ? 'test' : 'live'
+function stripeEnv(base: string): string {
+  const suffix = STRIPE_MODE === 'test' ? '_TEST' : '_LIVE'
+  return Deno.env.get(base + suffix) || Deno.env.get(base) || ''
+}
+const STRIPE_SECRET_KEY     = stripeEnv('STRIPE_SECRET_KEY')
+const STRIPE_PRICE_KEEPWARM = stripeEnv('STRIPE_PRICE_KEEPWARM')
 const stripe = STRIPE_SECRET_KEY
   ? new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
   : null
 
-// Look up the org owner's Stripe subscription id. Billing identifiers live on
-// the owner's public.users row (see 20260412_billing.sql); the org-level
-// billing migration is still pending, so we read from the owner here and will
-// switch to organizations.* when that lands.
-async function getOwnerSubscriptionId(adminClient: ReturnType<typeof createClient>, ownerId: string | null): Promise<string | null> {
-  if (!ownerId) return null
-  const { data } = await adminClient
+// The org's Stripe subscription id lives on organizations.stripe_subscription_id
+// (added in 20260605_org_stripe_billing) and is read straight off the org row
+// fetched below — no extra query, no bridging through the owner's users row.
+// It's null until the checkout flow populates it, in which case the lifecycle
+// actions stay status-only.
+
+// Billable seats = owner + active reps (role manager|rep, excluding pending/
+// rejected). Closers are not billed as seats. Keep this definition in sync with
+// create-checkout-session.
+async function countBillableSeats(adminClient: ReturnType<typeof createClient>, orgId: string): Promise<number> {
+  const { count } = await adminClient
     .from('users')
-    .select('stripe_subscription_id')
-    .eq('id', ownerId)
-    .single()
-  return data?.stripe_subscription_id || null
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', orgId)
+    .in('role', ['manager', 'rep'])
+    .not('status', 'in', '("pending","rejected")')
+  return Math.max(1, count || 1)
+}
+
+// Push the current seat count onto the org's Stripe subscription as the item
+// quantity. No-op (never throws) when Stripe or a subscription isn't set up yet,
+// so rep management keeps working before checkout exists.
+async function syncSeatQuantity(
+  adminClient: ReturnType<typeof createClient>,
+  orgId: string,
+  subscriptionId: string | null,
+): Promise<string> {
+  if (!stripe || !subscriptionId) return 'skipped: no subscription'
+  try {
+    const seats = await countBillableSeats(adminClient, orgId)
+    const sub = await stripe.subscriptions.retrieve(subscriptionId)
+    const item = sub.items.data[0]
+    if (!item) return 'skipped: no item'
+    if (item.quantity === seats) return `unchanged (${seats})`
+    await stripe.subscriptions.update(subscriptionId, {
+      items: [{ id: item.id, quantity: seats }],
+      proration_behavior: 'create_prorations',
+    })
+    return `updated to ${seats}`
+  } catch (e) {
+    console.error('[manage-team] syncSeatQuantity error:', (e as Error).message)
+    return `error: ${(e as Error).message}`
+  }
 }
 
 serve(async (req) => {
@@ -100,7 +143,7 @@ serve(async (req) => {
     // owner-only and need the current state to validate transitions.
     const { data: orgRow } = await adminClient
       .from('organizations')
-      .select('id, name, owner_user_id, status, trial_ends_at, purge_at, pause_prev_price_id, pause_prev_quantity')
+      .select('id, name, owner_user_id, status, trial_ends_at, purge_at, pause_prev_price_id, pause_prev_quantity, stripe_subscription_id')
       .eq('id', callerProfile.organization_id)
       .single()
     const orgName = orgRow?.name || 'your team'
@@ -258,6 +301,10 @@ serve(async (req) => {
         })
       }
 
+      // Seat count just changed — push the new quantity to Stripe (no-op until
+      // the org has a subscription). Best-effort; never blocks rep creation.
+      await syncSeatQuantity(adminClient, callerProfile.organization_id, orgRow?.stripe_subscription_id || null)
+
       return new Response(JSON.stringify({
         user: { id: newUserId, email, full_name: fullName, phone: phoneNormalized },
         mode,
@@ -309,7 +356,21 @@ serve(async (req) => {
         })
       }
 
+      // Seat count dropped — push the new quantity to Stripe (no-op pre-checkout).
+      await syncSeatQuantity(adminClient, callerProfile.organization_id, orgRow?.stripe_subscription_id || null)
+
       return new Response(JSON.stringify({ success: true }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // ── SYNC SEATS ─────────────────────────────────────────────────────────────
+    // Recompute billable seats and push the quantity to the org's Stripe
+    // subscription. Called by the client after team changes that don't go
+    // through this function (invite-link approve / reject). Manager-allowed.
+    if (action === 'sync_seats') {
+      const result = await syncSeatQuantity(adminClient, callerProfile.organization_id, orgRow?.stripe_subscription_id || null)
+      return new Response(JSON.stringify({ success: true, seats: result }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -417,7 +478,7 @@ serve(async (req) => {
       let prevPriceId: string | null = null
       let prevQuantity: number | null = null
       let billingWarning: string | null = null
-      const subId = await getOwnerSubscriptionId(adminClient, orgRow?.owner_user_id)
+      const subId = orgRow?.stripe_subscription_id || null
       if (stripe && STRIPE_PRICE_KEEPWARM && subId) {
         try {
           const sub = await stripe.subscriptions.retrieve(subId)
@@ -495,7 +556,7 @@ serve(async (req) => {
       // back to its original price + seat count. Non-fatal on error so a
       // Stripe blip can't strand the owner on the locked-out screen.
       let resumeBillingWarning: string | null = null
-      const resumeSubId = await getOwnerSubscriptionId(adminClient, orgRow?.owner_user_id)
+      const resumeSubId = orgRow?.stripe_subscription_id || null
       if (stripe && resumeSubId && orgRow?.pause_prev_price_id) {
         try {
           const sub = await stripe.subscriptions.retrieve(resumeSubId)
@@ -567,7 +628,7 @@ serve(async (req) => {
       // they reactivate inside the 90-day grace window (we just clear the flag
       // on resume). Non-fatal on error.
       let cancelBillingWarning: string | null = null
-      const cancelSubId = await getOwnerSubscriptionId(adminClient, orgRow?.owner_user_id)
+      const cancelSubId = orgRow?.stripe_subscription_id || null
       if (stripe && cancelSubId) {
         try {
           await stripe.subscriptions.update(cancelSubId, { cancel_at_period_end: true })
@@ -631,7 +692,7 @@ serve(async (req) => {
       // is the "erase everything now" path). Done before we delete the users
       // row that holds the subscription id. Non-fatal; teardown proceeds even
       // if Stripe errors so a billing blip can't leave the org half-deleted.
-      const delSubId = await getOwnerSubscriptionId(adminClient, orgRow?.owner_user_id)
+      const delSubId = orgRow?.stripe_subscription_id || null
       if (stripe && delSubId) {
         try {
           await stripe.subscriptions.cancel(delSubId)
