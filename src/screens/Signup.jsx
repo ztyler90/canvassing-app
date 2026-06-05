@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { signUpWithEmail, signInWithEmail, provisionNewOrganization, createCheckoutSession } from '../lib/supabase.js'
+import { signUpWithEmail, signInWithEmail, provisionNewOrganization } from '../lib/supabase.js'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
@@ -91,16 +91,14 @@ export default function Signup() {
     //    new organization_id attached. onAuthStateChange will then route us.
     await signInWithEmail(em, password)
 
-    // 4. Card up front: send the new owner straight to hosted Stripe Checkout
-    //    to add a card and start the 14-day trial. If anything goes wrong
-    //    creating the session, fall through to the app — the CompleteCheckout
-    //    gate (billing_required) will catch them and let them retry.
-    const { url, error: checkoutErr } = await createCheckoutSession({ plan: selectedPlan, interval: 'month', promo })
-    if (url) {
-      window.location.href = url
-      return
-    }
-    if (checkoutErr) console.warn('[Signup] checkout session failed:', checkoutErr.message)
+    // 4. Hand off to the CompleteCheckout gate (shown automatically because the
+    //    new org has billing_required = true and no subscription yet). That's
+    //    the single, intentional "add a card to start your trial" screen where
+    //    the owner confirms plan + interval and goes to hosted Stripe Checkout.
+    //    We deliberately do NOT redirect to Checkout here — doing both made the
+    //    gate flash for a moment before the redirect. Carry the beta promo (if
+    //    any) so the gate can apply the discount at checkout.
+    if (promo) { try { localStorage.setItem('kiq_signup_promo', promo) } catch {} }
     navigate('/', { replace: true })
   }
 

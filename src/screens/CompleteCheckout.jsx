@@ -63,12 +63,16 @@ export default function CompleteCheckout() {
 
   async function startCheckout() {
     setBusy(true); setErr(null)
-    const { url, error } = await createCheckoutSession({ plan, interval })
+    // Carry a beta promo (set on the signup link) through to checkout, if present.
+    let promo = null
+    try { promo = localStorage.getItem('kiq_signup_promo') } catch {}
+    const { url, error } = await createCheckoutSession({ plan, interval, promo })
     if (error || !url) {
       setErr(error?.message || 'Could not start checkout. Please try again.')
       setBusy(false)
       return
     }
+    try { localStorage.removeItem('kiq_signup_promo') } catch {}
     window.location.href = url
   }
 
