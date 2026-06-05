@@ -77,9 +77,13 @@ async function syncSeatQuantity(
     const item = sub.items.data[0]
     if (!item) return 'skipped: no item'
     if (item.quantity === seats) return `unchanged (${seats})`
+    // always_invoice: bill the prorated difference immediately on seat change.
+    // Makes annual seat-adds charge for the rest of the term right away (not a
+    // year later); seat-removals become an account credit applied to future
+    // invoices. No charge during the trial (Stripe won't invoice a trialing sub).
     await stripe.subscriptions.update(subscriptionId, {
       items: [{ id: item.id, quantity: seats }],
-      proration_behavior: 'create_prorations',
+      proration_behavior: 'always_invoice',
     })
     return `updated to ${seats}`
   } catch (e) {

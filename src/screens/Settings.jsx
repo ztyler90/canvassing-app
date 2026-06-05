@@ -557,6 +557,20 @@ export default function Settings() {
   // Fallback to legacy user.plan during rollout.
   const isPro       = isProTier(org, user)
   const seatPrice   = isPro ? 50 : 25
+  // Reverse-trial awareness: during the trial every org runs on full Pro, but
+  // converts to the plan they picked at signup (selected_plan) when it ends.
+  // Surfacing this prevents the "why am I on Pro when I chose Standard?"
+  // confusion — and the "where did my Pro features go?" surprise at conversion.
+  const inTrial        = org?.status === 'trial'
+  const postTrialPlan  = org?.selected_plan === 'pro' ? 'pro' : 'standard'
+  const postTrialPrice = postTrialPlan === 'pro' ? 50 : 25
+  const trialEndsLabel = org?.trial_ends_at
+    ? new Date(org.trial_ends_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    : null
+  // Will the org lose features at conversion? (on Pro trial, reverting to Standard)
+  const willDowngrade  = inTrial && postTrialPlan === 'standard'
+  // Flat off-season pause "keep-warm" fee (dollars). Defaults to $15.
+  const keepWarm    = org?.pause_fee_cents != null ? (org.pause_fee_cents / 100) : 15
   // Commission tracking is a Pro-only, opt-in add-on.
   const commissionOn = isCommissionEnabled(org, user)
 
@@ -1442,7 +1456,7 @@ export default function Settings() {
               <p className="text-gray-500 text-sm">Tier</p>
               <span className="text-sm font-semibold px-2 py-0.5 rounded-full"
                 style={{ backgroundColor: isPro ? BRAND_LIME + '20' : '#EFF6FF', color: isPro ? '#166534' : BRAND_BLUE }}>
-                {isPro ? 'Pro' : 'Standard'}
+                {isPro ? 'Pro' : 'Standard'}{inTrial ? ' · Trial' : ''}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -1475,6 +1489,39 @@ export default function Settings() {
         {/* ── Pricing Plans ──────────────────────────────────────────── */}
         <section>
           <h2 className="text-gray-700 font-semibold text-base mb-3">Plans</h2>
+
+          {/* Reverse-trial explainer. Every org runs on full Pro during the
+              trial, then converts to the plan picked at signup. Without this,
+              a Standard signup is baffled to see "Pro · Current Plan", then
+              loses features at conversion. Only shown while in trial. */}
+          {inTrial && (
+            <div className="mb-3 rounded-2xl border p-4"
+              style={{ backgroundColor: willDowngrade ? '#FFFBEB' : '#EFF6FF', borderColor: willDowngrade ? '#FDE68A' : '#BFDBFE' }}>
+              <div className="flex items-start gap-2.5">
+                <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: willDowngrade ? '#B45309' : BRAND_BLUE }} />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: willDowngrade ? '#92400E' : '#1E3A8A' }}>
+                    You're on a free Pro trial{trialEndsLabel ? ` until ${trialEndsLabel}` : ''}
+                  </p>
+                  <p className="text-xs mt-1 leading-relaxed" style={{ color: willDowngrade ? '#92400E' : '#1E40AF' }}>
+                    Every trial gets full <span className="font-semibold">Pro</span> features to try out. When your trial
+                    ends, your account switches to the <span className="font-semibold">{postTrialPlan === 'pro' ? 'Pro' : 'Standard'}</span> plan
+                    you chose at signup — <span className="font-semibold">${postTrialPrice}/seat/mo</span>
+                    {willDowngrade ? ', and Pro-only features (expanded pipeline, 51+ territories, exports, Zapier, commission tracking) will turn off.' : '.'}
+                  </p>
+                  {willDowngrade && (
+                    <a
+                      href="mailto:hello@knockiq.com?subject=Stay on Pro&body=Hi, I'd like to keep the Pro plan after my trial."
+                      className="inline-block mt-2 text-xs font-bold"
+                      style={{ color: BRAND_BLUE }}>
+                      Keep Pro instead →
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-3">
 
             {/* Standard Plan */}
@@ -1497,10 +1544,10 @@ export default function Settings() {
                   </li>
                 ))}
               </ul>
-              {!isPro && (
+              {(!isPro || willDowngrade) && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <span className="inline-flex items-center gap-1.5 text-blue-600 text-xs font-semibold bg-blue-50 px-3 py-1 rounded-full">
-                    <CheckCircle className="w-3.5 h-3.5" /> Current Plan
+                    <CheckCircle className="w-3.5 h-3.5" /> {willDowngrade ? 'Your plan after trial' : 'Current Plan'}
                   </span>
                 </div>
               )}
@@ -1534,8 +1581,10 @@ export default function Settings() {
               </ul>
               {isPro ? (
                 <div className="mt-3 pt-3 border-t border-gray-100">
-                  <span className="inline-flex items-center gap-1.5 text-blue-600 text-xs font-semibold bg-blue-50 px-3 py-1 rounded-full">
-                    <CheckCircle className="w-3.5 h-3.5" /> Current Plan
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full"
+                    style={inTrial ? { backgroundColor: '#FEF3C7', color: '#92400E' } : { backgroundColor: '#EFF6FF', color: '#2563EB' }}>
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    {inTrial ? `Trial access${trialEndsLabel ? ` · until ${trialEndsLabel}` : ''}` : 'Current Plan'}
                   </span>
                 </div>
               ) : (
@@ -1741,8 +1790,9 @@ export default function Settings() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-gray-800">Pause for the off-season</p>
                     <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                      Going seasonal? Pause billing and keep everything — territories, reps,
-                      pipeline, and history — ready for when you come back.
+                      Going seasonal? Drop to a <span className="font-semibold text-gray-700">flat ${keepWarm}/mo</span> keep-warm
+                      rate (not per seat) and keep everything — territories, reps, pipeline, and
+                      history — ready for when you come back.
                     </p>
                     <button
                       onClick={() => setLifecycleModal('pause')}
@@ -1831,7 +1881,7 @@ function AccountLifecycleModal({ mode, org, onClose, onPaused, onCancelled, onDe
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const keepWarm = org?.pause_fee_cents != null ? (org.pause_fee_cents / 100) : 5
+  const keepWarm = org?.pause_fee_cents != null ? (org.pause_fee_cents / 100) : 15
 
   async function doPause(reasonKey) {
     setBusy(true)
@@ -1882,8 +1932,8 @@ function AccountLifecycleModal({ mode, org, onClose, onPaused, onCancelled, onDe
           <p className="text-sm text-gray-600 leading-relaxed">
             Perfect fit for a seasonal break. Pausing keeps your territories, reps,
             pipeline, and full history intact and drops billing to a{' '}
-            <span className="font-semibold text-gray-800">${keepWarm}/mo</span> keep-warm
-            rate. Reactivate in one tap when the season picks back up — nothing to rebuild.
+            <span className="font-semibold text-gray-800">flat ${keepWarm}/mo</span> keep-warm
+            rate (not per seat). Reactivate in one tap when the season picks back up — nothing to rebuild.
           </p>
           <PauseDateControls
             resumeDate={resumeDate} setResumeDate={setResumeDate}
@@ -1908,7 +1958,7 @@ function AccountLifecycleModal({ mode, org, onClose, onPaused, onCancelled, onDe
           <p className="text-sm text-gray-600 leading-relaxed">
             If price is the issue, you can switch to the <span className="font-semibold text-gray-800">Standard</span> plan
             (lower per-seat cost) instead of leaving, or pause billing to a{' '}
-            <span className="font-semibold text-gray-800">${keepWarm}/mo</span> keep-warm rate and keep all your data.
+            <span className="font-semibold text-gray-800">flat ${keepWarm}/mo</span> keep-warm rate and keep all your data.
           </p>
           <a
             href="mailto:hello@knockiq.com?subject=Switch%20to%20Standard%20plan&body=Hi,%20I'd%20like%20to%20move%20my%20account%20to%20the%20Standard%20plan."
@@ -1919,7 +1969,7 @@ function AccountLifecycleModal({ mode, org, onClose, onPaused, onCancelled, onDe
             onClick={() => setStep('pause')}
             className="w-full py-2.5 rounded-xl border text-sm font-semibold"
             style={{ borderColor: BRAND_BLUE, color: BRAND_BLUE }}>
-            Pause instead (${keepWarm}/mo)
+            Pause instead (flat ${keepWarm}/mo)
           </button>
           {continueBtn}
         </>
@@ -1966,7 +2016,7 @@ function AccountLifecycleModal({ mode, org, onClose, onPaused, onCancelled, onDe
           onClick={() => setStep('pause')}
           className="w-full py-2.5 rounded-xl border text-sm font-semibold"
           style={{ borderColor: BRAND_BLUE, color: BRAND_BLUE }}>
-          Pause instead (${keepWarm}/mo)
+          Pause instead (flat ${keepWarm}/mo)
         </button>
         {continueBtn}
       </>
@@ -1991,8 +2041,8 @@ function AccountLifecycleModal({ mode, org, onClose, onPaused, onCancelled, onDe
             <ModalHeader icon={PauseCircle} iconBg="#E0E7FF" iconColor={BRAND_BLUE}
               title="Pause your account" />
             <p className="text-sm text-gray-600 leading-relaxed">
-              Billing pauses to a <span className="font-semibold text-gray-800">${keepWarm}/mo</span> keep-warm
-              rate. Your team won't be able to canvass while paused, but everything —
+              Billing pauses to a <span className="font-semibold text-gray-800">flat ${keepWarm}/mo</span> keep-warm
+              rate (not per seat). Your team won't be able to canvass while paused, but everything —
               territories, reps, pipeline, history — stays exactly as you left it.
             </p>
             <PauseDateControls

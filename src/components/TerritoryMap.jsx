@@ -285,7 +285,21 @@ const TerritoryMap = forwardRef(function TerritoryMap(
       doubleClickZoom: false,   // we use dblclick to close polygons
     })
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20 }).addTo(map)
+    // True satellite (aerial) base layer — Esri World Imagery (no API key),
+    // with street + place-name labels overlaid so territory boundaries are
+    // drawn against real rooftops while road names stay legible.
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 20, maxNativeZoom: 19 }
+    ).addTo(map)
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 20, maxNativeZoom: 19 }
+    ).addTo(map)
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 20, maxNativeZoom: 19 }
+    ).addTo(map)
 
     historyLayerRef.current = L.layerGroup().addTo(map)
     dnkLayerRef.current     = L.layerGroup().addTo(map)

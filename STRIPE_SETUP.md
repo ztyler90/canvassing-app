@@ -51,14 +51,16 @@ After saving, copy each **Price ID** (`price_…`). You'll need all four.
 
 ```
 # Products
-KnockIQ Standard = prod_Ue5zf7pOsLP6iV
-KnockIQ Pro      = prod_Ue63f2kJPQs6vI
+KnockIQ Standard          = prod_Ue5zf7pOsLP6iV
+KnockIQ Pro               = prod_Ue63f2kJPQs6vI
+KnockIQ — Paused          = prod_UeGnEQzeA55nfU
 
 # Prices (LIVE)
 STRIPE_PRICE_STANDARD_MONTHLY = price_1TenrDPhaKH0vmLVmlSW8QNa   # $25/seat/mo
 STRIPE_PRICE_STANDARD_ANNUAL  = price_1TenrEPhaKH0vmLVCS4IBzn9   # $240/seat/yr ($20/mo)
 STRIPE_PRICE_PRO_MONTHLY      = price_1TenrKPhaKH0vmLVtQ7YskFd   # $50/seat/mo
 STRIPE_PRICE_PRO_ANNUAL       = price_1TenrLPhaKH0vmLV06gvscbE   # $480/seat/yr ($40/mo)
+STRIPE_PRICE_PAUSED           = price_1TeyG8PhaKH0vmLVrXKYXk44   # $15/mo FLAT (not per seat)
 ```
 
 > ⚠️ These are **LIVE** price IDs. They work only with live (`sk_live_…`) keys. To test the
@@ -112,14 +114,16 @@ supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...   # from step 7
 # the manage-team function uses, so you can test against test-mode Stripe first.
 supabase secrets set STRIPE_MODE=live            # 'test' or 'live' (default live)
 
-# Live pair — keep-warm price already created in the KnockIQ Stripe account
-# ($5.00/mo, "KnockIQ Keep-Warm (Paused)"):
+# Live pair — keep-warm price created in the KnockIQ Stripe account
+# ($15.00/mo, "KnockIQ Keep-Warm (Paused)"). NOTE: the older $5 price
+# (price_1Teo3NPhaKH0vmLVLRszoN6O) is superseded — use the $15 one below.
+# Must equal organizations.pause_fee_cents (1500) so the UI matches the charge.
 supabase secrets set STRIPE_SECRET_KEY_LIVE=sk_live_...
-supabase secrets set STRIPE_PRICE_KEEPWARM_LIVE=price_1Teo3NPhaKH0vmLVLRszoN6O
+supabase secrets set STRIPE_PRICE_KEEPWARM_LIVE=price_1TeyjaPhaKH0vmLVQkiWlmcZ
 
-# Test pair — create a $5/mo recurring price in Stripe TEST mode, then:
+# Test pair — create a $15/mo recurring price in Stripe TEST mode, then:
 supabase secrets set STRIPE_SECRET_KEY_TEST=sk_test_...
-supabase secrets set STRIPE_PRICE_KEEPWARM_TEST=price_...   # your test-mode price
+supabase secrets set STRIPE_PRICE_KEEPWARM_TEST=price_...   # your $15 test-mode price
 
 # ── Checkout plan prices (mode-aware; used by create-checkout-session) ──
 # LIVE plan prices already exist in the KnockIQ Stripe account:

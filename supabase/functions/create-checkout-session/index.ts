@@ -141,8 +141,12 @@ serve(async (req) => {
       payment_method_collection: 'always',
       allow_promotion_codes: true,
       metadata: { organization_id: org.id, selected_plan: plan, interval },
-      success_url: `${APP_BASE_URL}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url:  `${APP_BASE_URL}/?checkout=cancel`,
+      // Return into the APP, not '/' — Vercel rewrites '/' to the marketing
+      // page (welcome.html), which looks logged-out. '/manager' serves the SPA,
+      // where AuthContext restores the session and the billing gate shows the
+      // "Finalizing…" screen (then the dashboard) once the webhook lands.
+      success_url: `${APP_BASE_URL}/manager?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url:  `${APP_BASE_URL}/manager?checkout=cancel`,
     })
 
     return json({ url: session.url, session_id: session.id })

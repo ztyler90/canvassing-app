@@ -294,9 +294,25 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
       zoomDelta: 0.5,
     })
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 20,
-    }).addTo(map)
+    // True satellite (aerial) base layer — Esri World Imagery. Free, no API
+    // key. maxNativeZoom caps the real imagery at z19 and Leaflet upscales to
+    // z20 so deep zooms stay usable.
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 20, maxNativeZoom: 19 }
+    ).addTo(map)
+
+    // Street + place-name labels drawn on top of the imagery, so the view
+    // reads like Google's satellite/hybrid mode — labels stay legible while
+    // the canvasser still sees real rooftops.
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 20, maxNativeZoom: 19 }
+    ).addTo(map)
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 20, maxNativeZoom: 19 }
+    ).addTo(map)
 
     trailRef.current = L.polyline([], {
       color: '#3B82F6',
