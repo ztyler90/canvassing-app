@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { signUpWithEmail, signInWithEmail, provisionNewOrganization } from '../lib/supabase.js'
+import { useAuth } from '../contexts/AuthContext.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
@@ -30,6 +31,7 @@ function KnockIQLogo() {
 
 export default function Signup() {
   const navigate = useNavigate()
+  const { refreshUser } = useAuth()
   const [searchParams] = useSearchParams()
   // Plan the visitor clicked on the pricing page ('standard' | 'pro'). Drives
   // the post-trial plan they'll be billed for; the trial itself is full Pro.
@@ -99,6 +101,11 @@ export default function Signup() {
     //    gate flash for a moment before the redirect. Carry the beta promo (if
     //    any) so the gate can apply the discount at checkout.
     if (promo) { try { localStorage.setItem('kiq_signup_promo', promo) } catch {} }
+    // Wait for the full profile (org + billing_required) to load BEFORE handing
+    // off, so the app routes straight to the billing screen instead of flashing
+    // the dashboard for a few seconds while the org finishes loading. The signup
+    // page keeps showing its own "Creating your account…" state during this wait.
+    await refreshUser()
     navigate('/', { replace: true })
   }
 

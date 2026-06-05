@@ -132,6 +132,15 @@ serve(async (req) => {
       await admin.from('organizations').update({ stripe_customer_id: customerId }).eq('id', org.id)
     }
 
+    // Persist the plan the owner actually chose at checkout. Without this, the
+    // org keeps whatever selected_plan signup set, so the trial banner and the
+    // post-trial conversion (webhook sets tier = selected_plan) would use the
+    // wrong plan — e.g. downgrade a Pro-checkout to Standard. Source of truth
+    // for "what they'll be billed for after the trial" is THIS choice.
+    if (org.selected_plan !== plan) {
+      await admin.from('organizations').update({ selected_plan: plan }).eq('id', org.id)
+    }
+
     // Private beta discount: applied only when the signup carried ?promo=beta.
     // Invisible to everyone else — the public checkout never shows a promo field.
     const applyBeta = String(body.promo || '').toLowerCase() === 'beta' && !!STRIPE_BETA_COUPON
