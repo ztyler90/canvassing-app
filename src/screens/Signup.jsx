@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { signUpWithEmail, signInWithEmail, provisionNewOrganization } from '../lib/supabase.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -23,13 +23,17 @@ function KnockIQLogo() {
         alt="KnockIQ"
         className="h-24 w-auto object-contain"
       />
-      <p className="text-gray-400 text-sm mt-2">Start your 30-day free trial</p>
+      <p className="text-gray-400 text-sm mt-2">Start your 14-day free trial</p>
     </a>
   )
 }
 
 export default function Signup() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // Plan the visitor clicked on the pricing page ('standard' | 'pro'). Drives
+  // the post-trial plan they'll be billed for; the trial itself is full Pro.
+  const selectedPlan = searchParams.get('plan') === 'pro' ? 'pro' : 'standard'
 
   const [businessName, setBusinessName] = useState('')
   const [fullName,     setFullName]     = useState('')
@@ -73,7 +77,7 @@ export default function Signup() {
 
     // 2. Provision the organization (creates org + stamps user as owner).
     //    Runs as the just-authenticated user; the RPC is SECURITY DEFINER.
-    const { error: provError } = await provisionNewOrganization(bn)
+    const { error: provError } = await provisionNewOrganization(bn, selectedPlan)
     if (provError) {
       setLoading(false)
       setError('Account created, but we couldn\'t set up your business: ' + provError.message)
@@ -149,7 +153,7 @@ export default function Signup() {
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p className="text-xs text-blue-700">
-              30-day free trial. No credit card required. Add reps and cancel anytime.
+              14-day free trial. No credit card required. Add reps and cancel anytime.
             </p>
           </div>
 

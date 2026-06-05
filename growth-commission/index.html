@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KnockIQ · Growth Commissions</title>
+<style>
+  :root{
+    --bg:#0f1222; --panel:#171b30; --panel2:#1e2440; --line:#2a3157;
+    --txt:#e8ebf7; --muted:#9aa3c7; --accent:#5b8cff; --accent2:#7c5cff;
+    --green:#36d399; --amber:#fbbd23; --red:#f87272; --chip:#242b4d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(1200px 600px at 70% -10%,#1b2240 0,transparent 60%),var(--bg);color:var(--txt);min-height:100vh}
+  a{color:var(--accent)}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;color:#fff}
+  .brand h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.2px}
+  .brand .sub{font-size:12px;color:var(--muted);margin-top:2px}
+  .who{font-size:13px;color:var(--muted);text-align:right}
+  .who b{color:var(--txt)}
+  button{font:inherit;cursor:pointer;border:none;border-radius:10px;padding:10px 14px;font-weight:600;
+    background:var(--accent);color:#fff;transition:.15s}
+  button:hover{filter:brightness(1.08)}
+  button.ghost{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  button.sm{padding:6px 10px;font-size:12px;border-radius:8px}
+  button.danger{background:transparent;color:var(--red);border:1px solid #4a2740}
+  input,select{font:inherit;background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    border-radius:10px;padding:10px 12px;width:100%}
+  label{font-size:12px;color:var(--muted);display:block;margin:0 0 5px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:22px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:16px;padding:18px}
+  .card .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+  .card .v{font-size:26px;font-weight:800;margin-top:8px}
+  .card .v small{font-size:13px;color:var(--muted);font-weight:600}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:20px}
+  .panel h2{margin:0 0 14px;font-size:15px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:11px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600}
+  td.num,th.num{text-align:right}
+  .chip{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;background:var(--chip)}
+  .chip.r20{background:rgba(54,211,153,.15);color:var(--green)}
+  .chip.r10{background:rgba(91,140,255,.16);color:var(--accent)}
+  .chip.r5{background:rgba(251,189,35,.16);color:var(--amber)}
+  .chip.r0{background:rgba(248,114,114,.14);color:var(--red)}
+  .chip.organic{background:#23284a;color:var(--muted)}
+  .chip.trial{background:rgba(251,189,35,.14);color:var(--amber)}
+  .chip.active{background:rgba(54,211,153,.14);color:var(--green)}
+  .bar{height:7px;border-radius:999px;background:var(--panel2);overflow:hidden;min-width:90px;margin-top:6px}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .muted{color:var(--muted)}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end}
+  .row-actions{display:flex;gap:8px}
+  .notice{padding:10px 12px;border-radius:10px;font-size:13px;margin:10px 0}
+  .notice.ok{background:rgba(54,211,153,.12);color:var(--green);border:1px solid rgba(54,211,153,.3)}
+  .notice.err{background:rgba(248,114,114,.12);color:var(--red);border:1px solid rgba(248,114,114,.3)}
+  .login{max-width:380px;margin:9vh auto 0}
+  .login .panel{padding:26px}
+  .stack{display:flex;flex-direction:column;gap:14px}
+  .hidden{display:none!important}
+  .taperline{display:flex;gap:4px;align-items:center}
+  .seg{height:8px;border-radius:3px;width:34px}
+  .legend{font-size:11px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
+  .legend span{display:flex;align-items:center;gap:5px}
+  .dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+  footer{color:var(--muted);font-size:12px;text-align:center;padding:24px 0}
+  details summary{cursor:pointer;color:var(--accent);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">K</div>
+      <div>
+        <h1>KnockIQ · Growth Commissions</h1>
+        <div class="sub">Transparent revenue-share tracking</div>
+      </div>
+    </div>
+    <div id="whoBox" class="who hidden">
+      <div>Signed in as <b id="whoEmail"></b> · <span id="whoRole"></span></div>
+      <button class="ghost sm" id="signOutBtn" style="margin-top:6px">Sign out</button>
+    </div>
+  </header>
+
+  <!-- LOGIN -->
+  <section id="loginView" class="login">
+    <div class="panel">
+      <h2>Sign in</h2>
+      <div class="stack">
+        <div><label>Email</label><input id="email" type="email" autocomplete="username" /></div>
+        <div><label>Password</label><input id="password" type="password" autocomplete="current-password" /></div>
+        <button id="loginBtn">Sign in</button>
+        <div id="loginMsg"></div>
+      </div>
+    </div>
+    <footer>Access is scoped: a growth manager sees only their own accounts.</footer>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section id="dashView" class="hidden">
+    <div class="cards" id="summaryCards"></div>
+
+    <!-- Admin tools -->
+    <div id="adminTools" class="hidden">
+      <div class="panel">
+        <h2>Assign an account to a growth manager</h2>
+        <div class="grid2">
+          <div><label>Account (unassigned)</label><select id="assignOrg"></select></div>
+          <div><label>Growth manager</label><select id="assignGm"></select></div>
+          <div><label>Method</label>
+            <select id="assignMethod"><option value="manual">Manual</option><option value="referral_code">Referral code</option></select>
+          </div>
+          <div><label>Recruited on</label><input id="assignDate" type="date" /></div>
+          <div><button id="assignBtn">Assign</button></div>
+        </div>
+        <div id="assignMsg"></div>
+        <details style="margin-top:14px">
+          <summary>+ Add a new growth manager (creates their login)</summary>
+          <div class="grid2" style="margin-top:12px">
+            <div><label>Full name</label><input id="gmName" /></div>
+            <div><label>Email</label><input id="gmEmail" type="email" /></div>
+            <div><label>Temporary password</label><input id="gmPass" /></div>
+            <div><label>Referral code (optional)</label><input id="gmCode" placeholder="GROWTH-MARCUS" /></div>
+            <div><button id="addGmBtn">Create login</button></div>
+          </div>
+          <div id="gmMsg"></div>
+          <p class="muted" style="font-size:12px">Share the email + temporary password with them. They can change the password after first sign-in.</p>
+        </details>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <h2 style="margin:0" id="accountsTitle">Accounts</h2>
+        <div class="row-actions">
+          <button class="ghost sm" id="refreshBtn">Refresh</button>
+          <button class="ghost sm hidden" id="snapshotBtn" title="Locks this month's revenue & commission into the permanent ledger">Lock this month</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="accountsTable">
+          <thead><tr id="accountsHead"></tr></thead>
+          <tbody id="accountsBody"></tbody>
+        </table>
+      </div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--green)"></i> Year 1 · 20%</span>
+        <span><i class="dot" style="background:var(--accent)"></i> Year 2 · 10%</span>
+        <span><i class="dot" style="background:var(--amber)"></i> Year 3 · 5%</span>
+        <span><i class="dot" style="background:var(--red)"></i> Year 4+ · 0%</span>
+      </div>
+      <p class="muted" style="font-size:12.5px;margin-top:14px">
+        Commission = that month's actual billed subscription revenue × the taper rate for the account's tenure.
+        The taper clock starts the month an account first becomes a paying (active) subscription; trials count as $0.
+        Organic signups have no attribution and pay nothing.
+      </p>
+    </div>
+
+    <div class="panel" id="changePassPanel">
+      <details>
+        <summary>Change my password</summary>
+        <div class="grid2" style="margin-top:12px">
+          <div><label>New password</label><input id="newPass" type="password" /></div>
+          <div><button class="ghost" id="changePassBtn">Update password</button></div>
+        </div>
+        <div id="passMsg"></div>
+      </details>
+    </div>
+  </section>
+
+  <footer>KnockIQ Growth Commission Tracker · figures update live from billing</footer>
+</div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://mcwspvhihekhkytfxggv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_TrrRKAkdoHFGdCwu1qHNIA_3XxFTvK8';
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = id => document.getElementById(id);
+const money = n => '$' + (Number(n||0)).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0});
+const money2 = n => '$' + (Number(n||0)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const pct = r => (Number(r||0)*100).toFixed(r && Number(r)*100 % 1 ? 1 : 0) + '%';
+
+function rateChip(rate, status){
+  if(status && status!=='active') return `<span class="chip trial">trial · $0</span>`;
+  const r = Number(rate);
+  if(r>=0.2) return `<span class="chip r20">20%</span>`;
+  if(r>=0.1) return `<span class="chip r10">10%</span>`;
+  if(r>0)    return `<span class="chip r5">5%</span>`;
+  return `<span class="chip r0">0%</span>`;
+}
+function taperViz(tenure){
+  // 36 month bands; color current position
+  const colors=['var(--green)','var(--accent)','var(--amber)','var(--red)'];
+  const yr = tenure==null?0:Math.min(3, Math.floor((tenure-1)/12));
+  let html='<div class="taperline">';
+  for(let y=0;y<4;y++){
+    const on = tenure!=null && y===yr;
+    html+=`<span class="seg" style="background:${y<=yr&&tenure!=null?colors[y]:'var(--panel2)'};outline:${on?'2px solid #fff8':'none'}"></span>`;
+  }
+  html+='</div>';
+  return html;
+}
+function note(el,msg,ok){ el.innerHTML = `<div class="notice ${ok?'ok':'err'}">${msg}</div>`; }
+
+let CURRENT = null; // last dashboard payload
+
+async function loadDashboard(){
+  const { data, error } = await sb.rpc('growth_dashboard');
+  if(error){ note($('loginMsg'), error.message, false); return; }
+  CURRENT = data;
+  render(data);
+}
+
+function render(d){
+  const isAdmin = d.role==='admin';
+  $('whoRole').textContent = isAdmin ? 'Admin' : 'Growth manager';
+  $('adminTools').classList.toggle('hidden', !isAdmin);
+  $('snapshotBtn').classList.toggle('hidden', !isAdmin);
+  $('changePassPanel').classList.toggle('hidden', isAdmin);
+  $('accountsTitle').textContent = isAdmin ? 'All recruited accounts' : 'My recruited accounts';
+
+  const accts = d.accounts||[];
+  const thisMonth = accts.reduce((s,a)=> s + (a.org_status==='active'? Number(a.projected_commission||0):0), 0);
+  const lifetime  = accts.reduce((s,a)=> s + Number(a.lifetime_commission||0), 0);
+  const mrr       = accts.reduce((s,a)=> s + (a.org_status==='active'? Number(a.current_revenue||0):0), 0);
+  const activeCnt = accts.filter(a=>a.org_status==='active').length;
+
+  $('summaryCards').innerHTML = `
+    <div class="card"><div class="k">This month's commission</div><div class="v">${money2(thisMonth)}</div></div>
+    <div class="card"><div class="k">Lifetime commission (locked)</div><div class="v">${money2(lifetime)}</div></div>
+    <div class="card"><div class="k">Recruited revenue / mo</div><div class="v">${money(mrr)} <small>active</small></div></div>
+    <div class="card"><div class="k">Accounts</div><div class="v">${accts.length} <small>${activeCnt} paying</small></div></div>`;
+
+  const cols = isAdmin
+    ? ['Account','Manager','Status','Started','Tenure','Rate','Revenue/mo','This mo','Lifetime','Taper','']
+    : ['Account','Status','Started','Tenure','Rate','Revenue/mo','This mo','Lifetime','Taper'];
+  $('accountsHead').innerHTML = cols.map((c,i)=>`<th class="${['Revenue/mo','This mo','Lifetime'].includes(c)?'num':''}">${c}</th>`).join('');
+
+  if(!accts.length){
+    $('accountsBody').innerHTML = `<tr><td colspan="${cols.length}" class="muted" style="padding:22px">No accounts attributed yet. ${isAdmin?'Use “Assign an account” above to credit a paying org to a growth manager.':'Accounts you recruit will appear here once assigned.'}</td></tr>`;
+    return;
+  }
+
+  $('accountsBody').innerHTML = accts.map(a=>{
+    const start = a.commission_start_month ? a.commission_start_month : '—';
+    const tenure = a.tenure_month==null ? '—' : ('mo '+a.tenure_month);
+    const statusChip = a.org_status==='active' ? '<span class="chip active">paying</span>' : `<span class="chip trial">${a.org_status}</span>`;
+    const cells = [
+      `<td><b>${a.org_name}</b></td>`,
+      isAdmin ? `<td>${a.growth_manager_name||''}</td>` : '',
+      `<td>${statusChip}</td>`,
+      `<td class="muted">${start}</td>`,
+      `<td class="muted">${tenure}</td>`,
+      `<td>${rateChip(a.current_rate, a.org_status)}</td>`,
+      `<td class="num">${money(a.current_revenue)}</td>`,
+      `<td class="num">${a.org_status==='active'?money2(a.projected_commission):'<span class=muted>$0</span>'}</td>`,
+      `<td class="num">${money2(a.lifetime_commission)}</td>`,
+      `<td>${taperViz(a.tenure_month)}</td>`,
+      isAdmin ? `<td><button class="danger sm" data-unassign="${a.attribution_id}">Remove</button></td>` : ''
+    ].filter(Boolean).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+
+  document.querySelectorAll('[data-unassign]').forEach(b=>{
+    b.onclick = async ()=>{
+      if(!confirm('Remove this attribution? It stops future commission and deletes its ledger history.')) return;
+      const { error } = await sb.rpc('growth_unassign_account',{ p_attribution_id: b.dataset.unassign });
+      if(error) alert(error.message); else { await loadAdminLists(); await loadDashboard(); }
+    };
+  });
+}
+
+async function loadAdminLists(){
+  const { data, error } = await sb.rpc('growth_admin_lists');
+  if(error) return;
+  $('assignOrg').innerHTML = (data.unassigned_orgs||[]).map(o=>
+    `<option value="${o.id}">${o.name} · ${o.status} · ${money(o.monthly_price)}/mo</option>`).join('')
+    || '<option value="">No unassigned accounts</option>';
+  $('assignGm').innerHTML = (data.managers||[]).map(m=>
+    `<option value="${m.id}">${m.full_name||m.email}${m.referral_code?' · '+m.referral_code:''}</option>`).join('')
+    || '<option value="">No managers yet — add one below</option>';
+}
+
+// ---- auth + events ----
+async function showApp(session){
+  $('loginView').classList.add('hidden');
+  $('dashView').classList.remove('hidden');
+  $('whoBox').classList.remove('hidden');
+  $('whoEmail').textContent = session.user.email;
+  $('assignDate').value = new Date().toISOString().slice(0,10);
+  await loadDashboard();
+  if(CURRENT && CURRENT.role==='admin') await loadAdminLists();
+}
+function showLogin(){
+  $('dashView').classList.add('hidden');
+  $('whoBox').classList.add('hidden');
+  $('loginView').classList.remove('hidden');
+}
+
+$('loginBtn').onclick = async ()=>{
+  $('loginMsg').innerHTML='';
+  const { data, error } = await sb.auth.signInWithPassword({ email:$('email').value.trim(), password:$('password').value });
+  if(error){ note($('loginMsg'), error.message, false); return; }
+  showApp(data.session);
+};
+$('password').addEventListener('keydown',e=>{ if(e.key==='Enter') $('loginBtn').click(); });
+$('signOutBtn').onclick = async ()=>{ await sb.auth.signOut(); showLogin(); };
+$('refreshBtn').onclick = loadDashboard;
+
+$('snapshotBtn').onclick = async ()=>{
+  $('snapshotBtn').disabled=true; $('snapshotBtn').textContent='Locking…';
+  const { error } = await sb.rpc('growth_snapshot_month');
+  $('snapshotBtn').disabled=false; $('snapshotBtn').textContent='Lock this month';
+  if(error) alert(error.message); else loadDashboard();
+};
+
+$('assignBtn').onclick = async ()=>{
+  const org=$('assignOrg').value, gm=$('assignGm').value;
+  if(!org||!gm){ note($('assignMsg'),'Pick an account and a manager.',false); return; }
+  const { error } = await sb.rpc('growth_assign_account',{
+    p_org_id:org, p_growth_manager_id:gm, p_method:$('assignMethod').value, p_recruited_at:$('assignDate').value||null, p_notes:null });
+  if(error){ note($('assignMsg'),error.message,false); return; }
+  note($('assignMsg'),'Account assigned.',true);
+  await loadAdminLists(); await loadDashboard();
+};
+
+$('addGmBtn').onclick = async ()=>{
+  const name=$('gmName').value.trim(), email=$('gmEmail').value.trim(), pass=$('gmPass').value, code=$('gmCode').value.trim()||null;
+  if(!name||!email||!pass){ note($('gmMsg'),'Name, email and password are required.',false); return; }
+  const { error } = await sb.rpc('growth_provision_manager',{ p_email:email, p_full_name:name, p_password:pass, p_referral_code:code });
+  if(error){ note($('gmMsg'),error.message,false); return; }
+  note($('gmMsg'),`Login created for ${name}. Share the email + temporary password.`,true);
+  $('gmName').value=$('gmEmail').value=$('gmPass').value=$('gmCode').value='';
+  await loadAdminLists();
+};
+
+$('changePassBtn').onclick = async ()=>{
+  const p=$('newPass').value;
+  if(!p||p.length<8){ note($('passMsg'),'Use at least 8 characters.',false); return; }
+  const { error } = await sb.auth.updateUser({ password:p });
+  if(error) note($('passMsg'),error.message,false); else { note($('passMsg'),'Password updated.',true); $('newPass').value=''; }
+};
+
+// restore session
+const { data:{ session } } = await sb.auth.getSession();
+if(session) showApp(session); else showLogin();
+</script>
+</body>
+</html>

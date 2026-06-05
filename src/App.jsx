@@ -6,6 +6,7 @@ import Login             from './screens/Login.jsx'
 import Signup            from './screens/Signup.jsx'
 import RepJoin           from './screens/RepJoin.jsx'
 import PendingApproval   from './screens/PendingApproval.jsx'
+import AccountInactive   from './screens/AccountInactive.jsx'
 import SetPassword       from './screens/SetPassword.jsx'
 import RepHome           from './screens/RepHome.jsx'
 import ActiveCanvassing  from './screens/ActiveCanvassing.jsx'
@@ -64,6 +65,21 @@ function WelcomeRedirect() {
   return null
 }
 
+// Maps an org's lifecycle status to whether the app should be usable right
+// now. Returns 'ok' | 'paused' | 'cancelled'. Note the real-time grace on
+// pause: a paused org that has already reached its resume_at is treated as
+// active immediately, without waiting for the nightly reactivation job to
+// flip the stored status. No org (solo/edge) is never blocked.
+function orgAccessState(org) {
+  if (!org) return 'ok'
+  if (org.status === 'paused') {
+    if (org.resume_at && new Date(org.resume_at).getTime() <= Date.now()) return 'ok'
+    return 'paused'
+  }
+  if (org.status === 'cancelled') return 'cancelled'
+  return 'ok'
+}
+
 function AppRoutes() {
   const { user, loading } = useAuth()
 
@@ -101,6 +117,20 @@ function AppRoutes() {
   if (user.status === 'pending') return (
     <Routes>
       <Route path="*" element={<PendingApproval />} />
+    </Routes>
+  )
+
+  // Org-inactive gate. When the owner has paused or cancelled the
+  // organization, the whole team loses app access until it's reactivated —
+  // every route funnels into AccountInactive (which shows the owner a
+  // Reactivate button and everyone else a "contact your owner" message).
+  // Sits above force_password_change because a paused/cancelled org should
+  // short-circuit regardless of any pending password setup. The grace logic
+  // in orgAccessState means a paused org past its resume date falls straight
+  // through to the normal app.
+  if (orgAccessState(user.organization) !== 'ok') return (
+    <Routes>
+      <Route path="*" element={<AccountInactive />} />
     </Routes>
   )
 

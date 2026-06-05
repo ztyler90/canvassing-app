@@ -4,7 +4,7 @@ import { Square, MapPin, Clock, Home, Pin, X, Signal } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import { gpsTracker } from '../lib/gps.js'
-import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, getWebhookUrl, fireZapierWebhook, getOrgRecentInteractions, getRepSessions, getMyCommissionConfig, getMyOrganization } from '../lib/supabase.js'
+import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, fireWebhookEvent, getOrgRecentInteractions, getRepSessions, getMyCommissionConfig, getMyOrganization } from '../lib/supabase.js'
 import { isCommissionEnabled } from '../lib/tier.js'
 import { acquireWakeLock, releaseWakeLock, isWakeLockSupported } from '../lib/wakeLock.js'
 import { usePrefs } from '../lib/prefs.js'
@@ -352,24 +352,20 @@ export default function ActiveCanvassing() {
     const { data: endedSession } = await endSession(state.session.id, summary)
     dispatch({ type: 'STOP_SESSION' })
 
-    // Fire Zapier webhook if configured
+    // Fire the org-level Zapier webhook (gated by the 'session_ended' toggle)
     try {
-      const webhookUrl = await getWebhookUrl()
-      if (webhookUrl) {
-        await fireZapierWebhook(webhookUrl, {
-          event:          'session_ended',
-          rep_name:       user?.full_name  || '',
-          rep_email:      user?.email      || '',
-          session_id:     state.session.id,
-          started_at:     endedSession?.started_at || state.session.started_at,
-          ended_at:       endedSession?.ended_at   || new Date().toISOString(),
-          doors_knocked:  summary.doors_knocked,
-          conversations:  summary.conversations,
-          estimates:      summary.estimates,
-          bookings:       summary.bookings,
-          revenue_booked: summary.revenue_booked,
-        })
-      }
+      await fireWebhookEvent('session_ended', {
+        rep_name:       user?.full_name  || '',
+        rep_email:      user?.email      || '',
+        session_id:     state.session.id,
+        started_at:     endedSession?.started_at || state.session.started_at,
+        ended_at:       endedSession?.ended_at   || new Date().toISOString(),
+        doors_knocked:  summary.doors_knocked,
+        conversations:  summary.conversations,
+        estimates:      summary.estimates,
+        bookings:       summary.bookings,
+        revenue_booked: summary.revenue_booked,
+      })
     } catch (e) {
       console.warn('[Webhook] Error firing webhook:', e)
     }

@@ -9,8 +9,9 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2, Workflow } from 'lucide-react'
-import { saveWebhookUrl, getWebhookUrl, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled } from '../lib/supabase.js'
+import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2, Workflow, HelpCircle, PauseCircle, AlertTriangle, Calendar, ShieldAlert } from 'lucide-react'
+import { getOrgWebhookConfig, saveOrgWebhookConfig, DEFAULT_WEBHOOK_EVENTS, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled, pauseOrganization, cancelOrganization, deleteOrganization, signOut } from '../lib/supabase.js'
+import { useAuth } from '../contexts/AuthContext.jsx'
 import { describeCommission, DEFAULT_COMMISSION_CONFIG, getHourlyRate } from '../lib/repStats.js'
 import { isProTier, isCommissionEnabled } from '../lib/tier.js'
 import { ProBadge, ProUpgradeModal } from '../components/ProGate.jsx'
@@ -21,11 +22,16 @@ const BRAND_LIME = '#7DC31E'
 export default function Settings() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { refreshUser } = useAuth()
   const teamSectionRef = useRef(null)
+  // Which account-lifecycle modal is open: null | 'pause' | 'cancel'.
+  // (Hard delete lives inside the cancel modal's danger step.)
+  const [lifecycleModal, setLifecycleModal] = useState(null)
   const [user, setUser]               = useState(null)
   const [org, setOrg]                 = useState(null)
   const [webhookUrl, setWebhookUrl]   = useState('')
   const [savedUrl, setSavedUrl]       = useState('')
+  const [webhookEvents, setWebhookEvents] = useState(DEFAULT_WEBHOOK_EVENTS)
   const [saving, setSaving]           = useState(false)
   const [testing, setTesting]         = useState(false)
   const [testResult, setTestResult]   = useState(null) // 'success' | 'error' | null
@@ -144,11 +150,12 @@ export default function Settings() {
       setCountLabel(myOrg.count_goal_label || 'estimates')
       setMonthlyGoal(myOrg.monthly_goal_value != null ? String(myOrg.monthly_goal_value) : '')
     }
-    const url = await getWebhookUrl()
-    if (url) {
-      setWebhookUrl(url)
-      setSavedUrl(url)
+    const cfg = await getOrgWebhookConfig()
+    if (cfg?.url) {
+      setWebhookUrl(cfg.url)
+      setSavedUrl(cfg.url)
     }
+    if (cfg?.events) setWebhookEvents({ ...DEFAULT_WEBHOOK_EVENTS, ...cfg.events })
     setLoading(false)
   }
 
@@ -477,8 +484,9 @@ export default function Settings() {
   }
 
   async function handleSaveWebhook() {
+    if (!org?.id) { showToast('No organization loaded', 'error'); return }
     setSaving(true)
-    const { error } = await saveWebhookUrl(webhookUrl.trim() || null)
+    const { error } = await saveOrgWebhookConfig(org.id, { url: webhookUrl.trim() || null })
     setSaving(false)
     if (error) {
       showToast('Failed to save: ' + error.message, 'error')
@@ -488,15 +496,41 @@ export default function Settings() {
     }
   }
 
+  // Toggle a single event on/off and persist immediately (org-level).
+  async function handleToggleEvent(key) {
+    if (!org?.id) { showToast('No organization loaded', 'error'); return }
+    const next = { ...webhookEvents, [key]: !webhookEvents[key] }
+    setWebhookEvents(next) // optimistic
+    const { error } = await saveOrgWebhookConfig(org.id, { events: next })
+    if (error) {
+      setWebhookEvents(webhookEvents) // revert
+      showToast('Could not update events: ' + error.message, 'error')
+    }
+  }
+
   async function handleTestWebhook() {
     if (!savedUrl) { showToast('Save your webhook URL first', 'error'); return }
     setTesting(true)
     setTestResult(null)
+    // Mirror the real `session_ended` payload (same keys) so Zapier's field
+    // mapper learns every field during setup — populated with sample values.
+    const now = new Date()
+    const started = new Date(now.getTime() - 3 * 3600000) // 3h earlier
     const payload = {
       event: 'test',
       source: 'knockiq',
-      timestamp: new Date().toISOString(),
-      message: 'KnockIQ webhook test — connection successful!',
+      message: 'KnockIQ webhook test — connection successful! (sample data)',
+      rep_name:       'Sample Rep',
+      rep_email:      'rep@example.com',
+      session_id:     'sample-session-0001',
+      started_at:     started.toISOString(),
+      ended_at:       now.toISOString(),
+      doors_knocked:  42,
+      conversations:  18,
+      estimates:      7,
+      bookings:       3,
+      revenue_booked: 5400.00,
+      timestamp:      now.toISOString(),
     }
     const ok = await fireZapierWebhook(savedUrl, payload)
     setTesting(false)
@@ -525,6 +559,10 @@ export default function Settings() {
   }
   const monthlyCost = (reps.length + 1) * seatPrice  // +1 for the owner
   const roleLabel   = user?.is_super_admin ? 'Super-Admin' : (user?.role === 'manager' ? 'Owner' : 'Rep')
+  // Only the org owner sees the pause/cancel/delete controls. Matches the
+  // owner-only enforcement in the manage-team edge function, so a non-owner
+  // manager never sees a button that would 403.
+  const isOwner = user?.role === 'manager' && !!org?.owner_user_id && org.owner_user_id === user?.id
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -1463,7 +1501,7 @@ export default function Settings() {
                 </div>
               </div>
               <ul className="space-y-1.5 mt-3">
-                {['Everything in Standard', 'Expanded Pipeline View', 'Expanded door history & 51+ territories', 'Commission tracking + base pay (add-on)', 'Export to CSV & Google Sheets', 'Phone support'].map(f => (
+                {['Everything in Standard', 'Expanded Pipeline View', 'Expanded door history & 51+ territories', 'Commission tracking + base pay (add-on)', 'Export to CSV & Google Sheets', 'Zapier integration (6,000+ apps)', 'Phone support'].map(f => (
                   <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
                     <Check className="w-4 h-4 flex-shrink-0" style={{ color: BRAND_LIME }} />
                     {f}
@@ -1495,6 +1533,31 @@ export default function Settings() {
             <Zap className="w-4 h-4" style={{ color: BRAND_BLUE }} />
             <h2 className="text-gray-700 font-semibold text-base">CRM Integration</h2>
             {!isPro && <Lock className="w-3.5 h-3.5 text-gray-400" />}
+
+            {/* Hover Help callout — step-by-step Zapier setup guide */}
+            <span className="relative group ml-auto">
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-blue-600 transition-colors"
+                aria-label="How to set up the Zapier webhook">
+                <HelpCircle className="w-3.5 h-3.5" /> Setup guide
+              </button>
+              <div
+                role="tooltip"
+                className="invisible opacity-0 group-hover:visible group-hover:opacity-100 focus-within:visible focus-within:opacity-100 transition-opacity absolute right-0 top-6 z-30 w-72 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 text-left">
+                <p className="text-sm font-bold text-gray-800 mb-1.5">Connect KnockIQ to Zapier</p>
+                <ol className="text-xs text-gray-600 leading-relaxed space-y-1 list-decimal pl-4">
+                  <li>In Zapier, create a Zap and pick <span className="font-semibold">Webhooks by Zapier</span> as the trigger.</li>
+                  <li>Choose the <span className="font-semibold">Catch Hook</span> event and continue.</li>
+                  <li>Copy the <span className="font-semibold">Custom Webhook URL</span> Zapier gives you.</li>
+                  <li>Paste it below and hit <span className="font-semibold">Save URL</span>.</li>
+                  <li>Click <span className="font-semibold">Test</span> here — we send a sample session so Zapier learns every field.</li>
+                  <li>Back in Zapier, add an action (Google Sheets, Slack, your CRM…) and map the fields.</li>
+                  <li><span className="font-semibold">Publish</span> the Zap. Live data fires whenever a rep ends a session.</li>
+                </ol>
+                <p className="text-[11px] text-gray-400 mt-2">Tip: Test stays disabled until a URL is saved.</p>
+              </div>
+            </span>
           </div>
 
           {/* Zapier */}
@@ -1528,7 +1591,7 @@ export default function Settings() {
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
                   <p className="text-gray-400 text-xs mt-1.5">
-                    Fires when a rep ends a session — sends the full session summary.
+                    Fires on the events you turn on below — each sends the relevant record to Zapier.
                   </p>
                 </div>
 
@@ -1553,8 +1616,35 @@ export default function Settings() {
                   </button>
                 </div>
 
+                {/* Per-event triggers — which events fire the webhook */}
+                <div className="border border-gray-100 rounded-xl divide-y divide-gray-100">
+                  <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 px-3 pt-3 pb-1">Trigger events</p>
+                  {[
+                    { key: 'session_ended', label: 'Session ended',        desc: 'When a rep ends a session (full summary)' },
+                    { key: 'booking',       label: 'New booking',          desc: 'When a rep books a job' },
+                    { key: 'appointment',   label: 'Appointment scheduled', desc: 'When a rep sets an appointment' },
+                    { key: 'estimate',      label: 'Estimate requested',   desc: 'When a homeowner requests an estimate' },
+                  ].map(ev => (
+                    <div key={ev.key} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-800">{ev.label}</p>
+                        <p className="text-[11px] text-gray-400">{ev.desc}</p>
+                      </div>
+                      <button
+                        onClick={() => handleToggleEvent(ev.key)}
+                        role="switch"
+                        aria-checked={!!webhookEvents[ev.key]}
+                        aria-label={`Toggle ${ev.label} event`}
+                        className="relative shrink-0 w-11 h-6 rounded-full transition-colors"
+                        style={{ backgroundColor: webhookEvents[ev.key] ? BRAND_BLUE : '#D1D5DB' }}>
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${webhookEvents[ev.key] ? 'translate-x-5' : ''}`} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
-                  <p className="font-semibold text-gray-600 mb-1">Payload sent on session end:</p>
+                  <p className="font-semibold text-gray-600 mb-1">Example payload (session ended):</p>
                   <pre className="overflow-x-auto text-gray-400">{`{
   "event": "session_ended",
   "rep_name": "…",
@@ -1607,6 +1697,49 @@ export default function Settings() {
               Open Super-Admin Dashboard
             </button>
           )}
+
+          {/* ── Danger Zone (owner only) ──────────────────────────────────
+              Pause is the seasonal-churn catcher and gets the prominent,
+              friendly treatment; Cancel is the muted secondary. Both are
+              owner-only — a non-owner manager doesn't see this card, and the
+              edge function 403s them even if they did. */}
+          {isOwner && (
+            <div className="mt-5 rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-gray-500" />
+                <p className="text-sm font-semibold text-gray-700">Manage subscription</p>
+              </div>
+              <div className="p-4 space-y-3 bg-white">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: '#E0E7FF' }}>
+                    <PauseCircle className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-800">Pause for the off-season</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                      Going seasonal? Pause billing and keep everything — territories, reps,
+                      pipeline, and history — ready for when you come back.
+                    </p>
+                    <button
+                      onClick={() => setLifecycleModal('pause')}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white"
+                      style={{ backgroundColor: BRAND_BLUE }}>
+                      <PauseCircle className="w-3.5 h-3.5" /> Pause account
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-gray-100">
+                  <button
+                    onClick={() => setLifecycleModal('cancel')}
+                    className="text-xs font-semibold text-red-500 hover:text-red-600 hover:underline">
+                    Cancel account…
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <p className="text-center text-gray-400 text-xs mt-4">
             Questions?{' '}
             <a href="mailto:hello@knockiq.com" className="text-blue-500 hover:underline">
@@ -1615,6 +1748,368 @@ export default function Settings() {
           </p>
         </section>
       </div>
+
+      {/* Account lifecycle modal — pause / cancel / delete flow */}
+      {lifecycleModal && (
+        <AccountLifecycleModal
+          mode={lifecycleModal}
+          org={org}
+          onClose={() => setLifecycleModal(null)}
+          onPaused={async () => {
+            // Re-read the profile so the App-level gate catches the paused
+            // status and routes the owner to the AccountInactive screen.
+            await refreshUser()
+          }}
+          onCancelled={async () => {
+            await refreshUser()
+          }}
+          onDeleted={async () => {
+            await signOut()
+          }}
+          showToast={showToast}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ── Account Lifecycle Modal ─────────────────────────────────────────────────
+ * Owner-only pause / cancel / delete flow. The cancel path is a reason-matched
+ * save funnel: pick a reason → see an offer tuned to that reason (seasonal →
+ * pause, too-expensive → downgrade, too-hard → support) → only then confirm
+ * cancellation, with a final typed-confirm "delete permanently" escape hatch.
+ *
+ * State transitions on success route through the parent's onPaused/onCancelled/
+ * onDeleted, which refresh auth (so the App gate takes over) or sign out.
+ */
+const CANCEL_REASONS = [
+  { key: 'seasonal',  label: "We're going seasonal / off-season" },
+  { key: 'expensive', label: 'Too expensive' },
+  { key: 'too_hard',  label: 'Too hard to use' },
+  { key: 'missing',   label: 'Missing features we need' },
+  { key: 'other',     label: 'Something else' },
+]
+
+function defaultResumeDate() {
+  // Default a pause to ~3 months out — a typical off-season gap. Formatted
+  // as yyyy-mm-dd for the native date input.
+  const d = new Date()
+  d.setMonth(d.getMonth() + 3)
+  return d.toISOString().slice(0, 10)
+}
+
+function AccountLifecycleModal({ mode, org, onClose, onPaused, onCancelled, onDeleted, showToast }) {
+  // step: 'pause' | 'reason' | 'offer' | 'confirm_cancel' | 'delete'
+  const [step, setStep] = useState(mode === 'pause' ? 'pause' : 'reason')
+  const [reason, setReason] = useState(null)
+  const [resumeDate, setResumeDate] = useState(defaultResumeDate())
+  const [noResumeDate, setNoResumeDate] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const keepWarm = org?.pause_fee_cents != null ? (org.pause_fee_cents / 100) : 5
+
+  async function doPause(reasonKey) {
+    setBusy(true)
+    const { error } = await pauseOrganization({
+      resumeAt: noResumeDate ? null : resumeDate,
+      reason:   reasonKey || 'seasonal',
+    })
+    setBusy(false)
+    if (error) { showToast('Could not pause: ' + error.message, 'error'); return }
+    showToast('Account paused — your data is safe.')
+    await onPaused?.()
+    onClose()
+  }
+
+  async function doCancel() {
+    setBusy(true)
+    const { error } = await cancelOrganization({ reason: reason || 'unspecified' })
+    setBusy(false)
+    if (error) { showToast('Could not cancel: ' + error.message, 'error'); return }
+    showToast('Account cancelled. You can reactivate within 90 days.')
+    await onCancelled?.()
+    onClose()
+  }
+
+  async function doDelete() {
+    setBusy(true)
+    const { error } = await deleteOrganization()
+    // Don't clear busy on success — the session is about to die.
+    if (error) { setBusy(false); showToast('Could not delete: ' + error.message, 'error'); return }
+    await onDeleted?.()
+  }
+
+  // The save offer shown for each cancel reason.
+  function renderOffer() {
+    const continueBtn = (
+      <button
+        onClick={() => setStep('confirm_cancel')}
+        className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-medium hover:bg-gray-50">
+        No thanks, continue to cancel
+      </button>
+    )
+
+    if (reason === 'seasonal') {
+      return (
+        <>
+          <ModalHeader icon={PauseCircle} iconBg="#E0E7FF" iconColor={BRAND_BLUE}
+            title="Pause instead of cancel" />
+          <p className="text-sm text-gray-600 leading-relaxed">
+            Perfect fit for a seasonal break. Pausing keeps your territories, reps,
+            pipeline, and full history intact and drops billing to a{' '}
+            <span className="font-semibold text-gray-800">${keepWarm}/mo</span> keep-warm
+            rate. Reactivate in one tap when the season picks back up — nothing to rebuild.
+          </p>
+          <PauseDateControls
+            resumeDate={resumeDate} setResumeDate={setResumeDate}
+            noResumeDate={noResumeDate} setNoResumeDate={setNoResumeDate} />
+          <button
+            onClick={() => doPause('seasonal')}
+            disabled={busy}
+            className="btn-brand w-full py-2.5 rounded-xl text-sm font-bold disabled:opacity-60 flex items-center justify-center gap-2">
+            {busy ? <Loader className="w-4 h-4 animate-spin" /> : <PauseCircle className="w-4 h-4" />}
+            Pause my account
+          </button>
+          {continueBtn}
+        </>
+      )
+    }
+
+    if (reason === 'expensive') {
+      return (
+        <>
+          <ModalHeader icon={DollarSign} iconBg="#ECFDF5" iconColor="#059669"
+            title="Before you go — a cheaper option" />
+          <p className="text-sm text-gray-600 leading-relaxed">
+            If price is the issue, you can switch to the <span className="font-semibold text-gray-800">Standard</span> plan
+            (lower per-seat cost) instead of leaving, or pause billing to a{' '}
+            <span className="font-semibold text-gray-800">${keepWarm}/mo</span> keep-warm rate and keep all your data.
+          </p>
+          <a
+            href="mailto:hello@knockiq.com?subject=Switch%20to%20Standard%20plan&body=Hi,%20I'd%20like%20to%20move%20my%20account%20to%20the%20Standard%20plan."
+            className="block w-full py-2.5 rounded-xl text-center text-sm font-bold text-white" style={{ backgroundColor: '#059669' }}>
+            Talk to us about Standard
+          </a>
+          <button
+            onClick={() => setStep('pause')}
+            className="w-full py-2.5 rounded-xl border text-sm font-semibold"
+            style={{ borderColor: BRAND_BLUE, color: BRAND_BLUE }}>
+            Pause instead (${keepWarm}/mo)
+          </button>
+          {continueBtn}
+        </>
+      )
+    }
+
+    if (reason === 'too_hard') {
+      return (
+        <>
+          <ModalHeader icon={MessageSquare} iconBg="#EFF6FF" iconColor={BRAND_BLUE}
+            title="Let us help before you go" />
+          <p className="text-sm text-gray-600 leading-relaxed">
+            Most "too hard" issues are a 10-minute fix. We'll walk you or your team
+            through setup personally — no charge. Or pause your account so you don't
+            lose anything while you decide.
+          </p>
+          <a
+            href="mailto:hello@knockiq.com?subject=Help%20getting%20set%20up&body=Hi,%20we're%20having%20trouble%20with%20setup.%20Can%20you%20help?"
+            className="btn-brand block w-full py-2.5 rounded-xl text-center text-sm font-bold">
+            Get setup help
+          </a>
+          <button
+            onClick={() => setStep('pause')}
+            className="w-full py-2.5 rounded-xl border text-sm font-semibold"
+            style={{ borderColor: BRAND_BLUE, color: BRAND_BLUE }}>
+            Pause instead
+          </button>
+          {continueBtn}
+        </>
+      )
+    }
+
+    // 'missing' or 'other' — lighter offer: pause as the data-safe alternative.
+    return (
+      <>
+        <ModalHeader icon={PauseCircle} iconBg="#E0E7FF" iconColor={BRAND_BLUE}
+          title="Pause instead — keep your data" />
+        <p className="text-sm text-gray-600 leading-relaxed">
+          {reason === 'missing'
+            ? "We'd love to hear what's missing — reply to any of our emails and it goes straight to the team."
+            : 'If this might be temporary, pausing keeps everything intact at a low keep-warm rate so you can come back anytime.'}
+        </p>
+        <button
+          onClick={() => setStep('pause')}
+          className="w-full py-2.5 rounded-xl border text-sm font-semibold"
+          style={{ borderColor: BRAND_BLUE, color: BRAND_BLUE }}>
+          Pause instead (${keepWarm}/mo)
+        </button>
+        {continueBtn}
+      </>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4" onClick={onClose}>
+      <div
+        className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}>
+        {/* Close */}
+        <div className="flex justify-end -mb-2">
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* ── PAUSE (direct, or chosen from an offer) ── */}
+        {step === 'pause' && (
+          <>
+            <ModalHeader icon={PauseCircle} iconBg="#E0E7FF" iconColor={BRAND_BLUE}
+              title="Pause your account" />
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Billing pauses to a <span className="font-semibold text-gray-800">${keepWarm}/mo</span> keep-warm
+              rate. Your team won't be able to canvass while paused, but everything —
+              territories, reps, pipeline, history — stays exactly as you left it.
+            </p>
+            <PauseDateControls
+              resumeDate={resumeDate} setResumeDate={setResumeDate}
+              noResumeDate={noResumeDate} setNoResumeDate={setNoResumeDate} />
+            <button
+              onClick={() => doPause('seasonal')}
+              disabled={busy}
+              className="btn-brand w-full py-2.5 rounded-xl text-sm font-bold disabled:opacity-60 flex items-center justify-center gap-2">
+              {busy ? <Loader className="w-4 h-4 animate-spin" /> : <PauseCircle className="w-4 h-4" />}
+              Pause account
+            </button>
+            <button onClick={onClose} className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-medium">
+              Never mind
+            </button>
+          </>
+        )}
+
+        {/* ── CANCEL: reason ── */}
+        {step === 'reason' && (
+          <>
+            <ModalHeader icon={AlertTriangle} iconBg="#FEF3C7" iconColor="#D97706"
+              title="Cancel account" />
+            <p className="text-sm text-gray-600">
+              Sorry to see you thinking about leaving. What's the main reason? This
+              helps us — and lets us point you to the best option.
+            </p>
+            <div className="space-y-2">
+              {CANCEL_REASONS.map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => { setReason(r.key); setStep('offer') }}
+                  className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:border-blue-300 hover:bg-blue-50 transition-colors">
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ── CANCEL: reason-matched save offer ── */}
+        {step === 'offer' && renderOffer()}
+
+        {/* ── CANCEL: final confirm ── */}
+        {step === 'confirm_cancel' && (
+          <>
+            <ModalHeader icon={XCircle} iconBg="#FEE2E2" iconColor="#DC2626"
+              title="Confirm cancellation" />
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Your subscription stops and the app turns off for your whole team. We'll
+              keep your data for <span className="font-semibold text-gray-800">90 days</span> so you can
+              reactivate and pick up where you left off — after that it's permanently deleted.
+            </p>
+            <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
+              <PauseCircle className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-800">
+                Just need a break? <button onClick={() => setStep('pause')} className="font-bold underline">Pause instead</button> and keep billing at the keep-warm rate.
+              </p>
+            </div>
+            <button
+              onClick={doCancel}
+              disabled={busy}
+              className="w-full py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-60 flex items-center justify-center gap-2"
+              style={{ backgroundColor: '#DC2626' }}>
+              {busy ? <Loader className="w-4 h-4 animate-spin" /> : null}
+              Cancel my account
+            </button>
+            <button
+              onClick={() => setStep('delete')}
+              className="w-full text-center text-xs text-gray-400 hover:text-red-500 hover:underline">
+              Or delete everything permanently now →
+            </button>
+          </>
+        )}
+
+        {/* ── DELETE: typed confirm ── */}
+        {step === 'delete' && (
+          <>
+            <ModalHeader icon={Trash2} iconBg="#FEE2E2" iconColor="#DC2626"
+              title="Delete permanently" />
+            <p className="text-sm text-gray-600 leading-relaxed">
+              This <span className="font-semibold text-red-600">immediately and permanently</span> deletes
+              your organization, every rep and closer account, and all data. There's no
+              90-day grace and no undo. To confirm, type <span className="font-mono font-bold">DELETE</span> below.
+            </p>
+            <input
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder="DELETE"
+              autoComplete="off"
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-red-300"
+            />
+            <button
+              onClick={doDelete}
+              disabled={busy || deleteConfirm.trim().toUpperCase() !== 'DELETE'}
+              className="w-full py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2"
+              style={{ backgroundColor: '#DC2626' }}>
+              {busy ? <Loader className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Permanently delete everything
+            </button>
+            <button onClick={() => setStep('confirm_cancel')} className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-medium">
+              Back
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ModalHeader({ icon: Icon, iconBg, iconColor, title }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ backgroundColor: iconBg }}>
+        <Icon className="w-5 h-5" style={{ color: iconColor }} />
+      </div>
+      <h3 className="font-bold text-gray-900 text-base">{title}</h3>
+    </div>
+  )
+}
+
+function PauseDateControls({ resumeDate, setResumeDate, noResumeDate, setNoResumeDate }) {
+  const today = new Date().toISOString().slice(0, 10)
+  return (
+    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2.5">
+      <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+        <Calendar className="w-4 h-4 text-gray-400" />
+        Auto-resume on
+      </label>
+      <input
+        type="date"
+        value={resumeDate}
+        min={today}
+        disabled={noResumeDate}
+        onChange={(e) => setResumeDate(e.target.value)}
+        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-300"
+      />
+      <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
+        <input type="checkbox" checked={noResumeDate} onChange={(e) => setNoResumeDate(e.target.checked)} />
+        No set date — I'll turn it back on manually
+      </label>
     </div>
   )
 }

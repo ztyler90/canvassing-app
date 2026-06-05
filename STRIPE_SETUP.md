@@ -1,188 +1,237 @@
 # KnockIQ — Stripe Billing Setup Guide
 
-This guide walks you from zero Stripe account to live 7-day trial billing.
-Estimated time: ~30 minutes.
+This guide takes you from zero Stripe account to a live **14-day reverse trial** with
+**per-seat** billing across the **Standard** and **Pro** plans, using **Stripe Checkout**
+(hosted) + the **Customer Portal**. Estimated dashboard time: ~30 minutes.
+
+> Billing model recap
+> - **Reverse trial:** every signup gets full **Pro** for 14 days, then converts to the
+>   plan they selected at signup (`organizations.selected_plan`).
+> - **Card up front:** the card is collected at signup and auto-charged on day 15.
+> - **Per seat:** the subscription quantity = number of reps in the org.
+> - **Enterprise is sales-led** — no self-serve price needed.
 
 ---
 
-## 1. Create a Stripe account
+## 1. Create your Stripe account (start in Test mode)
 
-1. Go to [stripe.com](https://stripe.com) and sign up.
-2. Complete identity verification (required before going live).
-3. In the Stripe Dashboard, switch to **Test mode** first (toggle top-right).
-   You'll use test keys locally; swap to live keys when ready to charge real cards.
-
----
-
-## 2. Create a Product and Price
-
-1. Dashboard → **Product catalog** → **+ Add product**
-2. Fill in:
-   - **Name**: KnockIQ Pro (or whatever you like)
-   - **Pricing model**: Standard pricing
-   - **Price**: $60 / month  (or your chosen amount)
-   - **Billing period**: Monthly
-3. Click **Save product**.
-4. On the product page, copy the **Price ID** — it looks like `price_1AbCdEfGhIjKlMnO`.
+1. Go to [stripe.com](https://stripe.com) → **Sign up**. Use a business email.
+2. You do **not** need to finish identity/bank verification to begin — Stripe gives you
+   **test** API keys immediately. Build and test everything in **Test mode** first
+   (toggle is top-right of the dashboard). Only activate + switch to **Live** when you're
+   ready to charge real cards.
+3. While you're in there, set the basics under **Settings → Business**:
+   - **Public business name** and **support email** (shown on receipts).
+   - **Statement descriptor** (what appears on customers' card statements, e.g. `KNOCKIQ`).
+   - **Branding** (logo + brand color) — this themes Checkout and the Customer Portal.
 
 ---
 
-## 3. Configure environment variables
+## 2. Create the Products and Prices (2 products → 4 prices)
 
-### Frontend (Vite)
+Dashboard → **Product catalog → + Add product**. Create **two** products, each with a
+**monthly** and an **annual** recurring price. The 20% annual discount is baked into the
+annual price (cleaner than a coupon).
 
-Copy `.env.example` → `.env` and fill in:
+**Product: KnockIQ Standard**
+- Price 1 — **$25.00 / month**, recurring, "per seat" (see note below) → label it `Standard Monthly`
+- Price 2 — **$240.00 / year**, recurring, per seat → label it `Standard Annual` (= $20/mo equiv)
+
+**Product: KnockIQ Pro**
+- Price 3 — **$50.00 / month**, recurring, per seat → label it `Pro Monthly`
+- Price 4 — **$480.00 / year**, recurring, per seat → label it `Pro Annual` (= $40/mo equiv)
+
+**"Per seat" note:** choose pricing model **Standard pricing → Per unit**, and the
+subscription will multiply the price by the **quantity** (number of seats) we pass at
+checkout. Leave "Usage is metered" **off** (this is licensed/seat-based, not usage-based).
+
+After saving, copy each **Price ID** (`price_…`). You'll need all four.
+
+**✅ Created (LIVE mode) on 2026-06-05 — account `acct_1TenZrPhaKH0vmLV` "KnockIQ":**
 
 ```
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
+# Products
+KnockIQ Standard = prod_Ue5zf7pOsLP6iV
+KnockIQ Pro      = prod_Ue63f2kJPQs6vI
+
+# Prices (LIVE)
+STRIPE_PRICE_STANDARD_MONTHLY = price_1TenrDPhaKH0vmLVmlSW8QNa   # $25/seat/mo
+STRIPE_PRICE_STANDARD_ANNUAL  = price_1TenrEPhaKH0vmLVCS4IBzn9   # $240/seat/yr ($20/mo)
+STRIPE_PRICE_PRO_MONTHLY      = price_1TenrKPhaKH0vmLVtQ7YskFd   # $50/seat/mo
+STRIPE_PRICE_PRO_ANNUAL       = price_1TenrLPhaKH0vmLV06gvscbE   # $480/seat/yr ($40/mo)
+```
+
+> ⚠️ These are **LIVE** price IDs. They work only with live (`sk_live_…`) keys. To test the
+> checkout/trial flow with test cards you'll need to recreate the same 4 prices in **Test
+> mode** and use those `price_…` IDs with `sk_test_…` keys during development.
+
+> Do **not** set the free trial on the price. We set the 14-day trial at the Checkout
+> Session level so it stays flexible.
+
+---
+
+## 3. Enable the Customer Portal
+
+Dashboard → **Settings → Billing → Customer portal**:
+- Allow customers to **update payment method**, **cancel**, and **view invoices**.
+- Allow **plan switching** between your four prices (Standard ↔ Pro, monthly ↔ annual).
+- Allow **quantity changes** if you want managers to self-serve seat counts (optional —
+  we can also manage seats from the app).
+- Save. This gives you self-serve billing management with zero extra code.
+
+---
+
+## 4. Get your API keys
+
+Dashboard → **Developers → API keys** (make sure you're in **Test mode**):
+- **Publishable key** `pk_test_…` → frontend only.
+- **Secret key** `sk_test_…` → server/Edge Functions only. Never ship this to the browser.
+
+---
+
+## 5. Configure environment variables
+
+### Frontend (Vite) — `.env`
+```
+VITE_SUPABASE_URL=https://mcwspvhihekhkytfxggv.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...   ← from Dashboard > Developers > API Keys
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
 ```
 
-### Supabase Edge Function secrets
-
-These are set via the Supabase CLI and are **never** in `.env` files:
-
+### Supabase Edge Function secrets (never in .env)
+Set via the dashboard (**Project Settings → Edge Functions → Secrets**) or CLI:
 ```bash
 supabase secrets set STRIPE_SECRET_KEY=sk_test_...
-supabase secrets set STRIPE_PRICE_ID=price_1AbCdEfGhIjKlMnO
-supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...  # set this after step 5
+supabase secrets set STRIPE_PRICE_STANDARD_MONTHLY=price_...
+supabase secrets set STRIPE_PRICE_STANDARD_ANNUAL=price_...
+supabase secrets set STRIPE_PRICE_PRO_MONTHLY=price_...
+supabase secrets set STRIPE_PRICE_PRO_ANNUAL=price_...
+supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...   # from step 7
+
+# Keep-warm price for the off-season "Pause account" flow. Already created in
+# the KnockIQ Stripe account ($5.00/mo, "KnockIQ Keep-Warm (Paused)"):
+supabase secrets set STRIPE_PRICE_KEEPWARM=price_1Teo3NPhaKH0vmLVLRszoN6O
 ```
 
-You can also set secrets in the Supabase Dashboard under
-**Project Settings → Edge Functions → Secrets**.
+> **Pause / keep-warm billing (manage-team Edge Function).** When an owner
+> pauses their account (Settings → Manage subscription → Pause), `manage-team`
+> swaps their subscription onto `STRIPE_PRICE_KEEPWARM` at quantity 1 and
+> snapshots the previous per-seat price + seat count onto
+> `organizations.pause_prev_price_id` / `pause_prev_quantity`. Reactivating
+> restores that exact plan; cancelling sets `cancel_at_period_end`; permanent
+> delete cancels the subscription outright. Every one of these degrades to a
+> status-only change if `STRIPE_SECRET_KEY` / `STRIPE_PRICE_KEEPWARM` are unset
+> or the org has no subscription yet — so the access controls work even before
+> the checkout flow above goes live. The dollar figure shown in the pause UI
+> comes from `organizations.pause_fee_cents` (default **500** = $5); keep it in
+> sync if you ever change the keep-warm price. Reading the owner's
+> `stripe_subscription_id` from `public.users` is a temporary bridge — move it
+> to `organizations.*` when the org-level billing migration (step 8) lands.
 
 ---
 
-## 4. Install the Supabase CLI and link your project
+## 6. Deploy the Edge Functions
+
+> ⚠️ The current `create-subscription` and `stripe-webhook` functions are written for the
+> **old** model (Stripe Elements, single price, 7-day trial, syncing to `users`). They are
+> being rewritten for Checkout + 14-day trial + org-level sync — see
+> `STRIPE_IMPLEMENTATION_PLAN.md`. Deploy after that rewrite lands.
 
 ```bash
-# Install (macOS)
-brew install supabase/tap/supabase
-
-# Install (npm, any platform)
-npm install -g supabase
-
-# Log in
+brew install supabase/tap/supabase      # or: npm install -g supabase
 supabase login
-
-# Link to your project (find the project ref in Settings > General)
-supabase link --project-ref your-project-ref
-```
-
----
-
-## 5. Deploy the Edge Functions
-
-```bash
-# From the canvassing-app root:
-supabase functions deploy create-subscription
+supabase link --project-ref mcwspvhihekhkytfxggv
+supabase functions deploy create-checkout-session
 supabase functions deploy stripe-webhook
 ```
 
-After deploying, the functions are live at:
-```
-https://your-project-id.supabase.co/functions/v1/create-subscription
-https://your-project-id.supabase.co/functions/v1/stripe-webhook
-```
-
 ---
 
-## 6. Configure the Stripe webhook
+## 7. Configure the Stripe webhook
 
-1. Stripe Dashboard → **Developers** → **Webhooks** → **+ Add endpoint**
-2. **Endpoint URL**: `https://your-project-id.supabase.co/functions/v1/stripe-webhook`
-3. **Events to listen for** — select these:
+1. Dashboard → **Developers → Webhooks → + Add endpoint**.
+2. **Endpoint URL:**
+   ```
+   https://mcwspvhihekhkytfxggv.supabase.co/functions/v1/stripe-webhook
+   ```
+3. **Events to send:**
+   - `checkout.session.completed`   ← links the new customer/subscription to the org
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
+   - `invoice.paid` (or `invoice.payment_succeeded`)
    - `invoice.payment_failed`
-   - `invoice.payment_succeeded`
-4. Click **Add endpoint**.
-5. On the webhook detail page, click **Reveal** under *Signing secret*.
-6. Copy the `whsec_...` value and set it as a secret:
+4. **Add endpoint**, then **Reveal** the signing secret (`whsec_…`) and set it:
    ```bash
    supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...
    ```
 
 ---
 
-## 7. Run the database migration
+## 8. Run the billing migrations
 
-In your Supabase Dashboard → **SQL Editor**, paste and run the contents of:
-```
-supabase/migrations/20260412_billing.sql
-```
-
-This makes `phone` nullable and adds the `stripe_customer_id`,
-`stripe_subscription_id`, `subscription_status`, and `trial_ends_at` columns.
-
-Alternatively, if you're using the Supabase CLI with local dev:
-```bash
-supabase db push
-```
+The earlier billing columns already exist (`20260412_billing.sql`). The Stripe build adds
+org-level billing identifiers — see `STRIPE_IMPLEMENTATION_PLAN.md` (a `*_stripe_org.sql`
+migration moving/duplicating `stripe_customer_id`, `stripe_subscription_id`,
+`subscription_status`, `trial_ends_at` onto `organizations`, since tier gating reads the
+org, not the user).
 
 ---
 
-## 8. Test the full flow
+## 9. Test the full flow (Test mode)
 
-1. Start the dev server: `npm run dev`
-2. Go to the Sign Up tab.
-3. Use a [Stripe test card](https://stripe.com/docs/testing#cards):
-   - **Success**: `4242 4242 4242 4242`
-   - **Decline**: `4000 0000 0000 0002`
-   - Any future expiry, any CVC, any ZIP
-4. Complete signup → you should be logged in automatically.
-5. In Stripe Dashboard → Customers, confirm the customer + subscription were created with `trialing` status.
-6. In Supabase → Table Editor → `users`, confirm `stripe_customer_id` and `trial_ends_at` are populated.
-
----
-
-## 9. Go live
-
-1. In Stripe Dashboard, **Activate your account** (complete verification if not done).
-2. Switch to **Live mode**.
-3. Grab your live keys (`pk_live_...`, `sk_live_...`).
-4. Create a new live Product + Price (same as step 2, in live mode).
-5. Update:
-   - `.env` → `VITE_STRIPE_PUBLISHABLE_KEY=pk_live_...`
-   - Supabase secrets:
-     ```bash
-     supabase secrets set STRIPE_SECRET_KEY=sk_live_...
-     supabase secrets set STRIPE_PRICE_ID=price_live_...
-     ```
-6. Create a new live webhook endpoint (same as step 6, live mode) and update `STRIPE_WEBHOOK_SECRET`.
-7. Redeploy the Edge Functions: `supabase functions deploy --all`
-8. Redeploy the frontend to Vercel: `vercel --prod`
+1. `npm run dev`, go to the pricing page, click **Start free trial** on Standard or Pro.
+2. On Stripe Checkout, use a [test card](https://stripe.com/docs/testing#cards):
+   `4242 4242 4242 4242`, any future expiry, any CVC/ZIP.
+3. Complete checkout → you're returned to the app, logged in, org on a **14-day Pro trial**.
+4. In Stripe → **Customers**, confirm a customer + subscription in **`trialing`** status
+   with quantity = seats.
+5. In Supabase → `organizations`, confirm `stripe_customer_id`, `trial_ends_at`, and
+   `selected_plan` are populated and `tier = 'pro'`.
+6. To test conversion without waiting 14 days, in Stripe open the subscription → **Actions
+   → End trial now**; the webhook should flip the org to `active` and set `tier` to its
+   `selected_plan`.
 
 ---
 
-## Architecture summary
+## 10. Go live
+
+1. **Activate** your Stripe account (finish identity + bank verification).
+2. Switch to **Live mode**, recreate the 4 products/prices (live IDs differ).
+3. Swap all keys/price IDs/webhook secret to their `*_live` / live values (frontend `.env`
+   + Supabase secrets), recreate the live webhook endpoint.
+4. Redeploy: `supabase functions deploy --all` and `vercel --prod`.
+5. Flip the homepage trial copy from "no credit card required" to
+   "14-day free trial · cancel anytime before you're billed."
+
+---
+
+## Architecture (target)
 
 ```
-Browser (signup form)
-  │
-  ├─ stripe.createPaymentMethod()  ← card tokenised client-side, never touches your server
-  │
-  └─ supabase.functions.invoke('create-subscription', { email, password, full_name, payment_method_id })
-       │
-       ├─ stripe.customers.create()
-       ├─ stripe.subscriptions.create({ trial_period_days: 7 })
-       ├─ supabase.auth.admin.createUser()   ← user created AFTER payment method is valid
-       └─ users table updated with stripe_customer_id, trial_ends_at
+Pricing page  ──/signup?plan=standard|pro──▶  Signup (creates user + org via reverse-trial RPC)
+      │
+      └─▶  create-checkout-session Edge Function
+              ├─ stripe.checkout.sessions.create({
+              │     mode: 'subscription',
+              │     line_items: [{ price: <plan+interval price>, quantity: seats }],
+              │     subscription_data: { trial_period_days: 14 },
+              │     payment_method_collection: 'always',
+              │     client_reference_id: <organization_id>,
+              │   })
+              └─ returns Checkout URL → browser redirects to Stripe
 
-Stripe (async)
-  └─ stripe-webhook Edge Function
-       ├─ customer.subscription.updated  → sync subscription_status
-       ├─ customer.subscription.deleted  → mark canceled
-       ├─ invoice.payment_failed         → mark past_due
-       └─ invoice.payment_succeeded      → mark active
+Stripe (async)  ──▶  stripe-webhook Edge Function (writes to ORGANIZATIONS)
+   checkout.session.completed   → store stripe_customer_id + subscription_id on the org
+   customer.subscription.updated→ sync status + trial_ends_at; on active, set tier = selected_plan
+   customer.subscription.deleted→ status = canceled
+   invoice.payment_failed       → status = past_due
+   invoice.paid                 → status = active
 ```
 
-**Key design decisions:**
-- Card is collected and validated before the Supabase user is created.
-  If the card is invalid, no account is left in a broken state.
-- `trial_period_days: 7` means the card is never charged during the trial.
-- The Supabase user is created with `email_confirm: true` (skips confirmation email)
-  so users can sign in immediately after signup.
-- If Supabase user creation fails after Stripe setup, the Stripe subscription is
-  rolled back automatically inside the Edge Function.
+Key decisions:
+- **Checkout (hosted)** over custom Elements — Stripe handles PCI, and the Customer Portal
+  covers plan/seat/card management for free.
+- Trial is 14 days, set on the Checkout session, card collected up front.
+- The webhook writes to **`organizations`** because that's where tier gating reads.
+- At conversion, tier is set from **`selected_plan`** so Standard-intent orgs downgrade
+  out of the Pro trial automatically.

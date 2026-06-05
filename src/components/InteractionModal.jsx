@@ -19,6 +19,7 @@ import {
   getAllClosersUnified,
   pickRoundRobinCloser,
   notifyAssignedCloser,
+  fireWebhookEvent,
 } from '../lib/supabase.js'
 import { reverseGeocodeCandidates } from '../lib/geocoding.js'
 
@@ -538,6 +539,27 @@ export default function InteractionModal({
         estimated_value: extras.estimated_value,
         status:          'booked',
       })
+    }
+
+    // Fire per-event Zapier webhooks for new interactions (org-gated; the
+    // helper no-ops if the org hasn't enabled that event or set a URL).
+    // Fire-and-forget so we never block the rep's flow.
+    if (!isEditing && savedData) {
+      const base = {
+        interaction_id:  savedData.id,
+        session_id:      sessionId,
+        rep_id:          repId,
+        outcome,
+        address:         payload.address || null,
+        contact_name:    payload.contact_name || null,
+        contact_phone:   payload.contact_phone || null,
+        contact_email:   payload.contact_email || null,
+        service_types:   payload.service_types || null,
+        estimated_value: payload.estimated_value ?? null,
+      }
+      if (outcome === 'booked')             fireWebhookEvent('booking', base)
+      if (outcome === 'estimate_requested') fireWebhookEvent('estimate', base)
+      if (payload.appointment_at)           fireWebhookEvent('appointment', { ...base, appointment_at: payload.appointment_at })
     }
 
     onSave?.({ ...payload, id: interactionId, isEdit: isEditing })

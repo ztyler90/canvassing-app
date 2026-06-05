@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import Stripe from 'https://esm.sh/stripe@14?target=deno'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -16,6 +17,33 @@ const corsHeaders = {
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ''
 const RESEND_FROM    = Deno.env.get('RESEND_FROM')    || 'KnockIQ <onboarding@resend.dev>'
 const APP_BASE_URL   = (Deno.env.get('APP_BASE_URL')  || 'https://app.knockiq.com').replace(/\/$/, '')
+
+// ── Stripe (org lifecycle billing) ───────────────────────────────────────────
+// STRIPE_SECRET_KEY: sk_live_… / sk_test_…. When unset, every lifecycle action
+// degrades gracefully to a status-only change — useful before billing is fully
+// switched on (the app's checkout flow is still being built).
+// STRIPE_PRICE_KEEPWARM: the flat $5/mo "keep-warm" price the subscription is
+// swapped to while paused (created in the KnockIQ Stripe account —
+// price_1Teo3NPhaKH0vmLVLRszoN6O). See STRIPE_SETUP.md.
+const STRIPE_SECRET_KEY     = Deno.env.get('STRIPE_SECRET_KEY')     || ''
+const STRIPE_PRICE_KEEPWARM = Deno.env.get('STRIPE_PRICE_KEEPWARM') || ''
+const stripe = STRIPE_SECRET_KEY
+  ? new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
+  : null
+
+// Look up the org owner's Stripe subscription id. Billing identifiers live on
+// the owner's public.users row (see 20260412_billing.sql); the org-level
+// billing migration is still pending, so we read from the owner here and will
+// switch to organizations.* when that lands.
+async function getOwnerSubscriptionId(adminClient: ReturnType<typeof createClient>, ownerId: string | null): Promise<string | null> {
+  if (!ownerId) return null
+  const { data } = await adminClient
+    .from('users')
+    .select('stripe_subscription_id')
+    .eq('id', ownerId)
+    .single()
+  return data?.stripe_subscription_id || null
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -67,14 +95,19 @@ serve(async (req) => {
       })
     }
 
-    // Pull the org name up front — we only need it for the invite email,
-    // so skip if the organizations table lookup fails.
+    // Pull the org up front — name for the invite email, plus owner_user_id
+    // and status for the lifecycle actions (pause/cancel/delete), which are
+    // owner-only and need the current state to validate transitions.
     const { data: orgRow } = await adminClient
       .from('organizations')
-      .select('name')
+      .select('id, name, owner_user_id, status, trial_ends_at, purge_at, pause_prev_price_id, pause_prev_quantity')
       .eq('id', callerProfile.organization_id)
       .single()
     const orgName = orgRow?.name || 'your team'
+    // The org owner is the only role allowed to pause/cancel/delete the
+    // whole account. Super-admins can act on any org for support.
+    const isOrgOwner = !!orgRow && orgRow.owner_user_id === callerUser.id
+    const canManageLifecycle = isOrgOwner || !!callerProfile.is_super_admin
 
     const body = await req.json()
     const { action } = body
@@ -346,6 +379,306 @@ serve(async (req) => {
       }), {
         status: emailResult.ok ? 200 : 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // ── ORG LIFECYCLE: PAUSE ───────────────────────────────────────────────
+    // Seasonal owners stepping away for the off-season. Suspends billing to
+    // the keep-warm fee and retains ALL data; the org auto-resumes on
+    // resume_at (the access gate also treats "past resume_at" as active in
+    // real time). Owner-only.
+    if (action === 'pause_org') {
+      if (!canManageLifecycle) {
+        return new Response(JSON.stringify({ error: 'Forbidden: only the account owner can pause the organization' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      const { resumeAt, reason } = body
+      // resumeAt is optional. If provided it must be a valid future date.
+      let resumeIso: string | null = null
+      if (resumeAt) {
+        const d = new Date(resumeAt)
+        if (isNaN(d.getTime())) {
+          return new Response(JSON.stringify({ error: 'resumeAt is not a valid date' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+        resumeIso = d.toISOString()
+      }
+
+      // ── Stripe: swap the subscription to the flat keep-warm price ──────────
+      // We snapshot the org's current per-seat item (price + quantity) so
+      // resume_org can restore it exactly, then move the subscription onto the
+      // $5/mo keep-warm price at quantity 1. proration_behavior 'none' means we
+      // don't credit/charge mid-cycle — the reduced rate just applies from the
+      // next invoice. Any Stripe hiccup is non-fatal (logged + surfaced as a
+      // warning) so the access change still happens; billing isn't fully live
+      // yet, so we never want a Stripe gap to trap a paused team in the app.
+      let prevPriceId: string | null = null
+      let prevQuantity: number | null = null
+      let billingWarning: string | null = null
+      const subId = await getOwnerSubscriptionId(adminClient, orgRow?.owner_user_id)
+      if (stripe && STRIPE_PRICE_KEEPWARM && subId) {
+        try {
+          const sub = await stripe.subscriptions.retrieve(subId)
+          const item = sub.items.data[0]
+          prevPriceId  = item?.price?.id ?? null
+          prevQuantity = item?.quantity ?? null
+          if (item) {
+            await stripe.subscriptions.update(subId, {
+              items: [{ id: item.id, price: STRIPE_PRICE_KEEPWARM, quantity: 1 }],
+              proration_behavior: 'none',
+            })
+          }
+        } catch (e) {
+          billingWarning = `Stripe pause failed: ${(e as Error).message}`
+          console.error('[manage-team] pause_org stripe error:', billingWarning)
+        }
+      } else if (subId && (!stripe || !STRIPE_PRICE_KEEPWARM)) {
+        billingWarning = 'Stripe keep-warm price not configured — billing not changed.'
+      }
+
+      const { data: updated, error: updErr } = await adminClient
+        .from('organizations')
+        .update({
+          status:              'paused',
+          paused_at:           new Date().toISOString(),
+          resume_at:           resumeIso,
+          lifecycle_reason:    reason || null,
+          pause_prev_price_id: prevPriceId,
+          pause_prev_quantity: prevQuantity,
+        })
+        .eq('id', callerProfile.organization_id)
+        .select('id, status, paused_at, resume_at')
+        .single()
+
+      if (updErr) {
+        return new Response(JSON.stringify({ error: updErr.message }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      await adminClient.from('org_lifecycle_events').insert({
+        organization_id: callerProfile.organization_id,
+        actor_user_id:   callerUser.id,
+        event:           'paused',
+        reason:          reason || null,
+        metadata:        { resume_at: resumeIso, stripe_subscription: subId, prev_price: prevPriceId, prev_quantity: prevQuantity, billing_warning: billingWarning },
+      })
+
+      return new Response(JSON.stringify({ success: true, organization: updated, billing_warning: billingWarning }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // ── ORG LIFECYCLE: RESUME / REACTIVATE ─────────────────────────────────
+    // Universal "bring the account back": un-pauses a paused org OR
+    // reactivates a cancelled one that's still inside its 90-day grace
+    // window. Flips to active and clears BOTH the pause and cancel dates so
+    // the two flows can't leave stale state behind. Owner-only. (Refuses if
+    // a cancelled org is already past purge_at — its data may be gone.)
+    if (action === 'resume_org') {
+      if (!canManageLifecycle) {
+        return new Response(JSON.stringify({ error: 'Forbidden: only the account owner can reactivate the organization' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      // Block reactivating an org whose grace window has elapsed — at that
+      // point the nightly purge may have already destroyed its data.
+      if (orgRow?.status === 'cancelled' && orgRow?.purge_at && new Date(orgRow.purge_at).getTime() <= Date.now()) {
+        return new Response(JSON.stringify({ error: 'This account is past its 90-day grace window and can no longer be reactivated. Contact support.' }), {
+          status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      // ── Stripe: restore the per-seat plan we snapshotted at pause time ─────
+      // If the org was paused onto the keep-warm price, swap the subscription
+      // back to its original price + seat count. Non-fatal on error so a
+      // Stripe blip can't strand the owner on the locked-out screen.
+      let resumeBillingWarning: string | null = null
+      const resumeSubId = await getOwnerSubscriptionId(adminClient, orgRow?.owner_user_id)
+      if (stripe && resumeSubId && orgRow?.pause_prev_price_id) {
+        try {
+          const sub = await stripe.subscriptions.retrieve(resumeSubId)
+          const item = sub.items.data[0]
+          if (item) {
+            await stripe.subscriptions.update(resumeSubId, {
+              items: [{ id: item.id, price: orgRow.pause_prev_price_id, quantity: orgRow.pause_prev_quantity || 1 }],
+              proration_behavior: 'none',
+            })
+          }
+        } catch (e) {
+          resumeBillingWarning = `Stripe resume failed: ${(e as Error).message}`
+          console.error('[manage-team] resume_org stripe error:', resumeBillingWarning)
+        }
+      }
+
+      const { data: updated, error: updErr } = await adminClient
+        .from('organizations')
+        .update({
+          status:              'active',
+          paused_at:           null,
+          resume_at:           null,
+          cancelled_at:        null,
+          purge_at:            null,
+          pause_prev_price_id: null,
+          pause_prev_quantity: null,
+        })
+        .eq('id', callerProfile.organization_id)
+        .select('id, status')
+        .single()
+
+      if (updErr) {
+        return new Response(JSON.stringify({ error: updErr.message }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      await adminClient.from('org_lifecycle_events').insert({
+        organization_id: callerProfile.organization_id,
+        actor_user_id:   callerUser.id,
+        event:           'reactivated',
+        reason:          'manual resume',
+        metadata:        { stripe_subscription: resumeSubId, restored_price: orgRow?.pause_prev_price_id || null, billing_warning: resumeBillingWarning },
+      })
+
+      return new Response(JSON.stringify({ success: true, organization: updated, billing_warning: resumeBillingWarning }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // ── ORG LIFECYCLE: CANCEL ──────────────────────────────────────────────
+    // Stops billing and soft-deletes the org. Data is retained for a 90-day
+    // grace window (purge_at) so a seasonal owner can reactivate next season
+    // before anything is destroyed. NOT a hard delete — see delete_org.
+    // Owner-only.
+    if (action === 'cancel_org') {
+      if (!canManageLifecycle) {
+        return new Response(JSON.stringify({ error: 'Forbidden: only the account owner can cancel the organization' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      const { reason } = body
+      const now = new Date()
+      const purgeAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000) // +90 days
+
+      // ── Stripe: cancel at period end ───────────────────────────────────────
+      // cancel_at_period_end lets the owner keep access through the rest of the
+      // paid cycle and, more importantly, leaves the subscription resumable if
+      // they reactivate inside the 90-day grace window (we just clear the flag
+      // on resume). Non-fatal on error.
+      let cancelBillingWarning: string | null = null
+      const cancelSubId = await getOwnerSubscriptionId(adminClient, orgRow?.owner_user_id)
+      if (stripe && cancelSubId) {
+        try {
+          await stripe.subscriptions.update(cancelSubId, { cancel_at_period_end: true })
+        } catch (e) {
+          cancelBillingWarning = `Stripe cancel failed: ${(e as Error).message}`
+          console.error('[manage-team] cancel_org stripe error:', cancelBillingWarning)
+        }
+      }
+
+      const { data: updated, error: updErr } = await adminClient
+        .from('organizations')
+        .update({
+          status:           'cancelled',
+          cancelled_at:     now.toISOString(),
+          purge_at:         purgeAt.toISOString(),
+          lifecycle_reason: reason || null,
+          // Clear any pending pause state so the two flows can't tangle.
+          paused_at:        null,
+          resume_at:        null,
+        })
+        .eq('id', callerProfile.organization_id)
+        .select('id, status, cancelled_at, purge_at')
+        .single()
+
+      if (updErr) {
+        return new Response(JSON.stringify({ error: updErr.message }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      await adminClient.from('org_lifecycle_events').insert({
+        organization_id: callerProfile.organization_id,
+        actor_user_id:   callerUser.id,
+        event:           'cancelled',
+        reason:          reason || null,
+        metadata:        { purge_at: purgeAt.toISOString(), stripe_subscription: cancelSubId, billing_warning: cancelBillingWarning },
+      })
+
+      return new Response(JSON.stringify({ success: true, organization: updated, billing_warning: cancelBillingWarning }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // ── ORG LIFECYCLE: HARD DELETE ─────────────────────────────────────────
+    // Irreversible teardown: every member's auth user + the org row (and its
+    // cascading public-schema data). Owner-only, and the client enforces a
+    // typed confirmation before calling. This is the GDPR/"erase everything"
+    // path, distinct from cancel (which keeps data for 90 days).
+    if (action === 'delete_org') {
+      if (!canManageLifecycle) {
+        return new Response(JSON.stringify({ error: 'Forbidden: only the account owner can delete the organization' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // Audit FIRST — the org_lifecycle_events FK cascades on org delete, so
+      // we copy the org id into a plain log line before the row disappears.
+      console.warn('[manage-team] HARD DELETE org', callerProfile.organization_id, 'by', callerUser.id)
+
+      // Stripe: cancel the subscription immediately (no period-end grace — this
+      // is the "erase everything now" path). Done before we delete the users
+      // row that holds the subscription id. Non-fatal; teardown proceeds even
+      // if Stripe errors so a billing blip can't leave the org half-deleted.
+      const delSubId = await getOwnerSubscriptionId(adminClient, orgRow?.owner_user_id)
+      if (stripe && delSubId) {
+        try {
+          await stripe.subscriptions.cancel(delSubId)
+        } catch (e) {
+          console.error('[manage-team] delete_org stripe cancel error:', (e as Error).message)
+        }
+      }
+
+      // Gather every member so we can delete their auth users. The owner is
+      // included; we delete the caller's auth user last so the rest of the
+      // teardown runs under a valid token.
+      const { data: members } = await adminClient
+        .from('users')
+        .select('id')
+        .eq('organization_id', callerProfile.organization_id)
+
+      const memberIds: string[] = (members || []).map((m: { id: string }) => m.id)
+      const others = memberIds.filter((id) => id !== callerUser.id)
+
+      // 1. public.users rows (FK parents of most data) then the org row.
+      //    Child tables referencing organization_id with ON DELETE CASCADE
+      //    go with the org.
+      await adminClient.from('users').delete().eq('organization_id', callerProfile.organization_id)
+      const { error: orgDelErr } = await adminClient
+        .from('organizations')
+        .delete()
+        .eq('id', callerProfile.organization_id)
+      if (orgDelErr) {
+        return new Response(JSON.stringify({ error: orgDelErr.message }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // 2. auth.users — members first, then the owner/caller last.
+      for (const id of others) {
+        const { error } = await adminClient.auth.admin.deleteUser(id)
+        if (error) console.warn('[manage-team] delete_org: auth delete failed for', id, error.message)
+      }
+      // Caller last (super-admins acting on another org won't be a member,
+      // so this is a no-op miss for them, which is fine).
+      if (memberIds.includes(callerUser.id)) {
+        const { error } = await adminClient.auth.admin.deleteUser(callerUser.id)
+        if (error) console.warn('[manage-team] delete_org: auth delete failed for owner', error.message)
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 

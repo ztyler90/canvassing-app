@@ -473,14 +473,16 @@ export async function updateRepCommissionConfig(repId, config) {
 
 /**
  * Provision a brand-new organization for the just-signed-up user.
- * Wraps the `provision_new_organization(business_name)` SECURITY DEFINER RPC
- * which (1) inserts the org row with status='trial' + 30-day trial window,
+ * Wraps the `provision_new_organization(business_name, selected_plan)` SECURITY
+ * DEFINER RPC which (1) inserts the org row on the Pro tier (reverse trial)
+ * with status='trial' + a 14-day trial window and the caller's selected_plan,
  * and (2) stamps the caller's public.users row with the new org id + role='manager'.
  * Idempotent: if the caller already has an org, returns the existing id.
  */
-export async function provisionNewOrganization(businessName) {
+export async function provisionNewOrganization(businessName, selectedPlan = 'standard') {
   const { data, error } = await supabase.rpc('provision_new_organization', {
     business_name: businessName,
+    selected_plan: selectedPlan === 'pro' ? 'pro' : 'standard',
   })
   return { data, error }
 }
@@ -863,6 +865,101 @@ export async function getPlatformMetrics() {
   const churnPct  = totalOrgs === 0 ? 0 : Math.round((churned / totalOrgs) * 100)
 
   return { totalReps, currentMrr, projectedArr, churnPct, mrrByDay, growth }
+}
+
+/**
+ * Platform engagement metrics for the super-admin dashboard.
+ *
+ * Two things product owners actually care about:
+ *   1. Are reps showing up?  → DAU / WAU / MAU + stickiness (DAU÷MAU).
+ *   2. Are they doing the work well?  → the canvassing funnel
+ *      (doors → conversations → estimates → bookings → revenue).
+ *
+ * "Active" = a rep who started ≥1 canvassing session in the window.
+ * Stickiness is the classic "do they come back daily" ratio: of the reps
+ * active in the last 30 days, what share were active today. Both the funnel
+ * and the active-rep counts reuse `canvassing_sessions` — the same table the
+ * org-insights summary already reads — so no new tables or columns needed.
+ *
+ * Returns {
+ *   dau, wau, mau,            // distinct active reps in 1 / 7 / 30 days
+ *   stickiness,               // 0–100 %, dau ÷ mau
+ *   dauByDay: [{date, count}] // 30 daily points, oldest → newest (sparkline)
+ *   funnel: {
+ *     doors, conversations, estimates, bookings, revenue,
+ *     rates: { convFromDoors, estFromConv, bookFromEst }  // 0–100 %
+ *   },
+ *   windowDays                // funnel/active window (30)
+ * }
+ */
+export async function getPlatformEngagement() {
+  const now     = Date.now()
+  const DAY     = 86400000
+  const since30 = new Date(now - 30 * DAY).toISOString()
+
+  const { data: sessions } = await supabase
+    .from('canvassing_sessions')
+    .select('rep_id, started_at, doors_knocked, conversations, estimates, bookings, revenue_booked')
+    .gte('started_at', since30)
+
+  const rows = sessions || []
+
+  // ── Active reps by window (distinct rep_id) ──────────────────────────────
+  const dayKey   = (t) => new Date(t).toISOString().slice(0, 10)
+  const todayKey = dayKey(now)
+  const sevenAgo = now - 7 * DAY
+
+  const dauSet = new Set()   // active today
+  const wauSet = new Set()   // active last 7 days
+  const mauSet = new Set()   // active last 30 days
+  const byDay  = {}          // dateKey → Set(rep_id)
+
+  for (const s of rows) {
+    if (!s.rep_id) continue
+    const t = new Date(s.started_at).getTime()
+    mauSet.add(s.rep_id)
+    if (t >= sevenAgo) wauSet.add(s.rep_id)
+    const k = dayKey(t)
+    if (k === todayKey) dauSet.add(s.rep_id)
+    ;(byDay[k] ||= new Set()).add(s.rep_id)
+  }
+
+  const dau = dauSet.size
+  const wau = wauSet.size
+  const mau = mauSet.size
+  const stickiness = mau ? Math.round((dau / mau) * 100) : 0
+
+  // 30-day daily-active series, gaps filled with 0 (oldest → newest).
+  const dauByDay = []
+  for (let i = 29; i >= 0; i--) {
+    const k = dayKey(now - i * DAY)
+    dauByDay.push({ date: k, count: byDay[k] ? byDay[k].size : 0 })
+  }
+
+  // ── Canvassing funnel (summed over the 30-day window) ────────────────────
+  let doors = 0, conversations = 0, estimates = 0, bookings = 0, revenue = 0
+  for (const s of rows) {
+    doors         += s.doors_knocked || 0
+    conversations += s.conversations || 0
+    estimates     += s.estimates     || 0
+    bookings      += s.bookings      || 0
+    revenue       += Number(s.revenue_booked) || 0
+  }
+  const rate = (num, den) => den ? Math.round((num / den) * 100) : 0
+
+  return {
+    dau, wau, mau, stickiness,
+    dauByDay,
+    funnel: {
+      doors, conversations, estimates, bookings, revenue,
+      rates: {
+        convFromDoors: rate(conversations, doors),
+        estFromConv:   rate(estimates, conversations),
+        bookFromEst:   rate(bookings, estimates),
+      },
+    },
+    windowDays: 30,
+  }
 }
 
 /**
@@ -1511,6 +1608,73 @@ export async function resendRepInvite(repId) {
  */
 export async function deleteRep(repId) {
   const { error } = await callManageTeam({ action: 'delete', repId })
+  return { error: error || null }
+}
+
+// ── Organization lifecycle (pause / resume / cancel / delete) ─────────────────
+//
+// Owner-only account controls surfaced in Settings → Account. All four run
+// through the same manage-team edge function as rep management (it already
+// owns the manager-auth gate + service-role client); the function enforces
+// that the caller is the org OWNER, not just any manager. See the
+// 20260604_org_lifecycle migration for the data model.
+//
+// State machine:
+//   active/trial ──pause──▶ paused ──(resume | auto-resume@resume_at)──▶ active
+//   active/trial ──cancel─▶ cancelled ──(reactivate within 90d | purge@purge_at)
+//   any ──delete──▶ (gone)   ← irreversible, typed-confirm in the UI
+
+/**
+ * Pause the org for the off-season. Billing drops to the keep-warm fee
+ * (stored on the org; not auto-charged until Stripe is wired) and all data
+ * is retained. Auto-resumes on `resumeAt` if provided.
+ *
+ *   pauseOrganization({ resumeAt: '2026-09-01', reason: 'seasonal' })
+ *
+ * @param {{ resumeAt?: string|Date|null, reason?: string|null }} opts
+ * @returns {Promise<{ organization?: object, error: Error|null }>}
+ */
+export async function pauseOrganization({ resumeAt = null, reason = null } = {}) {
+  const { data, error } = await callManageTeam({
+    action:   'pause_org',
+    resumeAt: resumeAt ? new Date(resumeAt).toISOString() : null,
+    reason,
+  })
+  return { organization: data?.organization || null, error: error || null }
+}
+
+/**
+ * Manually un-pause (owner came back early). Flips straight to active.
+ * @returns {Promise<{ organization?: object, error: Error|null }>}
+ */
+export async function resumeOrganization() {
+  const { data, error } = await callManageTeam({ action: 'resume_org' })
+  return { organization: data?.organization || null, error: error || null }
+}
+
+/**
+ * Cancel the subscription. Billing stops and the org is soft-deleted, but
+ * data is kept for a 90-day grace window so a seasonal owner can reactivate
+ * before anything is purged. Reversible until purge_at.
+ *
+ * @param {{ reason?: string|null }} opts
+ * @returns {Promise<{ organization?: object, error: Error|null }>}
+ */
+export async function cancelOrganization({ reason = null } = {}) {
+  const { data, error } = await callManageTeam({ action: 'cancel_org', reason })
+  return { organization: data?.organization || null, error: error || null }
+}
+
+/**
+ * Permanently delete the organization and every member account. Irreversible
+ * — destroys auth users and cascading data immediately, no grace window.
+ * The caller's own session dies with it, so the UI should sign out / redirect
+ * after a success.
+ *
+ * @returns {Promise<{ error: Error|null }>}
+ */
+export async function deleteOrganization() {
+  const { error } = await callManageTeam({ action: 'delete_org' })
   return { error: error || null }
 }
 
@@ -2426,6 +2590,82 @@ export async function saveWebhookUrl(url) {
 export async function getWebhookUrl() {
   const { data: { user } } = await supabase.auth.getUser()
   return user?.user_metadata?.zapier_webhook_url || null
+}
+
+// Default per-event toggles — mirrors the DB column default. Estimate is the
+// noisiest event so it's off by default.
+export const DEFAULT_WEBHOOK_EVENTS = {
+  session_ended: true,
+  booking:       true,
+  appointment:   true,
+  estimate:      false,
+}
+
+/**
+ * Read the org-level Zapier config (URL + per-event toggles). Readable by any
+ * org member (reps included) via the organizations_select RLS policy, which is
+ * what lets rep-driven booking/appointment events fire. Falls back to the
+ * current user's legacy auth-metadata URL so existing setups keep working.
+ */
+export async function getOrgWebhookConfig() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { url: null, events: { ...DEFAULT_WEBHOOK_EVENTS } }
+  const { data: row } = await supabase
+    .from('users')
+    .select('organization_id')
+    .eq('id', user.id)
+    .single()
+  let url = null
+  let events = { ...DEFAULT_WEBHOOK_EVENTS }
+  if (row?.organization_id) {
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('zapier_webhook_url, zapier_events')
+      .eq('id', row.organization_id)
+      .single()
+    url = org?.zapier_webhook_url || null
+    if (org?.zapier_events) events = { ...DEFAULT_WEBHOOK_EVENTS, ...org.zapier_events }
+  }
+  // Legacy fallback: an older per-user URL still drives the webhook if the org
+  // hasn't been configured yet.
+  if (!url) url = user.user_metadata?.zapier_webhook_url || null
+  return { url, events }
+}
+
+/** Save the org-level Zapier config. Only the org owner can update (RLS). */
+export async function saveOrgWebhookConfig(orgId, { url, events }) {
+  const patch = {}
+  if (url !== undefined)    patch.zapier_webhook_url = url || null
+  if (events !== undefined) patch.zapier_events      = events
+  const { data, error } = await supabase
+    .from('organizations')
+    .update(patch)
+    .eq('id', orgId)
+    .select('zapier_webhook_url, zapier_events')
+    .single()
+  return { data, error }
+}
+
+/**
+ * Fire a named webhook event if the org has that event enabled and a URL set.
+ * Fire-and-forget by design — callers should not await UI-blocking on this.
+ * `payload` should already include the event-specific fields; we stamp
+ * `event`, `source`, and `timestamp` consistently.
+ */
+export async function fireWebhookEvent(eventKey, payload = {}) {
+  try {
+    const { url, events } = await getOrgWebhookConfig()
+    if (!url || !events?.[eventKey]) return false
+    return await fireZapierWebhook(url, {
+      event:     eventKey,
+      source:    'knockiq',
+      timestamp: new Date().toISOString(),
+      ...payload,
+    })
+  } catch (err) {
+    console.warn('[Webhook] fireWebhookEvent failed:', err)
+    return false
+  }
 }
 
 // ── Photo helpers ─────────────────────────────────────────────────────────────
