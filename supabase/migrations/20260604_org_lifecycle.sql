@@ -24,13 +24,22 @@
 -- Hard delete (auth + data teardown) is NOT a status — it's performed
 -- by the manage-team edge function's `delete_org` action, owner-only.
 --
--- We deliberately do NOT add a CHECK constraint on status: the column
--- has no constraint today (the only status CHECK in the schema is on
--- users.subscription_status), several values are already in live use,
--- and adding one risks rejecting an existing value we can't see from
--- migrations alone. The allowed set is documented here and enforced in
--- the edge function instead.
+-- The live organizations.status column DOES carry a CHECK constraint
+-- (organizations_status_check) that today allows only
+-- 'active' | 'suspended' | 'trial'. We extend it below to add 'paused'
+-- and 'cancelled'; without this, the edge function's status writes would
+-- fail with a check violation.
 -- ============================================================
+
+-- ── 0. Extend the status CHECK constraint ───────────────────────────────
+-- Drop the existing constraint by its known name and recreate it with the
+-- two new lifecycle states. Keeps every value already in use ('active',
+-- 'suspended', 'trial') so existing rows stay valid.
+ALTER TABLE public.organizations
+  DROP CONSTRAINT IF EXISTS organizations_status_check;
+ALTER TABLE public.organizations
+  ADD CONSTRAINT organizations_status_check
+  CHECK (status IN ('active', 'suspended', 'trial', 'paused', 'cancelled'));
 
 -- ── 1. Lifecycle columns on organizations ──────────────────────────────
 ALTER TABLE public.organizations
