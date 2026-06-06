@@ -273,7 +273,6 @@ async function sendLeadEmail({
   const opts = {
     eyebrow:  `From ${summary.setterName}`,
     heading:  'New Lead',
-    logoUrl:  `${APP_BASE_URL}/logo-white.png`,
     greeting: firstNameGreeting(toName),
     intro:    ["You've been assigned a new lead. Details below."],
     rows: [

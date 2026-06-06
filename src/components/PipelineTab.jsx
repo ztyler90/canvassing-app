@@ -338,6 +338,7 @@ export default function PipelineTab() {
       {openLead && (
         <LeadDetailModal
           lead={openLead}
+          isPro={isPro}
           onClose={() => setOpenLead(null)}
           onUpdate={handleLeadUpdate}
         />

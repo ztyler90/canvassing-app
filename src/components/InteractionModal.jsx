@@ -22,6 +22,7 @@ import {
   fireWebhookEvent,
 } from '../lib/supabase.js'
 import { reverseGeocodeCandidates } from '../lib/geocoding.js'
+import RoofInsights from './RoofInsights.jsx'
 
 // Outcome buttons. The 3rd button's label is org-configurable — managers
 // pick "Estimate" vs "Appointment" terminology under Settings → Daily Goal,
@@ -132,6 +133,8 @@ export default function InteractionModal({
   // here so the 3rd outcome button renders "Appointment" instead of
   // "Estimate" when that's how the org talks about it.
   const [countLabel,      setCountLabel]      = useState('estimates')
+  // Pro tier drives the live Roof Insights panel (vs. a locked teaser).
+  const [isPro,           setIsPro]           = useState(false)
   useEffect(() => {
     let alive = true
     Promise.all([getMyOrganization(), getAllClosersUnified()]).then(([org, cl]) => {
@@ -139,6 +142,7 @@ export default function InteractionModal({
       if (org?.sales_cycle)       setSalesCycle(org.sales_cycle)
       if (org?.lead_routing_mode) setRoutingMode(org.lead_routing_mode)
       if (org?.count_goal_label)  setCountLabel(org.count_goal_label)
+      setIsPro(org?.tier === 'pro')
       setClosers(cl || [])
     }).catch(() => {})
     return () => { alive = false }
@@ -899,6 +903,14 @@ export default function InteractionModal({
                 ? '🎉 Book the Job'
                 : countLabel === 'appointments' ? '📋 Appointment Details' : '📋 Estimate Details'}
             </h3>
+
+            {/* Roof intelligence (Pro) — helps the rep size the estimate from
+                the door's coordinates. Locked teaser for Standard orgs. */}
+            <RoofInsights
+              lat={knock?.lat ?? existingInteraction?.lat}
+              lng={knock?.lng ?? existingInteraction?.lng}
+              isPro={isPro}
+            />
 
             {/* Phase 3: appointment + closer assignment.
                 Shown when the rep is logging a Hot Lead (estimate_requested)

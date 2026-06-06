@@ -35,10 +35,10 @@ export const BRAND = {
   inkMuted:   '#6B7280',
   font:       "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif",
   // White wordmark for the blue header. Must be an ABSOLUTE https URL — email
-  // clients won't resolve relative paths. Lives in the app's public/ dir, so
-  // it deploys to the app origin. Callers in edge functions override this with
-  // `${APP_BASE_URL}/logo-white.png` so it tracks whatever origin is deployed.
-  logoUrl:    'https://app.knockiq.com/logo-white.png',
+  // clients won't resolve relative paths. Hosted on the marketing domain
+  // (getknockiq.com), which is live and stable and independent of whichever
+  // origin the app itself is deployed to. Every email uses this single URL.
+  logoUrl:    'https://www.getknockiq.com/logo-white.png',
 } as const
 
 // ── HTML escaping ───────────────────────────────────────────────────────────

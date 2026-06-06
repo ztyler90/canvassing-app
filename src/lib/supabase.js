@@ -2880,7 +2880,7 @@ export async function getPipelineLeads(filters = {}) {
   let query = supabase
     .from('interactions')
     .select(`
-      id, stage, outcome, address, contact_name, contact_phone, contact_email,
+      id, stage, outcome, address, lat, lng, contact_name, contact_phone, contact_email,
       service_types, estimated_value, notes, follow_up,
       appointment_at, estimate_sent_at, hot_lead_started_at,
       closer_id, closer_contact_id, rep_id, created_at, lost_reason, lost_at,

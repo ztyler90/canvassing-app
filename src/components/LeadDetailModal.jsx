@@ -24,6 +24,7 @@ import {
   Clock, AlertCircle, UserCheck, ChevronRight, ChevronDown,
 } from 'lucide-react'
 import { PhotoThumb } from '../lib/photos.jsx'
+import RoofInsights from './RoofInsights.jsx'
 import {
   getAllClosersUnified, updateLeadStage, updateLeadPrice, updateLeadAppointment,
   updateLeadContact, setLeadCloser, notifyAssignedCloser,
@@ -51,7 +52,7 @@ const STAGE_ORDER = [
   { id: 'booked',         label: 'Booked'          },
 ]
 
-export default function LeadDetailModal({ lead, onClose, onUpdate }) {
+export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false }) {
   const [closers,      setClosers]      = useState([])
   const [saving,       setSaving]       = useState(false)
   const [showLost,     setShowLost]     = useState(false)
@@ -381,6 +382,9 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }) {
               placeholder="Add an address…"
               onSave={(v) => saveContactField('address', v)}
             />
+            {/* Roof intelligence (Pro). Uses the door's logged coordinates;
+                renders a locked teaser for Standard orgs. */}
+            <RoofInsights lat={lead.lat} lng={lead.lng} isPro={isPro} className="mt-1" />
             <EditableField
               icon={<Phone className="w-4 h-4" />}
               label="Phone"

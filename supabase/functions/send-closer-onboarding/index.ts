@@ -114,7 +114,6 @@ serve(async (req) => {
     const opts = tier === 'platform'
       ? {
           eyebrow:  'You\'re a closer',
-          logoUrl:  `${APP_BASE_URL}/logo-white.png`,
           greeting,
           intro: [
             `You've been set up as a closer for ${orgName} on KnockIQ. When a setter hands off a hot lead to you, it'll show up in your Closer Inbox and we'll email you the details right away.`,
@@ -125,7 +124,6 @@ serve(async (req) => {
         }
       : {
           eyebrow:  'You\'re a closer',
-          logoUrl:  `${APP_BASE_URL}/logo-white.png`,
           greeting,
           intro: [
             `You've been added as a closer for ${orgName} on KnockIQ — the door-to-door app the team uses to capture leads in the field.`,

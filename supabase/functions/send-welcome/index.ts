@@ -70,7 +70,6 @@ serve(async (req) => {
     const greeting = firstNameGreeting(profile.full_name)
     const opts = {
       eyebrow:  'Welcome aboard',
-      logoUrl:  `${APP_BASE_URL}/logo-white.png`,
       greeting,
       intro: [
         `${orgName} is set up and ready to go. KnockIQ is your command center for door-to-door — track knocks, log interactions, route hot leads to closers, and keep the leaderboard honest.`,

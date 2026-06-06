@@ -823,7 +823,7 @@ function buildInviteHtml(args: {
           <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px; background-color:#FFFFFF; border-radius:16px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
             <tr>
               <td style="background-color:#1B4FCC; padding:26px 32px;">
-                <img src="${escapeAttr(APP_BASE_URL + '/logo-white.png')}" alt="KnockIQ" height="32" style="height:32px; width:auto; display:block; border:0; outline:none; text-decoration:none;" />
+                <img src="https://www.getknockiq.com/logo-white.png" alt="KnockIQ" height="32" style="height:32px; width:auto; display:block; border:0; outline:none; text-decoration:none;" />
                 <div style="color:#DBEAFE; font-size:13px; margin-top:10px;">You're invited to the team</div>
               </td>
             </tr>
