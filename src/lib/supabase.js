@@ -2293,6 +2293,17 @@ function boundsOfPoints(pts) {
   return [[minLat, minLng], [maxLat, maxLng]]
 }
 
+/**
+ * Super-admin-only: Google geocoding spend for the current month, plus cache
+ * stats. Returns null if the caller isn't a super-admin (RPC raises) or the
+ * function isn't deployed yet. See geocode_spend_summary().
+ */
+export async function getGeocodeSpendSummary() {
+  const { data, error } = await supabase.rpc('geocode_spend_summary')
+  if (error) return null
+  return data
+}
+
 /** All interactions ever (no date filter) for territory door-history overlay */
 export async function getAllDoorHistory() {
   const { data } = await supabase

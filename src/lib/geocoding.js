@@ -25,6 +25,7 @@
  */
 
 import { distanceMeters } from './gps.js'
+import { supabase } from './supabase.js'
 
 const GOOGLE_KEY     = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 const cache          = new Map()   // key -> single best formatted address
@@ -54,18 +55,33 @@ export async function reverseGeocode(lat, lng) {
  * Ordering: rooftop-precise first, then by distance. Deduplicated by
  * formatted address. Capped at 5 entries so the picker stays usable.
  */
-export async function reverseGeocodeCandidates(lat, lng) {
+export async function reverseGeocodeCandidates(lat, lng, opts = {}) {
+  const { precise = false } = opts
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return []
-  const key = `${lat.toFixed(6)},${lng.toFixed(6)}`
+  // Precise (Google) and pass-by (OSM) results differ for the same point, so
+  // they get separate cache entries.
+  const key = `${precise ? 'P' : 'O'}:${lat.toFixed(6)},${lng.toFixed(6)}`
   if (candidateCache.has(key)) return candidateCache.get(key)
 
-  // Primary source: OSM buildings via Overpass. Fast, free, and returns
-  // actual parcel centroids rather than interpolated segment addresses.
-  let raw = await _overpassCandidates(lat, lng)
+  let raw = []
 
-  // Fallback only if Overpass returned nothing — unmapped area, transient
-  // server outage, or offline. Skipping the interpolation geocoders when
-  // Overpass succeeds keeps the chip list tight and rooftop-accurate.
+  // Log-interaction path: the rep is recording a real address, so resolve it
+  // precisely via Google through the server-side proxy (which holds the key
+  // and shares the persistent cache). Pass-by / no-answer pins never set
+  // `precise`, so they stay on the free OSM path below and cost nothing.
+  if (precise) {
+    raw = await _proxyPreciseCandidates(lat, lng)
+  }
+
+  // Primary free source (and fallback if the precise proxy is unreachable or
+  // not yet configured): OSM buildings via Overpass — actual parcel centroids,
+  // not interpolated segment addresses. The rep is never blocked on Google.
+  if (!raw.length) {
+    raw = await _overpassCandidates(lat, lng)
+  }
+
+  // Last resort if Overpass returned nothing — unmapped area, transient
+  // outage, or offline.
   if (!raw.length) {
     raw = GOOGLE_KEY
       ? await _googleCandidates(lat, lng)
@@ -187,6 +203,28 @@ async function _overpassCandidates(lat, lng) {
     }
   }
   return []
+}
+
+// ── Precise proxy (Google via Edge Function + shared cache) ─────────
+
+/**
+ * Resolve a precise address through the `geocode` Edge Function. The function
+ * checks the shared geocode_cache first (so re-canvassed doors are free), then
+ * calls Google with a server-side key when needed. Returns [] on any failure
+ * or if the proxy isn't configured yet, so the caller transparently falls back
+ * to the free OSM path — the rep is never blocked.
+ */
+async function _proxyPreciseCandidates(lat, lng) {
+  try {
+    const { data, error } = await supabase.functions.invoke('geocode', {
+      body: { lat, lng, precise: true },
+    })
+    if (error) { console.warn('[Geocode] precise proxy error:', error.message); return [] }
+    return Array.isArray(data?.candidates) ? data.candidates : []
+  } catch (e) {
+    console.warn('[Geocode] precise proxy failed:', e?.message || e)
+    return []
+  }
 }
 
 // ── Google Maps Geocoding ───────────────────────────────────────

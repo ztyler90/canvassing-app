@@ -207,7 +207,8 @@ export default function InteractionModal({
     if (!knock?.lat || !knock?.lng) return
     setGeocodeStatus('loading')
     try {
-      const cands = await reverseGeocodeCandidates(knock.lat, knock.lng)
+      // precise: rep is logging a real interaction → use Google (via proxy)
+      const cands = await reverseGeocodeCandidates(knock.lat, knock.lng, { precise: true })
       if (!cands?.length) { setGeocodeStatus('empty'); return }
       setCandidates(cands)
       // Only auto-fill when the input is still empty. If the rep has
@@ -228,7 +229,8 @@ export default function InteractionModal({
     if (!knock?.lat || !knock?.lng) return
     let cancelled = false
     setGeocodeStatus('loading')
-    reverseGeocodeCandidates(knock.lat, knock.lng)
+    // precise: the Log-Interaction slide-up is open → Google (via proxy)
+    reverseGeocodeCandidates(knock.lat, knock.lng, { precise: true })
       .then((cands) => {
         if (cancelled) return
         if (!cands?.length) { setGeocodeStatus('empty'); return }

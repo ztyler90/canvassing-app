@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, formatDistanceToNow } from 'date-fns'
-import { ChevronLeft, Building2, DollarSign, Users, CheckCircle, Shield, TrendingUp, TrendingDown, Loader, ChevronRight, Activity, AlertTriangle, AlertOctagon, LineChart as LineChartIcon, UserCheck, Percent, Repeat, Filter } from 'lucide-react'
+import { ChevronLeft, Building2, DollarSign, Users, CheckCircle, Shield, TrendingUp, TrendingDown, Loader, ChevronRight, Activity, AlertTriangle, AlertOctagon, LineChart as LineChartIcon, UserCheck, Percent, Repeat, Filter, MapPin } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   getAllOrganizations,
@@ -20,6 +20,7 @@ import {
   getPlatformMetrics,
   getPlatformEngagement,
   updateOrganizationTier,
+  getGeocodeSpendSummary,
 } from '../lib/supabase.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -36,6 +37,7 @@ export default function SuperAdminDashboard() {
   const [insights, setInsights] = useState({})
   const [platform, setPlatform] = useState(null)
   const [engagement, setEngagement] = useState(null)
+  const [geoSpend, setGeoSpend] = useState(null)
   const [sortBy, setSortBy]     = useState('mrr')
   const [loading, setLoading]   = useState(true)
   const [updatingId, setUpdating] = useState(null)
@@ -45,13 +47,14 @@ export default function SuperAdminDashboard() {
 
   async function loadData() {
     setLoading(true)
-    const [o, b, m, i, p, e] = await Promise.all([
+    const [o, b, m, i, p, e, g] = await Promise.all([
       getAllOrganizations(),
       getOrganizationBilling(),
       getOrganizationMemberCounts(),
       getOrganizationInsightsSummary(),
       getPlatformMetrics(),
       getPlatformEngagement(),
+      getGeocodeSpendSummary(),
     ])
     setOrgs(o)
     setBilling(b)
@@ -59,6 +62,7 @@ export default function SuperAdminDashboard() {
     setInsights(i || {})
     setPlatform(p || null)
     setEngagement(e || null)
+    setGeoSpend(g || null)
     setLoading(false)
   }
 
@@ -202,6 +206,36 @@ export default function SuperAdminDashboard() {
             accent
           />
         </section>
+
+        {/* ── Geocoding spend (Google) ────────────────────────────────────── */}
+        {geoSpend && (
+          <section className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+                <p className="text-gray-700 font-semibold text-sm">Geocoding spend · this month</p>
+              </div>
+              <span className="text-gray-400 text-[10px] uppercase tracking-wide font-semibold">
+                Google · $5/1k
+              </span>
+            </div>
+            <div className="flex items-end gap-2 mb-3">
+              <p className="font-bold text-2xl text-gray-800">
+                ${Number(geoSpend.est_cost_usd ?? 0).toFixed(2)}
+              </p>
+              <p className="text-gray-400 text-xs font-medium mb-1">est. cost MTD</p>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              <MiniStat label="Lookups"    value={Number(geoSpend.google_requests_mtd ?? 0).toLocaleString()} />
+              <MiniStat label="Billable"   value={Number(geoSpend.billable_requests ?? 0).toLocaleString()} />
+              <MiniStat label="New addr"   value={Number(geoSpend.new_addresses_mtd ?? 0).toLocaleString()} />
+              <MiniStat label="Cache hits" value={Number(geoSpend.lifetime_cache_hits ?? 0).toLocaleString()} accent />
+            </div>
+            <p className="text-gray-400 text-[11px] font-medium mt-2">
+              First 10,000 lookups/month free · {Number(geoSpend.cached_addresses_total ?? 0).toLocaleString()} addresses cached lifetime (reused free)
+            </p>
+          </section>
+        )}
 
         {/* ── MRR trend + growth strip ────────────────────────────────────── */}
         <section className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
