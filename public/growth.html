@@ -339,7 +339,26 @@ $('addGmBtn').onclick = async ()=>{
   if(!name||!email||!pass){ note($('gmMsg'),'Name, email and password are required.',false); return; }
   const { error } = await sb.rpc('growth_provision_manager',{ p_email:email, p_full_name:name, p_password:pass, p_referral_code:code });
   if(error){ note($('gmMsg'),error.message,false); return; }
-  note($('gmMsg'),`Login created for ${name}. Share the email + temporary password.`,true);
+  // Email the new rep a branded welcome with a one-time "set your password"
+  // link. Best-effort: the account exists regardless of email delivery, so a
+  // failure here is surfaced but never blocks creation.
+  let emailSent=false, emailErr='';
+  try {
+    const { data:{ session } } = await sb.auth.getSession();
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-growth-welcome`, {
+      method:'POST',
+      headers:{ 'Authorization':`Bearer ${session?.access_token||''}`, 'Content-Type':'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const out = await res.json().catch(()=>null);
+    emailSent = !!(res.ok && out && out.sent);
+    if(!emailSent) emailErr = (out && (out.email_error||out.error)) || ('HTTP '+res.status);
+  } catch(e){ emailErr = e.message; }
+  if(emailSent){
+    note($('gmMsg'),`Login created for ${name}. A set-password welcome email is on its way to ${email}.`,true);
+  } else {
+    note($('gmMsg'),`Login created for ${name}, but the welcome email didn't send (${emailErr}). Share the temporary password manually, or resend later.`,false);
+  }
   $('gmName').value=$('gmEmail').value=$('gmPass').value=$('gmCode').value='';
   await loadAdminLists();
 };
@@ -350,6 +369,19 @@ $('changePassBtn').onclick = async ()=>{
   const { error } = await sb.auth.updateUser({ password:p });
   if(error) note($('passMsg'),error.message,false); else { note($('passMsg'),'Password updated.',true); $('newPass').value=''; }
 };
+
+// When a new rep arrives via the "set your password" email link, GoTrue
+// hands us a recovery session and supabase-js fires PASSWORD_RECOVERY.
+// Reveal the password panel and nudge them to set one.
+sb.auth.onAuthStateChange((event)=>{
+  if(event==='PASSWORD_RECOVERY'){
+    const panel=$('changePassPanel');
+    if(panel) panel.classList.remove('hidden');
+    note($('passMsg'),'Welcome to KnockIQ Growth! Set a password below to finish activating your account.',true);
+    try{ panel && panel.scrollIntoView({behavior:'smooth'}); }catch(_){}
+    setTimeout(()=>{ try{ $('newPass').focus(); }catch(_){} }, 300);
+  }
+});
 
 // restore session
 const { data:{ session } } = await sb.auth.getSession();

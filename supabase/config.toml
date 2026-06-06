@@ -83,5 +83,11 @@ verify_jwt = true
 [functions.send-closer-onboarding]
 verify_jwt = true
 
+# send-growth-welcome emails a new growth rep a set-password link. Caller must
+# be a signed-in super-admin (re-checked in-function via users.is_super_admin),
+# so the platform pre-verifier stays on.
+[functions.send-growth-welcome]
+verify_jwt = true
+
 [[analytics]]
 enabled = false
