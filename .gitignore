@@ -3,3 +3,11 @@ dist/
 .env
 .env.local
 .DS_Store
+
+# Customer / homeowner PII and internal models — never commit
+*.xlsx
+*.xls
+~$*
+.~lock.*
+KnockIQ_D2D_Prospects_*
+KnockIQ_Revenue_Model*
