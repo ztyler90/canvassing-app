@@ -26,15 +26,14 @@
  */
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sendEmail, brandedEmail, brandedText, firstNameGreeting } from '../_shared/email.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ''
-const RESEND_FROM    = Deno.env.get('RESEND_FROM')    || 'KnockIQ <leads@resend.dev>'
-const APP_BASE_URL   = (Deno.env.get('APP_BASE_URL')  || 'https://app.knockiq.com').replace(/\/$/, '')
+const APP_BASE_URL = (Deno.env.get('APP_BASE_URL') || 'https://app.knockiq.com').replace(/\/$/, '')
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -264,94 +263,35 @@ async function sendLeadEmail({
   toName:  string
   summary: LeadSummary
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!RESEND_API_KEY) {
-    console.warn('[notify-closer] RESEND_API_KEY not set — skipping email send.')
-    return { ok: false, error: 'RESEND_API_KEY not configured' }
-  }
   const subject = summary.appointment
     ? `New lead · ${summary.customerName} · ${summary.appointment}`
     : `New lead · ${summary.customerName}`
 
-  const html = buildLeadHtml({ toName, summary })
-  const text = buildLeadText({ toName, summary })
-
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method:  'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({
-        from: RESEND_FROM,
-        to:   [toEmail],
-        subject,
-        html,
-        text,
-      }),
-    })
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '')
-      return { ok: false, error: `Resend ${res.status}: ${errText.slice(0, 200)}` }
-    }
-    return { ok: true }
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  // Builds on the shared branded layout so the lead email matches the
+  // welcome / closer-onboarding / invite emails. brandedEmail handles all
+  // HTML escaping, so we pass raw values here.
+  const opts = {
+    eyebrow:  `From ${summary.setterName}`,
+    heading:  'New Lead',
+    logoUrl:  `${APP_BASE_URL}/logo-white.png`,
+    greeting: firstNameGreeting(toName),
+    intro:    ["You've been assigned a new lead. Details below."],
+    rows: [
+      { label: 'Customer',    value: summary.customerName },
+      { label: 'Address',     value: summary.address },
+      { label: 'Phone',       value: summary.phone },
+      { label: 'Service',     value: summary.services },
+      { label: 'Est. value',  value: summary.value },
+      { label: 'Appointment', value: summary.appointment },
+      { label: 'Notes',       value: summary.notes },
+    ],
+    ...(summary.inboxUrl ? { cta: { label: 'Open in KnockIQ →', url: summary.inboxUrl } } : {}),
   }
-}
 
-function buildLeadHtml({ toName, summary }: { toName: string; summary: LeadSummary }): string {
-  const greeting = toName ? `Hey ${escapeHtml(toName.split(' ')[0])},` : 'Hey there,'
-  const row = (label: string, value: string) =>
-    value ? `<tr><td style="padding:6px 0;color:#6B7280;font-size:13px;width:120px;">${label}</td><td style="padding:6px 0;color:#111827;font-size:14px;font-weight:600;">${escapeHtml(value)}</td></tr>` : ''
-  return `<!doctype html><html><head><meta charset="utf-8"/></head><body style="margin:0;padding:0;background:#F3F4F6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1F2937;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F4F6;padding:32px 16px;"><tr><td align="center">
-  <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:16px;overflow:hidden;">
-    <tr><td style="background:#1B4FCC;padding:20px 28px;">
-      <div style="color:#FFFFFF;font-weight:700;font-size:18px;">KnockIQ · New Lead</div>
-      <div style="color:#DBEAFE;font-size:13px;margin-top:2px;">From ${escapeHtml(summary.setterName)}</div>
-    </td></tr>
-    <tr><td style="padding:24px 28px;">
-      <p style="margin:0 0 12px 0;font-size:15px;">${greeting}</p>
-      <p style="margin:0 0 16px 0;font-size:14px;color:#374151;">You've been assigned a new lead. Details below.</p>
-      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
-        ${row('Customer',    summary.customerName)}
-        ${row('Address',     summary.address)}
-        ${row('Phone',       summary.phone)}
-        ${row('Service',     summary.services)}
-        ${row('Est. value',  summary.value)}
-        ${row('Appointment', summary.appointment)}
-        ${row('Notes',       summary.notes)}
-      </table>
-      ${summary.inboxUrl ? `<div style="margin-top:24px;">
-        <a href="${escapeAttr(summary.inboxUrl)}" style="display:inline-block;padding:12px 24px;background:#1B4FCC;color:#FFFFFF;text-decoration:none;font-weight:700;border-radius:10px;font-size:14px;">
-          Open in KnockIQ →
-        </a>
-      </div>` : ''}
-    </td></tr>
-  </table>
-</td></tr></table></body></html>`
-}
-
-function buildLeadText({ toName, summary }: { toName: string; summary: LeadSummary }): string {
-  const greeting = toName ? `Hey ${toName.split(' ')[0]},` : 'Hey there,'
-  const line = (label: string, value: string) => value ? `${label}: ${value}\n` : ''
-  return `${greeting}
-
-You've been assigned a new lead by ${summary.setterName}.
-
-${line('Customer',    summary.customerName)}${line('Address',     summary.address)}${line('Phone',       summary.phone)}${line('Service',     summary.services)}${line('Est. value',  summary.value)}${line('Appointment', summary.appointment)}${line('Notes',       summary.notes)}${summary.inboxUrl ? `\nOpen in KnockIQ: ${summary.inboxUrl}\n` : ''}
-— KnockIQ`
-}
-
-function escapeHtml(s: string): string {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-function escapeAttr(s: string): string {
-  return escapeHtml(s)
+  return await sendEmail({
+    to:      toEmail,
+    subject,
+    html:    brandedEmail(opts),
+    text:    brandedText(opts),
+  })
 }

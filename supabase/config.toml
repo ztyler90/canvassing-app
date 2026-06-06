@@ -38,6 +38,19 @@ refresh_token_reuse_interval = 10
 enable_signup = true
 enable_anonymous_sign_ins = false
 
+# Branded transactional auth emails. content_path is resolved relative to the
+# project root (the dir that holds supabase/). These override GoTrue's plain
+# default templates for local dev and on `supabase config push`. The hosted
+# project's templates live in the dashboard (Auth → Email Templates) and must
+# be kept in sync by hand — see TRANSACTIONAL_EMAIL_SETUP.md.
+[auth.email.template.confirmation]
+subject = "Confirm your KnockIQ account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your KnockIQ password"
+content_path = "./supabase/templates/recovery.html"
+
 [edge_runtime]
 enabled = true
 policy = "per_worker"
@@ -58,6 +71,17 @@ verify_jwt = false
 # event before the function runs, so it must be disabled here.
 [functions.stripe-webhook]
 verify_jwt = false
+
+# send-welcome and send-closer-onboarding require a signed-in caller and the
+# client always sends the user's access token, so the platform JWT pre-verifier
+# stays on (matching the deployed manage-team / notify-closer). Each function
+# ALSO re-authenticates in-function via adminClient.auth.getUser(token) and
+# enforces org-scoped authorization on top of that.
+[functions.send-welcome]
+verify_jwt = true
+
+[functions.send-closer-onboarding]
+verify_jwt = true
 
 [[analytics]]
 enabled = false

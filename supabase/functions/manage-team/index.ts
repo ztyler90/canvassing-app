@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Stripe from 'https://esm.sh/stripe@14?target=deno'
+import { sendEmail, escapeHtml, escapeAttr } from '../_shared/email.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin':  '*',
@@ -8,15 +9,13 @@ const corsHeaders = {
 }
 
 // ── Runtime config ──────────────────────────────────────────────────────────
-// RESEND_API_KEY / RESEND_FROM: credentials for the transactional email
-// provider. Falls back to logging if RESEND_API_KEY is unset so local
-// development can exercise the create-rep flow without a real key.
+// Transactional email (Resend) now lives in ../_shared/email.ts — sendEmail
+// reads RESEND_API_KEY / RESEND_FROM itself and no-ops with { ok:false } when
+// the key is missing, so local dev can still exercise the create-rep flow.
 // APP_BASE_URL: used as the `redirectTo` target on the invite link — the
 // rep lands on this URL after clicking the email link, which routes them
 // to the /set-password screen where they pick their password.
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ''
-const RESEND_FROM    = Deno.env.get('RESEND_FROM')    || 'KnockIQ <onboarding@resend.dev>'
-const APP_BASE_URL   = (Deno.env.get('APP_BASE_URL')  || 'https://app.knockiq.com').replace(/\/$/, '')
+const APP_BASE_URL = (Deno.env.get('APP_BASE_URL') || 'https://app.knockiq.com').replace(/\/$/, '')
 
 // ── Stripe (org lifecycle billing) ───────────────────────────────────────────
 // Mode-aware so you can exercise the pause/cancel flow against TEST Stripe
@@ -759,10 +758,12 @@ serve(async (req) => {
   }
 })
 
-// ── Resend integration ──────────────────────────────────────────────────────
-// Sends the welcome / invite email via Resend's REST API
-// (https://api.resend.com/emails). We use fetch + JSON rather than pulling
-// in an SDK so the edge function's bundle stays small and cold-start fast.
+// ── Invite / welcome email ──────────────────────────────────────────────────
+// The Resend transport + HTML escaping now live in ../_shared/email.ts so
+// every KnockIQ email shares one sender path. This function keeps the
+// invite-specific *body* (richer than the generic shared layout — it carries
+// a "What is KnockIQ?" explainer and the one-time-link block) and hands the
+// finished HTML/text to the shared sendEmail.
 //
 // Returns { ok: boolean, error?: string } so the caller can surface send
 // failures to the manager without rolling back the rep creation.
@@ -781,15 +782,6 @@ async function sendInviteEmail({
   actionLink:  string
   isResend?:   boolean
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!RESEND_API_KEY) {
-    // Local dev convenience: log the link instead of failing the action.
-    // Deployed functions must set RESEND_API_KEY — the caller will see
-    // email_sent=false if the env var is missing in production.
-    console.warn('[manage-team] RESEND_API_KEY not set — skipping email send.')
-    console.warn('[manage-team] Would have sent invite link to', toEmail, actionLink)
-    return { ok: false, error: 'RESEND_API_KEY not configured' }
-  }
-
   const subject = isResend
     ? `Your KnockIQ invite (resent) — finish setting up your account`
     : `${inviterName} invited you to KnockIQ`
@@ -797,32 +789,8 @@ async function sendInviteEmail({
   const html = buildInviteHtml({ toName, inviterName, orgName, actionLink, isResend })
   const text = buildInviteText({ toName, inviterName, orgName, actionLink, isResend })
 
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method:  'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({
-        from:    RESEND_FROM,
-        to:      [toEmail],
-        subject,
-        html,
-        text,
-      }),
-    })
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '')
-      console.error('[manage-team] Resend send failed', res.status, errText)
-      return { ok: false, error: `Resend error ${res.status}: ${errText.slice(0, 200)}` }
-    }
-    return { ok: true }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    console.error('[manage-team] Resend fetch threw:', msg)
-    return { ok: false, error: msg }
-  }
+  const { ok, error } = await sendEmail({ to: toEmail, subject, html, text })
+  return { ok, error }
 }
 
 // HTML email body. Kept inline (no template engine) so the edge function
@@ -854,9 +822,9 @@ function buildInviteHtml(args: {
         <td align="center">
           <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px; background-color:#FFFFFF; border-radius:16px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
             <tr>
-              <td style="background-color:#1B4FCC; padding:28px 32px;">
-                <div style="color:#FFFFFF; font-weight:700; font-size:20px; letter-spacing:-0.01em;">KnockIQ</div>
-                <div style="color:#DBEAFE; font-size:13px; margin-top:4px;">You're invited to the team</div>
+              <td style="background-color:#1B4FCC; padding:26px 32px;">
+                <img src="${escapeAttr(APP_BASE_URL + '/logo-white.png')}" alt="KnockIQ" height="32" style="height:32px; width:auto; display:block; border:0; outline:none; text-decoration:none;" />
+                <div style="color:#DBEAFE; font-size:13px; margin-top:10px;">You're invited to the team</div>
               </td>
             </tr>
             <tr>
@@ -932,17 +900,6 @@ If you weren't expecting this email, you can ignore it — the invite will expir
 — The KnockIQ team`
 }
 
-// Tiny HTML escaper — the inviter's name, org name, and rep's first name
-// all come from DB rows and shouldn't land in HTML raw. Good enough for
-// template-style interpolation; not a general-purpose sanitizer.
-function escapeHtml(s: string): string {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-function escapeAttr(s: string): string {
-  return escapeHtml(s)
-}
+// escapeHtml / escapeAttr are imported from ../_shared/email.ts (the inviter's
+// name, org name, and rep's first name come from DB rows and must be escaped
+// before landing in the HTML body).

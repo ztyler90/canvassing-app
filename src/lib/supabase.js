@@ -487,6 +487,33 @@ export async function provisionNewOrganization(businessName, selectedPlan = 'sta
   return { data, error }
 }
 
+/**
+ * Fire the send-welcome edge function for the just-provisioned owner.
+ * Best-effort: a missed welcome email must never block signup, so this
+ * swallows every failure and returns it for optional logging. Call it
+ * AFTER provisionNewOrganization succeeds and a session exists.
+ */
+export async function sendWelcomeEmail() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return { sent: false, error: 'no session' }
+    const res = await fetch(`${supabaseUrl}/functions/v1/send-welcome`, {
+      method:  'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify({}),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { sent: false, error: data?.error || `HTTP ${res.status}` }
+    return data
+  } catch (err) {
+    return { sent: false, error: err?.message || String(err) }
+  }
+}
+
 /** Get the current user's organization row (RLS-filtered to their own org) */
 export async function getMyOrganization() {
   const { data: { user } } = await supabase.auth.getUser()
@@ -1284,7 +1311,47 @@ export async function createCloserContact({ fullName, email, phone, notification
     })
     .select()
     .single()
-  return { data, error }
+  // Best-effort onboarding email so the contact knows leads will arrive by
+  // email before the first one lands. Never blocks or fails the create — a
+  // missed email shouldn't stop the manager from adding the closer.
+  let emailSent = false
+  let emailError = null
+  if (!error && data?.id) {
+    const r = await sendCloserOnboarding({ tier: 'contact', id: data.id })
+    emailSent  = !!r?.sent
+    emailError = r?.sent ? null : (r?.email_error || r?.error || null)
+  }
+  return { data, error, emailSent, emailError }
+}
+
+/**
+ * Fire the send-closer-onboarding edge function for a newly added closer.
+ * `tier` is 'contact' (email-only closer_contacts row) or 'platform'
+ * (public.users role='closer'). Best-effort: swallows failures and returns
+ * them for optional toasting.
+ */
+export async function sendCloserOnboarding({ tier, id }) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return { sent: false, error: 'no session' }
+    const payload = tier === 'platform'
+      ? { closerUserId: id }
+      : { closerContactId: id }
+    const res = await fetch(`${supabaseUrl}/functions/v1/send-closer-onboarding`, {
+      method:  'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { sent: false, error: data?.error || `HTTP ${res.status}` }
+    return data
+  } catch (err) {
+    return { sent: false, error: err?.message || String(err) }
+  }
 }
 
 /**
