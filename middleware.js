@@ -11,10 +11,12 @@
 // routes (welcome.html at /, the SPA fallback, headers, etc.). No external
 // deps: we return plain Response objects.
 
-export const config = {
-  // Run on every path so the vercel.app redirect catches deep links too.
-  matcher: '/:path*',
-}
+// NOTE: intentionally NO `config.matcher`. The `/:path*` matcher does NOT
+// match the bare root path "/", which is exactly the path both redirects
+// below need (app root → /login, and the vercel apex). Omitting matcher runs
+// the middleware on every request, including "/". The handler returns
+// undefined for everything except the two redirect cases, so it's a no-op
+// pass-through elsewhere.
 
 const VERCEL_HOST = 'canvassing-app-theta.vercel.app'
 const APP_HOST = 'app.getknockiq.com'
