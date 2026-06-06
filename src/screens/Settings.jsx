@@ -1572,7 +1572,7 @@ export default function Settings() {
                 </div>
               </div>
               <ul className="space-y-1.5 mt-3">
-                {['Everything in Standard', 'Expanded Pipeline View', 'Expanded door history & 51+ territories', 'Commission tracking + base pay (add-on)', 'Export to CSV & Google Sheets', 'Zapier integration (6,000+ apps)', 'Phone support'].map(f => (
+                {['Everything in Standard', 'Expanded Pipeline View', '51+ territories', 'Commission tracking + base pay (add-on)', 'Export to CSV & Google Sheets', 'Zapier integration (6,000+ apps)', 'Phone support'].map(f => (
                   <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
                     <Check className="w-4 h-4 flex-shrink-0" style={{ color: BRAND_LIME }} />
                     {f}

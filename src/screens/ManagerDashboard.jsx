@@ -1325,7 +1325,7 @@ function TerritoryTab({ allReps, managerId, org = null }) {
         onClose={() => setShowTerritoryUpsell(false)}
         feature="51+ territories"
         blurb={`The Standard plan covers up to ${STANDARD_MAX_TERRITORIES} territories. Upgrade to Pro to add unlimited territories as your team grows.`}
-        perks={['Unlimited territories (51+)', 'Expanded door history', 'Commission tracking & export']}
+        perks={['Unlimited territories (51+)', 'Commission tracking & export']}
       />
       {/* Control bar */}
       <div className="px-4 py-3 bg-white border-b">

@@ -1095,32 +1095,24 @@
     }
     .price.pro .cta:hover { filter: brightness(1.05); }
 
-    /* Enterprise card — premium dark treatment */
+    /* Enterprise card — clean white treatment (lets Pro stand out) */
     .price.enterprise {
-      background: linear-gradient(160deg, #0F172A 0%, #1E293B 100%);
-      border: 1px solid #334155;
-      color: #E2E8F0;
+      background: white;
+      border: 1px solid var(--line);
+      color: var(--text);
     }
-    .price.enterprise h5 { color: #fff; }
-    .price.enterprise .tagline { color: #94A3B8; }
-    .price.enterprise .amount { color: #fff; }
-    .price.enterprise .amount small { color: #94A3B8; }
-    .price.enterprise .amount-sub { color: #94A3B8; }
-    .price.enterprise ul { border-top-color: rgba(255,255,255,.12); }
-    .price.enterprise li { color: #CBD5E1; }
-    .price.enterprise li .tick { background: rgba(125,195,30,.22); color: var(--lime); }
     .price.enterprise .cta {
-      background: #fff; color: var(--ink);
-      box-shadow: 0 10px 24px -10px rgba(0,0,0,.5);
+      background: var(--ink); color: #fff;
+      box-shadow: 0 10px 24px -10px rgba(15,23,42,.45);
     }
-    .price.enterprise .cta:hover { background: #F1F5F9; }
+    .price.enterprise .cta:hover { background: #1E293B; }
 
     /* Trial / billing caption under each CTA */
     .price .cta-note {
       text-align: center; margin-top: 12px;
       font-size: 12px; font-weight: 600; color: var(--muted);
     }
-    .price.enterprise .cta-note { color: #94A3B8; }
+    .price.enterprise .cta-note { color: var(--muted); }
     .price .cta-note.trial { color: var(--green); }
 
     /* Add-on chip in feature lists */
@@ -1131,7 +1123,6 @@
       background: var(--lime-50); color: #4d7a00;
       vertical-align: middle; text-transform: uppercase;
     }
-    .price.enterprise .addon-chip { background: rgba(125,195,30,.2); color: var(--lime); }
 
     /* ═══ COMPARISON MATRIX (Calendly-style) ════════════════════════════════ */
     .compare-wrap { max-width: 1100px; margin: 72px auto 0; }
@@ -2436,7 +2427,6 @@
           <li><span class="mark">✕</span> Feature bloat your reps never touch</li>
           <li><span class="mark">✕</span> Mandatory "implementation consultant"</li>
           <li><span class="mark">✕</span> Manual door-tap logging</li>
-          <li><span class="mark">✕</span> CSV export locked behind higher tier</li>
         </ul>
       </div>
 
@@ -2449,7 +2439,6 @@
           <li><span class="mark">✓</span> Only what field teams actually use</li>
           <li><span class="mark">✓</span> Self-serve setup — onboard a rep in 5 minutes</li>
           <li><span class="mark">✓</span> Automatic door knock tracking</li>
-          <li><span class="mark">✓</span> Google Sheets &amp; Excel export on Pro</li>
         </ul>
       </div>
     </div>
@@ -2512,8 +2501,8 @@
         <ul>
           <li><span class="tick">✓</span> Everything in Standard</li>
           <li><span class="tick">✓</span> Expanded Pipeline View — never let a lead fall through the cracks</li>
-          <li><span class="tick">✓</span> Expanded door history &amp; 51+ territories</li>
-          <li><span class="tick">✓</span> Commission tracking + base pay<span class="addon-chip">Add-on</span></li>
+          <li><span class="tick">✓</span> 51+ territories</li>
+          <li><span class="tick">✓</span> Commission tracking + base pay</li>
           <li><span class="tick">✓</span> Export to CSV &amp; Google Sheets</li>
           <li><span class="tick">✓</span> Zapier integration · push session data to 6,000+ apps</li>
           <li><span class="tick">✓</span> Phone support</li>
@@ -2524,7 +2513,7 @@
 
       <!-- Enterprise -->
       <div class="price enterprise">
-        <span class="price-badge" style="background:#fff;color:var(--ink);">ENTERPRISE</span>
+        <span class="price-badge" style="background:var(--ink);color:#fff;">ENTERPRISE</span>
         <h5>Enterprise</h5>
         <p class="tagline">For larger organizations with custom needs.</p>
         <div class="amount amount-monthly">$100<small>/seat/mo</small></div>
@@ -2585,8 +2574,7 @@
 
           <tr class="compare-group"><th colspan="4">Pro</th></tr>
           <tr><th>Expanded Pipeline View (Needs Action, Closed, Health)</th><td class="cmp-no">—</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-          <tr><th>Expanded door history</th><td class="cmp-no">—</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
-          <tr><th>Commission tracking + base pay <span class="addon-chip">Add-on</span></th><td class="cmp-no">—</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+          <tr><th>Commission tracking + base pay</th><td class="cmp-no">—</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
           <tr><th>Export to CSV &amp; Google Sheets</th><td class="cmp-no">—</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
           <tr><th>Zapier integration (push to 6,000+ apps)</th><td class="cmp-no">—</td><td class="col-pro cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
 
