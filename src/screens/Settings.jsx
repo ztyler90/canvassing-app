@@ -9,11 +9,11 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2, Workflow, HelpCircle, PauseCircle, AlertTriangle, Calendar, ShieldAlert } from 'lucide-react'
-import { getOrgWebhookConfig, saveOrgWebhookConfig, DEFAULT_WEBHOOK_EVENTS, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled, pauseOrganization, cancelOrganization, deleteOrganization, signOut, createPortalSession, syncSeats } from '../lib/supabase.js'
+import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2, Workflow, HelpCircle, PauseCircle, AlertTriangle, Calendar, ShieldAlert, Sun } from 'lucide-react'
+import { getOrgWebhookConfig, saveOrgWebhookConfig, DEFAULT_WEBHOOK_EVENTS, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled, setOrgRoofInsightsEnabled, pauseOrganization, cancelOrganization, deleteOrganization, signOut, createPortalSession, syncSeats } from '../lib/supabase.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { describeCommission, DEFAULT_COMMISSION_CONFIG, getHourlyRate } from '../lib/repStats.js'
-import { isProTier, isCommissionEnabled } from '../lib/tier.js'
+import { isProTier, isCommissionEnabled, isRoofInsightsEnabled } from '../lib/tier.js'
 import { ProBadge, ProUpgradeModal } from '../components/ProGate.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -59,6 +59,8 @@ export default function Settings() {
   const [commissionRepId, setCommissionRepId] = useState(null) // rep whose commission is being edited
   const [savingCommissionToggle, setSavingCommissionToggle] = useState(false)
   const [showCommissionUpsell, setShowCommissionUpsell] = useState(false)
+  const [savingRoofToggle, setSavingRoofToggle] = useState(false)
+  const [showRoofUpsell, setShowRoofUpsell] = useState(false)
   // Credentials panel — shown after a successful temp-password create so
   // the manager can copy the password and/or fire off a pre-filled SMS.
   // { fullName, email, phone, password, loginUrl } | null
@@ -586,6 +588,21 @@ export default function Settings() {
     if (next) setCommissionRepId(null)
     showToast(next ? 'Commission tracking enabled' : 'Commission tracking turned off')
   }
+
+  // Roof Insights (Google Solar) is a Pro-only, opt-in add-on.
+  const roofOn = isRoofInsightsEnabled(org, user)
+
+  async function handleToggleRoofInsights() {
+    if (!isPro) { setShowRoofUpsell(true); return }
+    if (!org?.id) return
+    setSavingRoofToggle(true)
+    const next = !org.roof_insights_enabled
+    const { data, error } = await setOrgRoofInsightsEnabled(org.id, next)
+    setSavingRoofToggle(false)
+    if (error) { showToast('Could not update Roof Insights add-on: ' + error.message, 'error'); return }
+    setOrg(data || { ...org, roof_insights_enabled: next })
+    showToast(next ? 'Roof Insights enabled' : 'Roof Insights turned off')
+  }
   const monthlyCost = (reps.length + 1) * seatPrice  // +1 for the owner
   const roleLabel   = user?.is_super_admin ? 'Super-Admin' : (user?.role === 'manager' ? 'Owner' : 'Rep')
   // Only the org owner sees the pause/cancel/delete controls. Matches the
@@ -607,6 +624,13 @@ export default function Settings() {
         feature="Commission tracking + base pay"
         blurb="Pay your reps right and let them see it. Upgrade to Pro to turn on commission tracking as an add-on."
         perks={['Per-rep commission (flat %, per-booking, or tiered)', 'Base hourly rate → reps see total pay', 'Export, expanded pipeline & 51+ territories']}
+      />
+      <ProUpgradeModal
+        open={showRoofUpsell}
+        onClose={() => setShowRoofUpsell(false)}
+        feature="Roof Insights"
+        blurb="See each home's roof size, complexity, pitch and sun exposure before you quote — straight from satellite data. Upgrade to Pro to switch it on."
+        perks={['Roof square footage to size every estimate', 'Roofline complexity & pitch for accurate pricing', 'Steep-roof safety flags before the crew arrives']}
       />
       {/* Toast */}
       {toast && (
@@ -977,6 +1001,51 @@ export default function Settings() {
               </div>
             </div>
           )}
+
+          {/* ── Roof Insights add-on (Pro · Google Solar) ─────────────── */}
+          <div className="rounded-2xl p-4 shadow-sm border border-gray-100 bg-white mb-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: '#EEF3FF' }}>
+                  <Sun className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-gray-800 text-sm">Roof Insights</p>
+                    {!isPro && <ProBadge />}
+                    {roofOn && (
+                      <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: '#EEF3FF', color: BRAND_BLUE }}>On</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                    Optional Pro add-on. Reps &amp; managers see each home's <span className="font-medium">roof size, complexity, pitch &amp; sun exposure</span> from satellite data on doors and leads.
+                    Off by default — each lookup is a small Google Solar API charge, so only turn it on if your team uses roof data.
+                  </p>
+                </div>
+              </div>
+
+              {isPro ? (
+                <button
+                  onClick={handleToggleRoofInsights}
+                  disabled={savingRoofToggle}
+                  role="switch"
+                  aria-checked={!!org?.roof_insights_enabled}
+                  className="relative shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: org?.roof_insights_enabled ? BRAND_BLUE : '#D1D5DB' }}>
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${org?.roof_insights_enabled ? 'translate-x-5' : ''}`} />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowRoofUpsell(true)}
+                  className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl text-white"
+                  style={{ backgroundColor: BRAND_BLUE }}>
+                  Upgrade
+                </button>
+              )}
+            </div>
+          </div>
 
           {/* ── Commission tracking add-on (Pro) ──────────────────────── */}
           <div className={`rounded-2xl p-4 shadow-sm border mb-2 ${commissionOn ? 'border-gray-100 bg-white' : 'border-gray-100 bg-white' + (isPro ? '' : ' opacity-90')}`}>

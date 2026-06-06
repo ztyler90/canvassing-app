@@ -24,6 +24,15 @@ export function isCommissionEnabled(org, user = null) {
   return isProTier(org, user) && !!org?.commission_enabled
 }
 
+/**
+ * Roof Insights (Google Solar) is a Pro-only, opt-in add-on. It only counts as
+ * "on" when the org is Pro AND the manager has explicitly enabled it. Default
+ * off so no billable Solar lookup ever happens for teams that don't want it.
+ */
+export function isRoofInsightsEnabled(org, user = null) {
+  return isProTier(org, user) && !!org?.roof_insights_enabled
+}
+
 /** Whether the org can create another territory given its current count. */
 export function canCreateTerritory(org, currentCount, user = null) {
   if (isProTier(org, user)) return true

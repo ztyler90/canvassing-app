@@ -14,6 +14,15 @@ Solar *Building Insights* data:
 Standard-tier orgs see a **locked teaser** that opens the existing Pro upgrade
 modal — no Google call is ever made for them.
 
+### Per-org toggle (cost control)
+
+Roof Insights is **off by default for every org** (`organizations.roof_insights_enabled = false`).
+A manager turns it on under **Settings → Roof Insights** (Pro only — Standard
+managers see an "Upgrade" button instead). Until a Pro org switches it on, the
+panel renders nothing and **no Solar API call is ever made** — so teams that
+don't care about roof data cost you $0. The gate is `isProTier(org) && org.roof_insights_enabled`
+(see `src/lib/tier.js` → `isRoofInsightsEnabled`).
+
 ---
 
 ## How it works (same pattern as `geocode`)
@@ -89,12 +98,15 @@ supabase functions deploy solar
 
 **Added**
 - `supabase/migrations/20260606_solar_cache.sql` — cache table (RLS-locked)
+- `supabase/migrations/20260606_roof_insights_toggle.sql` — `organizations.roof_insights_enabled` (default false)
 - `supabase/functions/solar/index.ts` — proxy + cache + parser
 - `src/lib/solar.js` — client fetch helper
-- `src/components/RoofInsights.jsx` — Pro-gated panel
+- `src/components/RoofInsights.jsx` — Pro-gated, toggle-gated panel
 
 **Changed**
-- `src/lib/supabase.js` — `getPipelineLeads` now selects `lat, lng`
-- `src/components/PipelineTab.jsx` — passes `isPro` to `LeadDetailModal`
+- `src/lib/tier.js` — `isRoofInsightsEnabled(org, user)` helper
+- `src/lib/supabase.js` — `getPipelineLeads` selects `lat, lng`; `setOrgRoofInsightsEnabled()` toggle writer
+- `src/components/PipelineTab.jsx` — passes `isPro` + `roofEnabled` to `LeadDetailModal`
 - `src/components/LeadDetailModal.jsx` — renders the panel under the address
 - `src/components/InteractionModal.jsx` — renders the panel in the details step
+- `src/screens/Settings.jsx` — manager on/off toggle (Pro add-on, default off)

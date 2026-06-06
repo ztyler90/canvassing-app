@@ -133,8 +133,10 @@ export default function InteractionModal({
   // here so the 3rd outcome button renders "Appointment" instead of
   // "Estimate" when that's how the org talks about it.
   const [countLabel,      setCountLabel]      = useState('estimates')
-  // Pro tier drives the live Roof Insights panel (vs. a locked teaser).
+  // Pro tier drives the live Roof Insights panel (vs. a locked teaser);
+  // roofEnabled is the manager's per-org opt-in (off by default).
   const [isPro,           setIsPro]           = useState(false)
+  const [roofEnabled,     setRoofEnabled]     = useState(false)
   useEffect(() => {
     let alive = true
     Promise.all([getMyOrganization(), getAllClosersUnified()]).then(([org, cl]) => {
@@ -143,6 +145,7 @@ export default function InteractionModal({
       if (org?.lead_routing_mode) setRoutingMode(org.lead_routing_mode)
       if (org?.count_goal_label)  setCountLabel(org.count_goal_label)
       setIsPro(org?.tier === 'pro')
+      setRoofEnabled(!!org?.roof_insights_enabled)
       setClosers(cl || [])
     }).catch(() => {})
     return () => { alive = false }
@@ -910,6 +913,7 @@ export default function InteractionModal({
               lat={knock?.lat ?? existingInteraction?.lat}
               lng={knock?.lng ?? existingInteraction?.lng}
               isPro={isPro}
+              enabled={roofEnabled}
             />
 
             {/* Phase 3: appointment + closer assignment.

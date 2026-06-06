@@ -547,6 +547,20 @@ export async function setOrgCommissionEnabled(orgId, enabled) {
 }
 
 /**
+ * Toggle the Pro-only Roof Insights (Google Solar) add-on for an org. Off by
+ * default so no billable Solar lookup happens unless a manager opts in.
+ */
+export async function setOrgRoofInsightsEnabled(orgId, enabled) {
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({ roof_insights_enabled: !!enabled })
+    .eq('id', orgId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+/**
  * List every organization in the system. Only super-admins see more than one
  * row — RLS filters non-super-admins to their own org.
  */

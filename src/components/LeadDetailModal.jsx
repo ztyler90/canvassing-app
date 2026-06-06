@@ -52,7 +52,7 @@ const STAGE_ORDER = [
   { id: 'booked',         label: 'Booked'          },
 ]
 
-export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false }) {
+export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false, roofEnabled = false }) {
   const [closers,      setClosers]      = useState([])
   const [saving,       setSaving]       = useState(false)
   const [showLost,     setShowLost]     = useState(false)
@@ -384,7 +384,7 @@ export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false
             />
             {/* Roof intelligence (Pro). Uses the door's logged coordinates;
                 renders a locked teaser for Standard orgs. */}
-            <RoofInsights lat={lead.lat} lng={lead.lng} isPro={isPro} className="mt-1" />
+            <RoofInsights lat={lead.lat} lng={lead.lng} isPro={isPro} enabled={roofEnabled} className="mt-1" />
             <EditableField
               icon={<Phone className="w-4 h-4" />}
               label="Phone"

@@ -57,16 +57,18 @@ function Chip({ icon: Icon, label, value, sub, tone }) {
   )
 }
 
-export default function RoofInsights({ lat, lng, isPro = false, className = '' }) {
+export default function RoofInsights({ lat, lng, isPro = false, enabled = false, className = '' }) {
   const [state, setState] = useState('idle')   // idle | loading | ready | none | error
   const [data, setData]   = useState(null)
   const [showUpsell, setShowUpsell] = useState(false)
 
   const hasCoords = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))
+  // Only Pro orgs that have switched the add-on ON ever hit the Solar API.
+  const live = isPro && enabled
 
   useEffect(() => {
     let alive = true
-    if (!isPro || !hasCoords) return
+    if (!live || !hasCoords) return
     setState('loading'); setData(null)
     getRoofInsights(lat, lng).then((res) => {
       if (!alive) return
@@ -75,7 +77,7 @@ export default function RoofInsights({ lat, lng, isPro = false, className = '' }
       setData(res.insights); setState('ready')
     })
     return () => { alive = false }
-  }, [lat, lng, isPro, hasCoords])
+  }, [lat, lng, live, hasCoords])
 
   if (!hasCoords) return null
 
@@ -114,7 +116,12 @@ export default function RoofInsights({ lat, lng, isPro = false, className = '' }
     )
   }
 
-  // ── Pro tier: live panel ──────────────────────────────────────────────────
+  // Pro org, but the manager hasn't switched the add-on on → render nothing and
+  // never call the Solar API. This is the cost-saver for teams that don't want
+  // roof data.
+  if (!enabled) return null
+
+  // ── Pro tier + add-on ON: live panel ──────────────────────────────────────
   const header = (
     <div className="flex items-center gap-1.5 mb-2">
       <Sun className="w-3.5 h-3.5" style={{ color: BRAND_BLUE }} />

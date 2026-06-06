@@ -137,6 +137,8 @@ export default function PipelineTab() {
   }
 
   const isPro      = org?.tier === 'pro'
+  // Roof Insights (Solar) is a Pro opt-in add-on, off by default.
+  const roofEnabled = !!org?.roof_insights_enabled
   // 'quick_quote' orgs price at the door and don't track appointments.
   // We hide the Appt Scheduled column and the Next 10 Days zone in that
   // mode. Default to 'mixed' (full layout) until the org row arrives.
@@ -339,6 +341,7 @@ export default function PipelineTab() {
         <LeadDetailModal
           lead={openLead}
           isPro={isPro}
+          roofEnabled={roofEnabled}
           onClose={() => setOpenLead(null)}
           onUpdate={handleLeadUpdate}
         />
