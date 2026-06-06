@@ -1,13 +1,14 @@
 User-agent: *
 Allow: /
-Disallow: /manager/
-Disallow: /rep/
-Disallow: /closer/
-Disallow: /admin/
+
+# Gated app routes (/login, /signup, /set-password, /pending-approval,
+# /manager, /rep, /closer, /admin) and the /growth portal are kept out of
+# Google with a `noindex` directive (robots meta tag + X-Robots-Tag header),
+# NOT a Disallow. A Disallow would block crawling and stop Google from ever
+# reading the noindex — which can leave a bare URL in results. noindex requires
+# the page to be crawlable, so these are intentionally not disallowed here.
+
+# /api/ is a non-page endpoint with nothing to index — block it outright.
 Disallow: /api/
-Disallow: /login
-Disallow: /signup
-Disallow: /set-password
-Disallow: /pending-approval
 
 Sitemap: https://www.getknockiq.com/sitemap.xml
