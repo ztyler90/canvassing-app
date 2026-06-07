@@ -14,7 +14,7 @@
  * the 20260602 migration) double-enforces the closer's narrow lane.
  */
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import {
   Inbox, ChevronRight, MapPin, Phone, Calendar, Check, X,
@@ -54,13 +54,46 @@ export default function CloserHome() {
   const [loading, setLoading] = useState(true)
   const [acting,  setActing]  = useState(null) // lead id being acted on
   const [lostFor, setLostFor] = useState(null) // lead id showing lost picker
+  // Deep-link state: a lead-notification email's "Open in KnockIQ →" CTA
+  // lands here as ?lead=<id>. We scroll that card into view + highlight it
+  // (the inbox is a flat card list, no modal). highlightId drives the ring;
+  // deepLinkMissing shows a dismissible notice if the lead isn't in the
+  // inbox anymore (e.g. reassigned away or already closed out).
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [highlightId, setHighlightId]   = useState(null)
+  const [deepLinkMissing, setDeepLinkMissing] = useState(false)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load().then((loaded) => {
+      const leadId = searchParams.get('lead')
+      if (!leadId) return
+      const found = (loaded || []).some((l) => l.id === leadId)
+      if (found) {
+        setHighlightId(leadId)
+        // Scroll after the cards have painted; the highlight ring fades out
+        // a few seconds later so it draws the eye without lingering.
+        requestAnimationFrame(() => {
+          const el = document.getElementById(`lead-${leadId}`)
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        })
+        setTimeout(() => setHighlightId(null), 4000)
+      } else {
+        setDeepLinkMissing(true)
+      }
+      // Strip ?lead so a manual refresh doesn't re-trigger the scroll/notice.
+      const next = new URLSearchParams(searchParams)
+      next.delete('lead')
+      setSearchParams(next, { replace: true })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function load() {
     setLoading(true)
-    setLeads(await getMyAssignedLeads())
+    const data = await getMyAssignedLeads()
+    setLeads(data)
     setLoading(false)
+    return data
   }
 
   async function advance(lead, nextStage, extras = {}) {
@@ -140,6 +173,21 @@ export default function CloserHome() {
 
       {/* Body */}
       <div className="max-w-3xl mx-auto w-full px-4 pt-5 space-y-5">
+        {deepLinkMissing && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-[12px] text-amber-800 leading-snug flex-1">
+              That lead isn't in your inbox anymore — it may have been reassigned or closed out.
+            </p>
+            <button
+              onClick={() => setDeepLinkMissing(false)}
+              className="text-amber-500 hover:text-amber-700 shrink-0"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
@@ -166,6 +214,7 @@ export default function CloserHome() {
                       key={lead.id}
                       lead={lead}
                       stage={g}
+                      highlight={highlightId === lead.id}
                       acting={acting === lead.id}
                       showLostPicker={lostFor === lead.id}
                       onAdvance={(stage, extras) => advance(lead, stage, extras)}
@@ -199,12 +248,19 @@ function EmptyState() {
   )
 }
 
-function LeadCard({ lead, stage, acting, showLostPicker, onAdvance, onShowLost, onHideLost, onLost }) {
+function LeadCard({ lead, stage, acting, highlight, showLostPicker, onAdvance, onShowLost, onHideLost, onLost }) {
   const setter = lead.users?.full_name || 'a setter'
   const appt = lead.appointment_at ? new Date(lead.appointment_at) : null
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-3.5">
+    <div
+      id={`lead-${lead.id}`}
+      className={`bg-white rounded-2xl shadow-sm p-3.5 transition-all duration-500 ${
+        highlight
+          ? 'border-2 border-blue-500 ring-4 ring-blue-200'
+          : 'border border-gray-200'
+      }`}
+    >
       {/* Header row */}
       <div className="flex items-start gap-3 mb-2">
         <div className="flex-1 min-w-0">

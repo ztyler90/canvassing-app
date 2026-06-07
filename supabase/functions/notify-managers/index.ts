@@ -215,7 +215,13 @@ serve(async (req) => {
           greeting: firstNameGreeting(r.name),
           intro:    [copy.lead, 'You\'re receiving this because you subscribed to these pipeline updates.'],
           rows,
-          cta: { label: 'Open the pipeline →', url: `${APP_BASE_URL}/manager` },
+          // Deep-link straight to this lead's record. ManagerDashboard reads
+          // ?tab to land on the Pipeline tab; PipelineTab reads ?lead to pop
+          // open the matching LeadDetailModal (falling back to a by-id fetch
+          // if the lead has already left the active set by click time). Without
+          // these params the link just dropped the manager on the dashboard
+          // home and they had to hunt for the record.
+          cta: { label: 'Open the pipeline →', url: `${APP_BASE_URL}/manager?tab=pipeline&lead=${lead.id}` },
           footnote: 'Manage which updates you get under Settings → Managers.',
         }
         const subject = `${headingEmoji(phase)} ${copy.heading} · ${lead.contact_name || 'New lead'}`

@@ -189,17 +189,19 @@ function makeCurrentLocationPin() {
 function makeKnockRipple(color = '#7DC31E') {
   const ring = (delay) => `<span style="
     position:absolute;inset:0;border-radius:50%;
-    border:3px solid ${color};
-    box-shadow:0 0 8px ${color};
-    animation:knockiq-knock-ripple 0.85s ease-out ${delay} forwards;
+    border:5px solid ${color};
+    box-shadow:0 0 16px 2px ${color}, inset 0 0 8px ${color};
+    animation:knockiq-knock-ripple 0.95s ease-out ${delay} forwards;
   "></span>`
   return L.divIcon({
     className: '',
-    html: `<div style="position:relative;width:26px;height:26px">
-      ${ring('0s')}${ring('0.18s')}
+    // Three staggered rings + a brighter, larger footprint so the ping clearly
+    // registers across the team map.
+    html: `<div style="position:relative;width:34px;height:34px">
+      ${ring('0s')}${ring('0.16s')}${ring('0.32s')}
     </div>`,
-    iconSize:   [26, 26],
-    iconAnchor: [13, 13],
+    iconSize:   [34, 34],
+    iconAnchor: [17, 17],
   })
 }
 
@@ -234,10 +236,10 @@ function makeRepPin(initials, color, stalled = false, active = false) {
       "></span>`
     : active
     ? `<span style="
-        position:absolute;inset:-6px;border-radius:50%;
-        background:${hexToRgba(color, 0.30)};
-        box-shadow:0 0 0 2px ${hexToRgba(color, 0.55)}, 0 0 12px 1px ${hexToRgba(color, 0.5)};
-        animation:knockiq-rep-pulse 1.9s ease-out infinite;
+        position:absolute;inset:-9px;border-radius:50%;
+        background:${hexToRgba(color, 0.40)};
+        box-shadow:0 0 0 3px ${hexToRgba(color, 0.75)}, 0 0 18px 4px ${hexToRgba(color, 0.6)};
+        animation:knockiq-rep-pulse 1.6s ease-out infinite;
       "></span>`
     : ''
   return L.divIcon({
@@ -278,13 +280,12 @@ function ensureMapFxStyles() {
       70%  { transform: scale(2.4); opacity: 0    }
       100% { transform: scale(2.4); opacity: 0    }
     }
-    /* Gentler ring for active rep pins on the manager map — "this rep is
-       live right now". Smaller max scale than the GPS beacon so clustered
-       pins don't overlap their neighbors' halos. */
+    /* Pulsing ring for active rep pins on the manager map — "this rep is live
+       right now". Pronounced enough to catch the eye across the team map. */
     @keyframes knockiq-rep-pulse {
-      0%   { transform: scale(0.85); opacity: 0.5 }
-      75%  { transform: scale(1.8);  opacity: 0   }
-      100% { transform: scale(1.8);  opacity: 0   }
+      0%   { transform: scale(0.8); opacity: 0.85 }
+      70%  { transform: scale(2.6); opacity: 0    }
+      100% { transform: scale(2.6); opacity: 0    }
     }
     /* Neon glow on the GPS trail. drop-shadow follows the SVG path outline,
        so the whole breadcrumb line gets a soft blue halo as it draws. */
@@ -292,22 +293,23 @@ function ensureMapFxStyles() {
       filter: drop-shadow(0 0 3px rgba(59,130,246,0.95))
               drop-shadow(0 0 6px rgba(59,130,246,0.55));
     }
-    /* Marching ants — a thin dashed overlay whose dashes slide toward the
-       rep's current position, implying forward motion along the trail.
-       dashoffset goes negative so the flow runs oldest → newest. */
+    /* Marching ants — a thin dashed overlay whose dashes slide ALONG the
+       trail to imply the rep's momentum. dashoffset goes positive so the flow
+       runs newest → oldest (reversed), reading as motion trailing behind the
+       rep's current position. */
     .knockiq-trail-flow {
       stroke-dasharray: 6 16;
       animation: knockiq-ants 0.9s linear infinite;
     }
     @keyframes knockiq-ants {
-      to { stroke-dashoffset: -22; }
+      to { stroke-dashoffset: 22; }
     }
     /* Knock ripple — expanding ring dropped at a door the instant it's
-       logged, for a quick "got it" pulse of feedback on the map. */
+       logged, for a clear "got it" pulse of feedback on the map. */
     @keyframes knockiq-knock-ripple {
-      0%   { transform: scale(0.3); opacity: 0.85 }
-      80%  { transform: scale(2.6); opacity: 0    }
-      100% { transform: scale(2.6); opacity: 0    }
+      0%   { transform: scale(0.25); opacity: 1   }
+      80%  { transform: scale(3.4);  opacity: 0   }
+      100% { transform: scale(3.4);  opacity: 0   }
     }
   `
   document.head.appendChild(style)
@@ -655,7 +657,7 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
         zIndexOffset: 1500,
         interactive: false,
       }).addTo(map)
-      setTimeout(() => ripple.remove(), 1100)
+      setTimeout(() => ripple.remove(), 1400)
     }
     knockSeenRef.current = list.length
   }, [interactions])
@@ -691,7 +693,7 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
           zIndexOffset: 2500,
           interactive: false,
         }).addTo(map)
-        setTimeout(() => ripple.remove(), 1100)
+        setTimeout(() => ripple.remove(), 1400)
       }
     }
     repStatsSeenRef.current = next

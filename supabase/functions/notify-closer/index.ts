@@ -175,7 +175,11 @@ serve(async (req) => {
       appointment:  lead.appointment_at ? formatAppt(lead.appointment_at) : '',
       notes:        lead.notes || '',
       setterName,
-      inboxUrl:     closer.tier === 'platform' ? `${APP_BASE_URL}/closer` : '',
+      // Deep-link straight to this lead in the Closer Inbox. CloserHome reads
+      // ?lead to scroll the matching card into view and highlight it (the
+      // inbox is a flat card list, not a modal). Email-only contacts have no
+      // login, so they get no CTA at all (empty string).
+      inboxUrl:     closer.tier === 'platform' ? `${APP_BASE_URL}/closer?lead=${interactionId}` : '',
     }
 
     const channels: string[] = []

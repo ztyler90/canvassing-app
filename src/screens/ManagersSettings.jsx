@@ -503,20 +503,29 @@ function ManagerRow({
           A manager who also canvasses is paid like a rep; the owner sets
           their rule here. */}
       {showCommission && !isEditingCommission && (
-        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
-          <div className="min-w-0 flex items-center gap-1.5">
-            <DollarSign className="w-3.5 h-3.5 shrink-0" style={{ color: manager.commission_config ? BRAND_BLUE : '#9CA3AF' }} />
-            <span className="text-[12px] font-medium truncate" style={{ color: manager.commission_config ? BRAND_BLUE : '#9CA3AF' }}>
-              {manager.commission_config ? describeCommission(manager.commission_config) : 'No commission set'}
-            </span>
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-1.5">
+            Canvassing commission
+          </p>
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex items-center gap-1.5">
+              <DollarSign className="w-3.5 h-3.5 shrink-0" style={{ color: manager.commission_config ? BRAND_BLUE : '#9CA3AF' }} />
+              <span className="text-[12px] font-medium truncate" style={{ color: manager.commission_config ? BRAND_BLUE : '#9CA3AF' }}>
+                {manager.commission_config ? describeCommission(manager.commission_config) : 'No commission set'}
+              </span>
+            </div>
+            <button
+              onClick={onEditCommission}
+              className="text-[11px] font-bold px-2.5 py-1 rounded-lg shrink-0"
+              style={{ color: BRAND_BLUE, backgroundColor: '#EEF2FF' }}
+            >
+              {manager.commission_config ? 'Edit rate' : 'Set rate'}
+            </button>
           </div>
-          <button
-            onClick={onEditCommission}
-            className="text-[11px] font-bold px-2.5 py-1 rounded-lg shrink-0"
-            style={{ color: BRAND_BLUE, backgroundColor: '#EEF2FF' }}
-          >
-            {manager.commission_config ? 'Edit rate' : 'Set rate'}
-          </button>
+          <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">
+            Applies only to doors this manager knocks themselves while an active participant in a canvassing
+            session — it doesn't pay out on their team's results.
+          </p>
         </div>
       )}
      </div>

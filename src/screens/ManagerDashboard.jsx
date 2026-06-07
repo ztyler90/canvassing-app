@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay, differenceInCalendarDays } from 'date-fns'
 import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight, Target, Flame, Share2, Copy, Eye, EyeOff, Award, Minus, MessageSquare, Lock } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
@@ -87,7 +87,15 @@ function periodLabel(range) {
 export default function ManagerDashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab]               = useState('overview')
+  const [searchParams] = useSearchParams()
+  // Honor a ?tab= deep link (e.g. from a pipeline-notification email's
+  // "Open the pipeline →" CTA, which lands on ?tab=pipeline&lead=<id>).
+  // Falls back to Overview for missing/unknown values. PipelineTab reads
+  // the sibling ?lead param itself to pop the matching record open.
+  const [tab, setTab]               = useState(() => {
+    const t = searchParams.get('tab')
+    return TABS.some((x) => x.id === t) ? t : 'overview'
+  })
   const [sessions, setSessions]     = useState([])
   const [reps, setReps]             = useState([])
   const [mapData, setMapData]       = useState([])

@@ -104,12 +104,17 @@ function reducer(state, action) {
     case 'ADD_GPS_POINT':
       return { ...state, gpsTrail: [...state.gpsTrail, action.point] }
 
-    // Fired immediately when GPS knock is detected — increments door count
-    // right away so it's registered even if the rep never touches the modal.
+    // Fired immediately when a GPS knock is detected. The detector has
+    // already persisted a gray `no_answer` interaction (lat/lng only), so
+    // we (1) drop its pin on the map by appending it to interactions,
+    // (2) bump the door count, and (3) stash it as pendingKnock so the
+    // undo toast knows which row to remove. The map-pin "upgrade" path
+    // edits this same row, so we must NOT count the door again on save.
     case 'REGISTER_KNOCK':
       return {
         ...state,
-        pendingKnock: action.knock,
+        interactions: [...state.interactions, action.interaction],
+        pendingKnock: action.interaction,
         stats: { ...state.stats, doors: state.stats.doors + 1 },
       }
 
@@ -119,17 +124,21 @@ function reducer(state, action) {
     case 'CLEAR_PENDING_KNOCK':
       return { ...state, pendingKnock: null }
 
-    // UNDO_LAST_KNOCK: reverses the stat increments REGISTER_KNOCK applied
-    // (doors - 1, floor at 0) and clears the pending modal. Only intended
-    // to run while pendingKnock is still non-null — once the rep has
-    // logged an interaction, its stats are tied to that row and undoing
-    // would need REPLACE/REMOVE. We no-op in that case rather than risk
-    // decrementing an already-recorded door.
+    // UNDO_LAST_KNOCK: removes the auto-created no_answer pin (false-positive
+    // detection) by id and reverses the door increment REGISTER_KNOCK applied
+    // (doors - 1, floor at 0). The DB row is deleted by the caller. We target
+    // an explicit `action.id` (sourced from the undo toast, not pendingKnock)
+    // so that a second knock firing during the undo window can't make us
+    // delete the wrong row. No-op if the row is already gone (e.g. the rep
+    // upgraded it via the map pin before tapping Undo).
     case 'UNDO_LAST_KNOCK': {
-      if (!state.pendingKnock) return state
+      const undoId = action.id
+      if (!undoId) return state
+      if (!state.interactions.some((i) => i.id === undoId)) return state
       return {
         ...state,
-        pendingKnock: null,
+        interactions: state.interactions.filter((i) => i.id !== undoId),
+        pendingKnock: state.pendingKnock?.id === undoId ? null : state.pendingKnock,
         stats: {
           ...state.stats,
           doors: Math.max(0, state.stats.doors - 1),

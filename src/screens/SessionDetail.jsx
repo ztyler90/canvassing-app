@@ -9,8 +9,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
-import { ChevronLeft, Edit2, Check, X, MapPin, Clock, DollarSign, Home, MessageSquare, Save } from 'lucide-react'
-import { getSessionWithInteractions, updateInteraction, updateSession, getMyOrganization } from '../lib/supabase.js'
+import { ChevronLeft, Edit2, Check, X, MapPin, Clock, DollarSign, Home, MessageSquare, Save, Trash2, Loader2 } from 'lucide-react'
+import { getSessionWithInteractions, updateInteraction, updateSession, deleteSession, getMyOrganization, getCurrentUser } from '../lib/supabase.js'
 import { PhotoThumb } from '../lib/photos.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -43,6 +43,8 @@ export default function SessionDetail() {
   const [editingInteractionId, setEditingInteractionId] = useState(null)
   const [interactionDraft, setInteractionDraft] = useState({})
   const [savingInteraction, setSavingInteraction] = useState(false)
+  const [currentUser, setCurrentUser] = useState(null)
+  const [deleting, setDeleting] = useState(false)
   const [toast, setToast] = useState(null)
   // Org-configured count noun. Determines whether the per-session
   // headers + outcome dropdown say "Estimates" or "Appointments". Lower-
@@ -57,6 +59,12 @@ export default function SessionDetail() {
   }, [])
   const countSingular = countLabel === 'appointments' ? 'Appointment' : 'Estimate'
   const countPlural   = countLabel === 'appointments' ? 'Appointments' : 'Estimates'
+
+  useEffect(() => {
+    let alive = true
+    getCurrentUser().then((u) => { if (alive) setCurrentUser(u) }).catch(() => {})
+    return () => { alive = false }
+  }, [])
 
   useEffect(() => { loadData() }, [id])
 
@@ -134,6 +142,24 @@ export default function SessionDetail() {
   function cancelEditInteraction() {
     setEditingInteractionId(null)
     setInteractionDraft({})
+  }
+
+  // ── Session deletion ────────────────────────────────────────────────────────
+  // Only a manager looking at their OWN session can delete it — reps can't
+  // remove their own history (the supabase helper + RLS enforce ownership; the
+  // role check here keeps the control hidden from reps). Sessions with booked
+  // jobs are blocked server-side and surface a friendly message.
+  const canDelete = currentUser?.role === 'manager' && !!session && currentUser.id === session.rep_id
+
+  async function handleDeleteSession() {
+    if (!window.confirm(
+      'Delete this session permanently? This removes the session and every door logged in it. This cannot be undone.'
+    )) return
+    setDeleting(true)
+    const { error } = await deleteSession(id)
+    setDeleting(false)
+    if (error) { showToast(error.message || 'Delete failed', 'error'); return }
+    navigate(-1)
   }
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -274,6 +300,25 @@ export default function SessionDetail() {
             onDraftChange={setInteractionDraft}
           />
         ))}
+
+        {/* Manager-only: delete this session. Hidden from reps. */}
+        {canDelete && (
+          <div className="pt-5 mt-2 border-t border-gray-100">
+            <button
+              onClick={handleDeleteSession}
+              disabled={deleting}
+              className="w-full py-2.5 rounded-xl border border-red-200 text-red-600 text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-red-50 disabled:opacity-50"
+            >
+              {deleting
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Trash2 className="w-4 h-4" />}
+              {deleting ? 'Deleting…' : 'Delete this session'}
+            </button>
+            <p className="text-[11px] text-gray-400 text-center mt-2 leading-snug">
+              Permanently removes this session and its logged doors. Sessions with booked jobs can't be deleted.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

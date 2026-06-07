@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Square, MapPin, Clock, Home, Pin, X, Signal } from 'lucide-react'
+import { Square, MapPin, Clock, Home, Pin, Signal } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import { gpsTracker } from '../lib/gps.js'
-import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, fireWebhookEvent, getOrgRecentInteractions, getRepSessions, getMyCommissionConfig, getMyOrganization } from '../lib/supabase.js'
+import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, fireWebhookEvent, getOrgRecentInteractions, getRepSessions, getMyCommissionConfig, getMyOrganization, deleteInteraction } from '../lib/supabase.js'
 import { isCommissionEnabled } from '../lib/tier.js'
 import { acquireWakeLock, releaseWakeLock, isWakeLockSupported } from '../lib/wakeLock.js'
 import { dnkZones, pointInAnyZone, loadDnkZones } from '../lib/dnk.js'
@@ -18,13 +18,10 @@ import MapView from '../components/MapView.jsx'
 import InteractionModal from '../components/InteractionModal.jsx'
 import InSessionChatBubble from '../components/InSessionChatBubble.jsx'
 
-// How long a "Log this door" pill stays on screen when auto-open is off.
-// After this the pending knock is cleared; the rep can still log manually.
-const PENDING_PILL_TIMEOUT_MS = 60_000
-
 // Undo-knock toast — visible for 10s on every auto-detected knock so a
-// rep who got a false-positive can one-tap the door count back off. After
-// this the toast fades and normal modal/pill flow continues uninterrupted.
+// rep who got a false-positive can one-tap the door (and its gray pin)
+// back off. Tapping the toast body just dismisses it; only the explicit
+// "Undo" button reverses the knock.
 const UNDO_TOAST_MS = 10_000
 
 // Short buzz on auto-knock detection. 80ms is long enough to feel
@@ -54,9 +51,6 @@ export default function ActiveCanvassing() {
   const [stopping, setStopping]     = useState(false)
   const [showManualLog, setShowManualLog] = useState(false)
   const [editingInteraction, setEditingInteraction] = useState(null)
-  // When auto-open is off, tapping the pill sets this — it drives the modal
-  // render path so the pendingKnock pill and opened modal don't both show.
-  const [tappedKnock, setTappedKnock] = useState(null)
   const [currentPos, setCurrentPos] = useState(null)
   const [territories, setTerritories] = useState([])
   const [doNotKnock, setDoNotKnock]   = useState([])
@@ -440,15 +434,12 @@ export default function ActiveCanvassing() {
   const pendingKnock = state.pendingKnock
 
   // Fire the haptic + open the undo toast the moment a fresh knock is
-  // detected. We gate on `knockedAt` so we don't re-fire if the reducer
-  // replays the same pendingKnock (e.g. during a hydrate). Skip the
-  // 45-second long-stop auto-prompt — that's the "conversation" prompt,
-  // not a fresh detection, and users don't need to "undo" it.
+  // detected. We gate on the interaction `id` so we don't re-fire if the
+  // reducer replays the same pendingKnock (e.g. during a hydrate).
   const lastHapticForRef = useRef(null)
   useEffect(() => {
     if (!pendingKnock) return
-    if (pendingKnock.autoPrompt) return
-    const key = pendingKnock.knockedAt || `${pendingKnock.lat},${pendingKnock.lng}`
+    const key = pendingKnock.id || `${pendingKnock.lat},${pendingKnock.lng}`
     if (lastHapticForRef.current === key) return
     lastHapticForRef.current = key
 
@@ -466,18 +457,6 @@ export default function ActiveCanvassing() {
     const t = setTimeout(() => setKnockToast(null), UNDO_TOAST_MS)
     return () => clearTimeout(t)
   }, [knockToast])
-
-  // Auto-dismiss the "Log this door" pill after PENDING_PILL_TIMEOUT_MS.
-  // The pill is the standard path for a detected knock — the rep taps it to
-  // open the modal, or it clears itself after the timeout if untouched.
-  useEffect(() => {
-    if (!pendingKnock) return
-    if (tappedKnock) return   // rep already engaged — don't auto-dismiss
-    const t = setTimeout(() => {
-      dispatch({ type: 'CLEAR_PENDING_KNOCK' })
-    }, PENDING_PILL_TIMEOUT_MS)
-    return () => clearTimeout(t)
-  }, [pendingKnock, tappedKnock, dispatch])
 
   return (
     <div className="flex flex-col bg-gray-100 overflow-hidden" style={{ height: '100dvh' }}>
@@ -662,51 +641,30 @@ export default function ActiveCanvassing() {
       </div>
 
       {/*
-        Door-knock pending UX. When a knock is detected we show a dismissible
-        "Log this door" pill at the top of the map; the rep taps it to open the
-        modal. The pill auto-dismisses after 60 s. The door has already been
-        counted by REGISTER_KNOCK, so saving the interaction never
-        double-counts. Tapping the pill avoids interrupting the rep — and
-        because the modal (which loads Google Maps detail) only opens on an
-        explicit tap, it keeps Google Maps API calls down too.
+        Door-knock UX. A detected knock immediately drops a gray "No Answer"
+        pin on the map (persisted by the detector) and surfaces the undo
+        toast below — no separate "Log this door" pill. To record that
+        someone actually answered, the rep taps the door's pin on the map,
+        which opens the edit modal on that same row (the "upgrade" path).
+        10-second undo toast. Floats at the bottom just above the action bar.
+        Tapping the toast body dismisses it (the door stays logged as a
+        no-answer); only the "Undo" button reverses the knock — it removes
+        the gray pin, deletes the row, and decrements the door count.
       */}
-      {pendingKnock && !tappedKnock && (
-        <PendingKnockPill
-          knock={pendingKnock}
-          onOpen={() => setTappedKnock(pendingKnock)}
-          onDismiss={() => dispatch({ type: 'CLEAR_PENDING_KNOCK' })}
-        />
-      )}
-
-      {/* 10-second undo toast. Floats at the bottom just above the action
-          bar so it doesn't block the pill or the modal. Tapping Undo
-          reverses the door count increment and clears the pending modal. */}
       {knockToast && (
         <UndoKnockToast
           durationMs={UNDO_TOAST_MS}
           onUndo={() => {
-            dispatch({ type: 'UNDO_LAST_KNOCK' })
+            const undoId = knockToast.id
+            dispatch({ type: 'UNDO_LAST_KNOCK', id: undoId })
+            // Best-effort DB cleanup for the auto-created no_answer row.
+            // Skip client-only fallback rows (offline) — they were never saved.
+            if (undoId && !knockToast._localOnly) {
+              deleteInteraction(undoId).catch(() => {})
+            }
             setKnockToast(null)
-            setTappedKnock(null)
           }}
           onDismiss={() => setKnockToast(null)}
-        />
-      )}
-
-      {tappedKnock && (
-        <InteractionModal
-          knock={tappedKnock}
-          sessionId={state.session?.id}
-          repId={user?.id}
-          onClose={() => {
-            setTappedKnock(null)
-            dispatch({ type: 'CLEAR_PENDING_KNOCK' })
-          }}
-          onSave={(interaction) => {
-            dispatch({ type: 'LOG_INTERACTION', interaction, countDoor: false })
-            setTappedKnock(null)
-          }}
-          isAuto={false}
         />
       )}
 
@@ -1024,28 +982,30 @@ function UndoKnockToast({ durationMs, onUndo, onDismiss }) {
     const raf = requestAnimationFrame(() => setProgressPct(0))
     return () => cancelAnimationFrame(raf)
   }, [])
+  // Tapping anywhere on the toast body dismisses it (the door stays logged
+  // as a no-answer). The "Undo" button is the ONLY way to reverse the knock,
+  // so it stops propagation to avoid also firing the body's dismiss.
   return (
     <div className="absolute bottom-20 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[380px] z-30 pointer-events-none">
-      <div className="bg-gray-900/95 backdrop-blur text-white rounded-2xl shadow-2xl px-3.5 py-3 flex items-center gap-3 pointer-events-auto">
+      <div
+        onClick={onDismiss}
+        role="button"
+        tabIndex={0}
+        aria-label="Dismiss"
+        className="bg-gray-900/95 backdrop-blur text-white rounded-2xl shadow-2xl px-3.5 py-3 flex items-center gap-3 pointer-events-auto cursor-pointer active:opacity-90"
+      >
         <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
           <Pin className="w-4 h-4 text-blue-300" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold">Knock detected</p>
-          <p className="text-[11px] text-gray-400 mt-0.5">Counted as a door — tap to undo</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Counted as a door — tap to dismiss</p>
         </div>
         <button
-          onClick={onUndo}
+          onClick={(e) => { e.stopPropagation(); onUndo() }}
           className="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-900 bg-white active:opacity-80 shrink-0"
         >
           Undo
-        </button>
-        <button
-          onClick={onDismiss}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 active:bg-white/10 shrink-0"
-          aria-label="Dismiss"
-        >
-          <X className="w-3.5 h-3.5" />
         </button>
       </div>
       {/* Drain bar */}
@@ -1057,46 +1017,6 @@ function UndoKnockToast({ durationMs, onUndo, onDismiss }) {
             transition: `width ${durationMs}ms linear`,
           }}
         />
-      </div>
-    </div>
-  )
-}
-
-/**
- * Non-modal pending-knock indicator. Rendered when auto-open is OFF and
- * the detector has flagged a stop. Shows the resolved address (or
- * "Door detected" if geocoding failed) with Log / dismiss affordances.
- * Positioned floating above the map, below the tracking pulse.
- */
-function PendingKnockPill({ knock, onOpen, onDismiss }) {
-  const addressLine = knock.address || 'Door detected'
-  return (
-    <div className="absolute top-14 left-3 right-3 sm:left-auto sm:right-3 sm:w-[360px] z-20">
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 px-3 py-2.5 flex items-center gap-2">
-        <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-          <Pin className="w-4 h-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-400">
-            Log this door
-          </p>
-          <p className="text-sm font-semibold text-gray-800 truncate">
-            {addressLine}
-          </p>
-        </div>
-        <button
-          onClick={onOpen}
-          className="btn-brand px-3 py-2 rounded-xl text-xs font-bold active:scale-[0.98]"
-        >
-          Log
-        </button>
-        <button
-          onClick={onDismiss}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 active:bg-gray-50"
-          aria-label="Dismiss"
-        >
-          <X className="w-4 h-4" />
-        </button>
       </div>
     </div>
   )

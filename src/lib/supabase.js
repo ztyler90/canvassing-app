@@ -250,6 +250,21 @@ export async function logInteraction(interaction) {
   return { data, error }
 }
 
+/**
+ * Delete a single interaction row. Used by the "Undo" action on an
+ * auto-detected knock — the detector optimistically writes a no_answer
+ * row (so the gray pin drops instantly), and Undo removes that row when
+ * the rep flags the detection as a false positive.
+ */
+export async function deleteInteraction(interactionId) {
+  if (!interactionId) return { error: null }
+  const { error } = await supabase
+    .from('interactions')
+    .delete()
+    .eq('id', interactionId)
+  return { error }
+}
+
 export async function getSessionInteractions(sessionId) {
   const { data } = await supabase
     .from('interactions')
@@ -2926,6 +2941,45 @@ export async function updateSession(sessionId, updates) {
   return { data, error }
 }
 
+/**
+ * Permanently delete a canvassing session the caller owns.
+ *
+ * RLS ("Reps can manage own sessions": rep_id = auth.uid()) already scopes
+ * the delete to the row's owner, so callers must additionally gate the UI
+ * (we only surface this to managers on their OWN sessions). Child rows in
+ * `interactions` and `gps_points` are removed automatically via ON DELETE
+ * CASCADE.
+ *
+ * `bookings`, however, reference the session with a NOT-NULL, NO-ACTION FK —
+ * so a session that produced booked jobs can't be deleted without destroying
+ * revenue/commission records. Rather than letting that surface as an opaque
+ * FK violation (or silently wiping money), we detect bookings up front and
+ * return a friendly blocked error. Callers can show error.message directly.
+ *
+ * Returns { error } — error.code === 'has_bookings' when blocked.
+ */
+export async function deleteSession(sessionId) {
+  const { count, error: countErr } = await supabase
+    .from('bookings')
+    .select('id', { count: 'exact', head: true })
+    .eq('session_id', sessionId)
+  if (countErr) return { error: countErr }
+  if ((count || 0) > 0) {
+    const plural = count === 1 ? '' : 's'
+    return {
+      error: {
+        code: 'has_bookings',
+        message: `This session has ${count} booked job${plural} attached, so it can't be deleted. Remove the booking${plural} first.`,
+      },
+    }
+  }
+  const { error } = await supabase
+    .from('canvassing_sessions')
+    .delete()
+    .eq('id', sessionId)
+  return { error }
+}
+
 // ── Webhook / CRM Integration ─────────────────────────────────────────────────
 
 /** Save a Zapier webhook URL to the current user's auth metadata */
@@ -3131,6 +3185,34 @@ export async function getPipelineLeads(filters = {}) {
 
   const { data } = await query
   return data || []
+}
+
+/**
+ * Fetch a single pipeline lead by id with the same joined shape as
+ * getPipelineLeads, so LeadDetailModal renders without follow-up queries.
+ *
+ * Used by the email deep-link path (PipelineTab opening ?lead=<id>): a lead
+ * in any notifiable phase is normally already in getPipelineLeads()'s active
+ * set, but if it advanced to a closed stage between the email send and the
+ * click, it falls out of that set — this by-id fetch still resolves it.
+ * RLS scopes to the caller's org, so a bad/cross-org id returns null.
+ */
+export async function getPipelineLeadById(id) {
+  if (!id) return null
+  const { data } = await supabase
+    .from('interactions')
+    .select(`
+      id, stage, outcome, address, lat, lng, contact_name, contact_phone, contact_email,
+      service_types, estimated_value, service_line_items, notes, follow_up,
+      appointment_at, estimate_sent_at, hot_lead_started_at,
+      closer_id, closer_contact_id, rep_id, created_at, lost_reason, lost_at,
+      setter:rep_id                  ( id, full_name ),
+      closer:closer_id               ( id, full_name ),
+      closer_contact:closer_contact_id ( id, full_name )
+    `)
+    .eq('id', id)
+    .maybeSingle()
+  return data || null
 }
 
 /**

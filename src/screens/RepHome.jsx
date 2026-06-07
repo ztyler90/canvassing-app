@@ -13,6 +13,7 @@ import {
   updateSessionStats, getMyCommissionConfig, getSessionInteractions,
   getMyOrganization, getRepOutcomesForHour, signOut,
   getLeaderboardData, getLeaderboardRange, getOrgTerritoriesForRep,
+  logInteraction,
 } from '../lib/supabase.js'
 import { requestGPSPermission } from '../lib/gps.js'
 import { gpsTracker } from '../lib/gps.js'
@@ -258,7 +259,51 @@ export default function RepHome() {
   function startGPS(session) {
     const detector = new DoorKnockDetector({
       repId: user.id,
-      onKnock: (knock) => dispatch({ type: 'REGISTER_KNOCK', knock }),
+      // A detected knock is treated as a "no one home" by default — by far
+      // the most common door outcome. We immediately persist a gray
+      // `no_answer` interaction (lat/lng only, same privacy rules as a manual
+      // no-answer: no address/contact, 30-day purge) so the gray pin drops on
+      // the map the instant the knock fires, without the rep having to log it.
+      // The rep upgrades the door by tapping its pin (someone answered → edit
+      // the same row), or taps Undo on the toast to remove a false positive.
+      onKnock: async (knock) => {
+        // The 45s long-stop "in conversation" prompt is not a no-answer —
+        // skip the auto pin for it.
+        if (knock?.autoPrompt) return
+
+        const row = {
+          session_id: session.id,
+          rep_id:     user.id,
+          outcome:    'no_answer',
+          stage:      null,          // no_answer doors never enter the pipeline
+          lat:        knock?.lat ?? null,
+          lng:        knock?.lng ?? null,
+          address:    null,          // privacy: store coordinates only
+        }
+
+        let interaction = null
+        try {
+          const { data } = await logInteraction(row)
+          interaction = data
+        } catch (e) {
+          console.warn('[DoorKnock] no_answer persist failed:', e?.message)
+        }
+
+        // Offline / insert failure fallback: still drop the pin and count the
+        // door locally so the rep isn't blocked. A client-only id keeps the
+        // reducer/undo logic working; an upgrade edit would surface a normal
+        // "couldn't save" error if connectivity is still down.
+        if (!interaction) {
+          interaction = {
+            ...row,
+            id:         `local-${knock?.knockedAt || Date.now()}`,
+            created_at: knock?.knockedAt || new Date().toISOString(),
+            _localOnly: true,
+          }
+        }
+
+        dispatch({ type: 'REGISTER_KNOCK', interaction })
+      },
       motionClassifier,
       // Resolved each call against the latest dnkZones array — safe even
       // if zones load after the detector is wired up.

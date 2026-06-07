@@ -20,6 +20,7 @@
  *   getPipelineHealth, getClosedSummary
  */
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { format, isSameDay, isToday } from 'date-fns'
 import {
   Flame, Calendar, Layers, Archive, ChevronDown, ChevronRight,
@@ -29,6 +30,7 @@ import {
 import {
   getPipelineLeads, getActionQueue, getUpcomingAppointments,
   getPipelineHealth, getClosedSummary, getMyOrganization,
+  getPipelineLeadById,
   ACTIVE_PIPELINE_STAGES,
 } from '../lib/supabase.js'
 import LeadDetailModal from './LeadDetailModal.jsx'
@@ -88,7 +90,31 @@ export default function PipelineTab() {
   // openLead, which stacks the lead modal on top.
   const [openDay,          setOpenDay]          = useState(null)
 
-  useEffect(() => { load() }, [])
+  // Deep-link support: a pipeline-notification email's "Open the pipeline →"
+  // CTA lands here as ?lead=<interactionId>. After the initial load we pop
+  // that record's LeadDetailModal open automatically, then strip the param
+  // so a manual refresh (or closing + reopening) doesn't re-trigger it.
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    load().then(({ leads: loaded }) => {
+      const leadId = searchParams.get('lead')
+      if (!leadId) return
+      // Prefer the freshly-loaded active row; fall back to a by-id fetch for
+      // a lead that has already left the active set (e.g. closed) by the time
+      // the manager clicks the email.
+      const inSet = (loaded || []).find((l) => l.id === leadId)
+      const open = (lead) => { if (lead) setOpenLead(lead) }
+      if (inSet) open(inSet)
+      else getPipelineLeadById(leadId).then(open)
+      // Clear ?lead (keep ?tab so the Pipeline tab stays selected) so the
+      // modal doesn't re-open on a later refresh.
+      const next = new URLSearchParams(searchParams)
+      next.delete('lead')
+      setSearchParams(next, { replace: true })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleLeadUpdate(updated) {
     if (!updated) return
@@ -134,6 +160,9 @@ export default function PipelineTab() {
     }
     if (background) setRefreshing(false)
     else            setLoading(false)
+    // Return the loaded leads so the deep-link effect can resolve ?lead
+    // against the active set without waiting on a state flush.
+    return { leads: l }
   }
 
   const isPro      = org?.tier === 'pro'

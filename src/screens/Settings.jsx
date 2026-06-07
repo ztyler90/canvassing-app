@@ -994,51 +994,6 @@ export default function Settings() {
             </div>
           )}
 
-          {/* ── Roof Insights add-on (Pro · Google Solar) ─────────────── */}
-          <div className="rounded-2xl p-4 shadow-sm border border-gray-100 bg-white mb-2">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: '#EEF3FF' }}>
-                  <Sun className="w-4 h-4" style={{ color: BRAND_BLUE }} />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-800 text-sm">Roof Insights</p>
-                    {!isPro && <ProBadge />}
-                    {roofOn && (
-                      <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                        style={{ backgroundColor: '#EEF3FF', color: BRAND_BLUE }}>On</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                    Optional Pro add-on. Reps &amp; managers see each home's <span className="font-medium">roof size, complexity, pitch &amp; sun exposure</span> from satellite data on doors and leads.
-                    Off by default — each lookup is a small Google Solar API charge, so only turn it on if your team uses roof data.
-                  </p>
-                </div>
-              </div>
-
-              {isPro ? (
-                <button
-                  onClick={handleToggleRoofInsights}
-                  disabled={savingRoofToggle}
-                  role="switch"
-                  aria-checked={!!org?.roof_insights_enabled}
-                  className="relative shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50"
-                  style={{ backgroundColor: org?.roof_insights_enabled ? BRAND_BLUE : '#D1D5DB' }}>
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${org?.roof_insights_enabled ? 'translate-x-5' : ''}`} />
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowRoofUpsell(true)}
-                  className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl text-white"
-                  style={{ backgroundColor: BRAND_BLUE }}>
-                  Upgrade
-                </button>
-              )}
-            </div>
-          </div>
-
           {/* ── Commission tracking (Standard) ────────────────────────── */}
           <div className="rounded-2xl p-4 shadow-sm border border-gray-100 bg-white mb-2">
             <div className="flex items-start justify-between gap-3">
@@ -1519,6 +1474,51 @@ export default function Settings() {
             </form>
           </div>
         </section>
+
+        {/* ── Roof Insights add-on (Pro · Google Solar) ─────────────── */}
+        <div className="rounded-2xl p-4 shadow-sm border border-gray-100 bg-white mb-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                style={{ backgroundColor: '#EEF3FF' }}>
+                <Sun className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-gray-800 text-sm">Roof Insights</p>
+                  {!isPro && <ProBadge />}
+                  {roofOn && (
+                    <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: '#EEF3FF', color: BRAND_BLUE }}>On</span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                  Optional Pro add-on. Reps &amp; managers see each home's <span className="font-medium">roof size, complexity, pitch &amp; sun exposure</span> from satellite data on doors and leads.
+                  Off by default — each lookup is a small Google Solar API charge, so only turn it on if your team uses roof data.
+                </p>
+              </div>
+            </div>
+
+            {isPro ? (
+              <button
+                onClick={handleToggleRoofInsights}
+                disabled={savingRoofToggle}
+                role="switch"
+                aria-checked={!!org?.roof_insights_enabled}
+                className="relative shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50"
+                style={{ backgroundColor: org?.roof_insights_enabled ? BRAND_BLUE : '#D1D5DB' }}>
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${org?.roof_insights_enabled ? 'translate-x-5' : ''}`} />
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowRoofUpsell(true)}
+                className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl text-white"
+                style={{ backgroundColor: BRAND_BLUE }}>
+                Upgrade
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* ── Organization & Billing ─────────────────────────────────── */}
         <section>

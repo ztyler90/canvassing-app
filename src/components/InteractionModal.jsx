@@ -90,6 +90,12 @@ export default function InteractionModal({
   const [step, setStep]               = useState('outcome')   // 'outcome' | 'details' | 'followup'
   const [selectedOutcome, setOutcome] = useState(existingInteraction?.outcome || null)
   const [address, setAddress]         = useState(existingInteraction?.address || knock?.address || '')
+  // True once the rep has taken ownership of the address field — by tapping a
+  // chip or typing. Until then the auto-fill is allowed to (re)sync to the
+  // current nearest candidate (candidates[0]) whenever a fresh/better set
+  // arrives. We seed it `true` when an address is already present (editing an
+  // interaction, or a knock that carried an address) so we never clobber it.
+  const addressTouched = useRef(Boolean(existingInteraction?.address || knock?.address))
   // Ranked list of nearby address candidates (currently from OSM Overpass,
   // with Google / Nominatim as fallbacks). Surfaced as tap-to-fill chips
   // above the manual-entry input so reps can one-tap the correct house.
@@ -236,11 +242,13 @@ export default function InteractionModal({
       const cands = await reverseGeocodeCandidates(knock.lat, knock.lng, { precise: true })
       if (!cands?.length) { setGeocodeStatus('empty'); return }
       setCandidates(cands)
-      // Only auto-fill when the input is still empty. If the rep has
-      // already typed or tapped a chip, respect their input — we never
-      // want the late-arriving geocoder to clobber manual entry.
-      if (!preserveManualInput) {
-        setAddress((cur) => cur || cands[0].formatted)
+      // Keep the input in sync with the current nearest candidate. As long as
+      // the rep hasn't taken ownership (tapped a chip or typed), re-sync to
+      // candidates[0] every time a fresh/better set arrives — so an early,
+      // stale, or worse-ranked result never gets stuck in the field while the
+      // chips show the correct house. Once they've touched it, we never clobber.
+      if (!preserveManualInput && !addressTouched.current) {
+        setAddress(cands[0].formatted)
       }
       setGeocodeStatus('ok')
     } catch (err) {
@@ -260,7 +268,8 @@ export default function InteractionModal({
         if (cancelled) return
         if (!cands?.length) { setGeocodeStatus('empty'); return }
         setCandidates(cands)
-        setAddress((cur) => cur || cands[0].formatted)
+        // Re-sync to the nearest candidate unless the rep has taken ownership.
+        if (!addressTouched.current) setAddress(cands[0].formatted)
         setGeocodeStatus('ok')
       })
       .catch((err) => {
@@ -802,7 +811,7 @@ export default function InteractionModal({
                   <button
                     key={i}
                     type="button"
-                    onClick={() => setAddress(c.formatted)}
+                    onClick={() => { addressTouched.current = true; setAddress(c.formatted) }}
                     title={c.formatted}
                     className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-colors active:scale-95"
                     style={{
@@ -830,7 +839,7 @@ export default function InteractionModal({
             <input
               type="text"
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={(e) => { addressTouched.current = true; setAddress(e.target.value) }}
               placeholder={
                 geocodeStatus === 'loading' || geocodeStatus === 'idle'
                   ? 'Detecting address…'
