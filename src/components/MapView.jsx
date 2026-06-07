@@ -16,6 +16,16 @@ import { motionClassifier } from '../lib/motion.js'
 // doesn't yank the map back while they're looking around.
 const RESUME_WALK_M = 6
 
+// While actively following, how far the rep may drift from the MAP CENTER
+// before we glide the map back to keep them centered. Set above typical
+// standing GPS jitter (~5–8 m) so a rep paused at a door doesn't make the map
+// wobble, but low enough that a walking rep stays locked near the middle of
+// the frame instead of sliding off-screen. We measure against the center (not
+// the previous GPS fix) on purpose: a slow walker moves in sub-3 m steps, and
+// a per-fix threshold let those small steps accumulate until the rep walked
+// clean out of frame without the map ever following.
+const FOLLOW_RECENTER_M = 8
+
 // Fix Leaflet default icon path issue with Vite
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -839,7 +849,6 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
       currentMarker.current.setLatLng([currentPos.lat, currentPos.lng])
     }
 
-    const prevUserPos = lastUserPosRef.current
     lastUserPosRef.current = { lat: currentPos.lat, lng: currentPos.lng }
 
     if (!followUser) return
@@ -863,24 +872,25 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
       return
     }
 
-    // ── Following: glide to the new fix ─────────────────────────────────────
-    // Preserve the rep's current zoom if they've pinched, but floor at 17.75
-    // so the first-GPS-fix view lands at the tight default. If we're already
-    // essentially centered on them, skip the move so a stationary rep's GPS
-    // jitter doesn't cause constant micro-animations.
-    const z = Math.max(map.getZoom() || 17.75, 17.75)
-    programmaticMoveRef.current = true
+    // ── Following: keep the rep locked near the center of the frame ──────────
+    // We measure the rep against the MAP CENTER, not their previous GPS fix.
+    // A per-fix "moved ≥ 3 m" test let a slow walker's sub-3 m steps slip
+    // through one at a time, so the map never panned and the rep drifted out of
+    // frame (and stayed drifted even right after tapping Recenter). Now we glide
+    // back whenever they're actively walking OR they've slid more than
+    // FOLLOW_RECENTER_M off-center — so the beacon stays centered as they walk,
+    // while a rep standing at a door (jitter, not walking) leaves the map still.
+    // panTo (not setView) preserves whatever zoom the rep has pinched to.
     if (map.getZoom() < 17.5) {
       // First real fix (or zoomed way out): glide in to street level.
+      programmaticMoveRef.current = true
       map.flyTo([currentPos.lat, currentPos.lng], 17.75, { duration: 0.6 })
     } else {
-      const movedSinceLast = prevUserPos
-        ? map.distance([prevUserPos.lat, prevUserPos.lng], [currentPos.lat, currentPos.lng])
-        : Infinity
-      if (movedSinceLast >= 3) {
+      const offCenter = map.distance(map.getCenter(), [currentPos.lat, currentPos.lng])
+      const walking   = motionClassifier.classify() === 'walking'
+      if (walking || offCenter >= FOLLOW_RECENTER_M) {
+        programmaticMoveRef.current = true
         map.panTo([currentPos.lat, currentPos.lng], { animate: true, duration: 0.5 })
-      } else {
-        programmaticMoveRef.current = false  // no move scheduled; clear the guard
       }
     }
   }, [currentPos, followUser])

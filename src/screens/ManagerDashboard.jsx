@@ -230,11 +230,15 @@ export default function ManagerDashboard() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            {/* On narrow screens the Canvass/Manager pill stacks ABOVE the
+                icon row so a long org name + the pill + five icons don't all
+                fight for one line. From sm+ everything sits inline again. */}
+            <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
               {/* Manager ⇄ Canvassing switch — only renders for platform
                   managers. Lets a manager who also knocks jump into the rep
                   canvassing UI and back. */}
               <ViewModeSwitch />
+              <div className="flex items-center gap-2">
               {user?.is_super_admin && (
                 <button
                   onClick={() => navigate('/super-admin')}
@@ -280,6 +284,7 @@ export default function ManagerDashboard() {
               <button onClick={signOut} className="p-2 rounded-full bg-white/20">
                 <LogOut className="w-5 h-5 text-white" />
               </button>
+              </div>
             </div>
           </div>
         </div>
