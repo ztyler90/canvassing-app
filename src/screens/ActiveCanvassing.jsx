@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { format } from 'date-fns'
 import { Square, MapPin, Clock, Home, Pin, X, Signal } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
@@ -323,8 +324,35 @@ export default function ActiveCanvassing() {
     { revenue: state.stats.revenue, bookings: state.stats.bookings },
     commissionCfg,
   )
-  // Oldest → newest bars so the sparkline reads left-to-right like a
-  // normal trend chart. Cap at 7 to keep the inline chart readable.
+  // ── Daily goal meter ──────────────────────────────────────────────
+  // Replaces the old 7-day revenue sparkline as the rep's key at-a-glance
+  // number. Combines sessions already submitted today with the live
+  // session in progress so the meter fills in real time as the rep books
+  // work. Metric (revenue $ vs. estimate/appointment count) and target
+  // come from the manager-set daily goal in Settings, mirroring the same
+  // logic RepHome uses for its goal pace card.
+  const isRevenueGoal = (org?.daily_goal_type || 'revenue') === 'revenue'
+  const goalTarget    = Number(org?.daily_goal_value) || 0
+  const goalCountNoun = org?.count_goal_label === 'appointments' ? 'appointments' : 'estimates'
+  const todayKey      = format(new Date(), 'yyyy-MM-dd')
+  // Sessions already submitted today. The live session isn't in
+  // pastSessions yet — its progress lives in state.stats and is added on
+  // top below so the bar moves as the rep works.
+  const earlierToday = (pastSessions || [])
+    .filter((s) => typeof s.started_at === 'string' && s.started_at.startsWith(todayKey))
+    .reduce(
+      (acc, s) => ({
+        revenue:   acc.revenue   + (Number(s.revenue_booked) || 0),
+        estimates: acc.estimates + (s.estimates || 0),
+      }),
+      { revenue: 0, estimates: 0 },
+    )
+  const goalCurrent = isRevenueGoal
+    ? earlierToday.revenue   + (state.stats.revenue   || 0)
+    : earlierToday.estimates + (state.stats.estimates || 0)
+  // Fallback for orgs with no manager-set goal: the rep can't set one
+  // themselves, so rather than nag them we show the original 7-day
+  // revenue sparkline. Oldest → newest, capped at 7 for readability.
   const last7 = [...(pastSessions || [])].slice(0, 7).reverse()
 
   const handleStop = async () => {
@@ -510,13 +538,22 @@ export default function ActiveCanvassing() {
         </div>
       </div>
 
-      {/* Commission earned this session + 7-day revenue sparkline.
-          Two compact micro-charts between the header and the existing
+      {/* Commission earned this session + daily goal meter.
+          Two compact micro-widgets between the header and the existing
           secondary stats row. Both are read-only at-a-glance signals so
           the rep doesn't lose focus from knocking. */}
       <div className={`bg-white border-b grid divide-x divide-gray-100 ${commissionOn ? 'grid-cols-2' : 'grid-cols-1'}`}>
         {commissionOn && <CommissionChip amount={sessionCommission} config={commissionCfg} />}
-        <RevenueSparkline sessions={last7} />
+        {goalTarget > 0 ? (
+          <DailyGoalMeter
+            current={goalCurrent}
+            target={goalTarget}
+            isRevenue={isRevenueGoal}
+            countNoun={goalCountNoun}
+          />
+        ) : (
+          <RevenueSparkline sessions={last7} />
+        )}
       </div>
 
       {/* Secondary Stats */}
@@ -577,9 +614,18 @@ export default function ActiveCanvassing() {
           </div>
         )}
 
-        {/* Wake-lock advisory — appears if the device tab was backgrounded */}
+        {/* Wake-lock advisory — appears if the device tab was backgrounded.
+            The whole banner is tappable to dismiss: the corner × can be
+            covered by the Team Coverage pill, so tapping anywhere closes it. */}
         {showWakeWarning && (
-          <div className="absolute top-3 right-3 left-3 sm:left-auto sm:max-w-xs bg-amber-50 border border-amber-300 text-amber-800 rounded-xl px-3 py-2 shadow-lg text-xs flex items-start gap-2">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setShowWakeWarning(false)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowWakeWarning(false) } }}
+            aria-label="Dismiss screen-open notice"
+            className="absolute top-3 right-3 left-3 sm:left-auto sm:max-w-xs bg-amber-50 border border-amber-300 text-amber-800 rounded-xl px-3 py-2 shadow-lg text-xs flex items-start gap-2 cursor-pointer transition-opacity active:opacity-0 hover:bg-amber-100"
+          >
             <span>⚠️</span>
             <div className="flex-1">
               <p className="font-semibold">Keep this screen open</p>
@@ -587,14 +633,8 @@ export default function ActiveCanvassing() {
                 GPS pauses when the phone locks or the browser is in the
                 background. For pocket tracking, install the native app.
               </p>
+              <p className="mt-1 font-medium text-amber-600">Tap to dismiss</p>
             </div>
-            <button
-              onClick={() => setShowWakeWarning(false)}
-              className="text-amber-700 hover:text-amber-900 text-base leading-none"
-              aria-label="Dismiss"
-            >
-              ×
-            </button>
           </div>
         )}
       </div>
@@ -786,13 +826,59 @@ function CommissionChip({ amount, config }) {
 }
 
 /**
+ * DailyGoalMeter
+ * ──────────────
+ * Replaces the old 7-day revenue sparkline as the rep's key number when
+ * the manager has set a daily goal. Shows progress toward that goal
+ * (revenue $ or estimate/appointment count) as a "current / target"
+ * headline plus a progress bar that fills in real time — earlier-today
+ * sessions plus the live one. Once the goal is hit the bar turns a
+ * brighter green and the icon flips to a ✅ so the win is unmistakable.
+ * When no goal is configured the caller renders <RevenueSparkline>
+ * instead (the rep can't set a goal themselves, so we don't nag them).
+ */
+function DailyGoalMeter({ current = 0, target = 0, isRevenue = true, countNoun = 'estimates' }) {
+  const fmt = (n) =>
+    isRevenue
+      ? `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+      : `${Number(n || 0)}`
+
+  const pct       = Math.min((current / target) * 100, 100)
+  const hit       = current >= target
+  const remaining = Math.max(0, target - current)
+  const fill      = hit ? '#16A34A' : BRAND_GREEN
+  return (
+    <div className="px-3 py-2 flex items-center gap-2 min-w-0">
+      <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-600 grid place-items-center text-[13px] flex-shrink-0" aria-hidden="true">{hit ? '✅' : '🎯'}</div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold leading-none mb-0.5">
+          Daily goal{!isRevenue ? ` · ${countNoun}` : ''}
+        </p>
+        <p className="text-base font-bold text-gray-900 leading-tight tabular-nums">
+          {fmt(current)}<span className="text-gray-400 font-medium"> / {fmt(target)}</span>
+        </p>
+        <div className="mt-1 h-1.5 bg-gray-100 rounded-full overflow-hidden" aria-hidden="true">
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{ width: `${pct}%`, backgroundColor: fill }}
+          />
+        </div>
+        <p className="text-[10px] text-gray-400 truncate leading-tight mt-0.5">
+          {hit ? 'Goal hit — keep going! 🔥' : `${fmt(remaining)} to go`}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/**
  * RevenueSparkline
  * ────────────────
- * Tiny bar chart showing the rep's last N submitted sessions' revenue,
- * chronological (oldest → newest, left → right). The total is shown as
- * the headline number so a glance conveys "how much have I booked
- * recently" without forcing the rep to decode the bars. Empty bars
- * render as gray so an inactive stretch is obvious.
+ * Fallback widget shown when the org has no manager-set daily goal. Tiny
+ * bar chart of the rep's last N submitted sessions' revenue, chronological
+ * (oldest → newest, left → right). The total is the headline number so a
+ * glance conveys "how much have I booked recently" without decoding the
+ * bars. Empty bars render gray so an inactive stretch is obvious.
  */
 function RevenueSparkline({ sessions = [] }) {
   const revs = sessions.map((s) => Number(s.revenue_booked) || 0)

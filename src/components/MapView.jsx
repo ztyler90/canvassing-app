@@ -28,6 +28,32 @@ const OUTCOME_LABELS = {
   booked:             'Booked!',
 }
 
+// Ripple color matches the logged outcome's pin color so the pulse reads as
+// "that door." Unknown/blank outcomes fall back to the brand lime.
+function rippleColorFor(outcome) {
+  return OUTCOME_COLORS[outcome] || '#7DC31E'
+}
+
+// Hard ceiling on how many trail vertices we feed the map. A multi-hour route
+// can accumulate thousands of GPS points; rendering (and rebuilding the fading
+// chunks for) all of them every tick is wasted work the eye can't resolve.
+const MAX_TRAIL_POINTS = 400
+
+// Evenly downsample latlngs to at most MAX_TRAIL_POINTS while ALWAYS keeping
+// the first and last points — so the route keeps its full extent and shape and
+// the bright head stays pinned to the rep's current position. Cheap O(n) pass.
+function capTrailPoints(latlngs) {
+  const n = latlngs.length
+  if (n <= MAX_TRAIL_POINTS) return latlngs
+  const step = (n - 1) / (MAX_TRAIL_POINTS - 1)
+  const out = []
+  for (let i = 0; i < MAX_TRAIL_POINTS - 1; i++) {
+    out.push(latlngs[Math.round(i * step)])
+  }
+  out.push(latlngs[n - 1]) // guarantee the freshest point is included
+  return out
+}
+
 function makePin(color, sizePx = 22) {
   const s = sizePx
   return L.divIcon({
@@ -122,17 +148,48 @@ function gridClusterPoints(map, items) {
 }
 
 function makeCurrentLocationPin() {
+  // Live "you are here" beacon: a solid blue dot with a continuously
+  // expanding ring behind it, so the rep's own position reads as live and
+  // animated rather than a static marker. The ring overflows a 20×20 icon
+  // box via absolute positioning, so iconSize/anchor stay unchanged.
   return L.divIcon({
     className: '',
-    html: `<div style="
-      width: 20px; height: 20px;
-      background: #3B82F6;
-      border: 3px solid white;
-      border-radius: 50%;
-      box-shadow: 0 0 0 6px rgba(59,130,246,0.25);
-    "></div>`,
+    html: `<div style="position:relative;width:20px;height:20px">
+      <span style="
+        position:absolute;inset:0;border-radius:50%;
+        background:rgba(59,130,246,0.45);
+        animation:knockiq-gps-pulse 1.8s ease-out infinite;
+      "></span>
+      <span style="
+        position:absolute;inset:0;
+        background:#3B82F6;
+        border:3px solid white;
+        border-radius:50%;
+        box-shadow:0 0 0 6px rgba(59,130,246,0.25), 0 1px 4px rgba(0,0,0,0.35);
+      "></span>
+    </div>`,
     iconSize:   [20, 20],
     iconAnchor: [10, 10],
+  })
+}
+
+// One-shot ripple dropped at a door the moment it's logged. Two concentric
+// expanding rings (offset timing) give a quick radar-ping feel. The marker
+// is added then removed after the animation; see the ripple effect below.
+function makeKnockRipple(color = '#7DC31E') {
+  const ring = (delay) => `<span style="
+    position:absolute;inset:0;border-radius:50%;
+    border:3px solid ${color};
+    box-shadow:0 0 8px ${color};
+    animation:knockiq-knock-ripple 0.85s ease-out ${delay} forwards;
+  "></span>`
+  return L.divIcon({
+    className: '',
+    html: `<div style="position:relative;width:26px;height:26px">
+      ${ring('0s')}${ring('0.18s')}
+    </div>`,
+    iconSize:   [26, 26],
+    iconAnchor: [13, 13],
   })
 }
 
@@ -172,19 +229,48 @@ function makeRepPin(initials, color, stalled = false) {
   })
 }
 
-// Inject the stalled-pin pulse keyframes once per app. Safe to call from
-// module scope: it runs in the browser where the component is used, and
-// the id-guard prevents duplicate style tags on hot-reload.
-function ensureStalledPulseStyles() {
+// Inject all map-FX styles once per app: the stalled-pin pulse, the GPS
+// beacon pulse, and the neon glow filter for the GPS trail. Safe to call
+// repeatedly — the id-guard prevents duplicate style tags on hot-reload.
+function ensureMapFxStyles() {
   if (typeof document === 'undefined') return
-  if (document.getElementById('knockiq-stalled-pulse-styles')) return
+  if (document.getElementById('knockiq-map-fx-styles')) return
   const style = document.createElement('style')
-  style.id = 'knockiq-stalled-pulse-styles'
+  style.id = 'knockiq-map-fx-styles'
   style.textContent = `
     @keyframes knockiq-stalled-pulse {
       0%   { transform: scale(1);   opacity: 0.9 }
       70%  { transform: scale(1.25); opacity: 0   }
       100% { transform: scale(1.25); opacity: 0   }
+    }
+    /* Expanding ring behind the live GPS dot — signals "you are here, live". */
+    @keyframes knockiq-gps-pulse {
+      0%   { transform: scale(0.6); opacity: 0.55 }
+      70%  { transform: scale(2.4); opacity: 0    }
+      100% { transform: scale(2.4); opacity: 0    }
+    }
+    /* Neon glow on the GPS trail. drop-shadow follows the SVG path outline,
+       so the whole breadcrumb line gets a soft blue halo as it draws. */
+    .knockiq-trail {
+      filter: drop-shadow(0 0 3px rgba(59,130,246,0.95))
+              drop-shadow(0 0 6px rgba(59,130,246,0.55));
+    }
+    /* Marching ants — a thin dashed overlay whose dashes slide toward the
+       rep's current position, implying forward motion along the trail.
+       dashoffset goes negative so the flow runs oldest → newest. */
+    .knockiq-trail-flow {
+      stroke-dasharray: 6 16;
+      animation: knockiq-ants 0.9s linear infinite;
+    }
+    @keyframes knockiq-ants {
+      to { stroke-dashoffset: -22; }
+    }
+    /* Knock ripple — expanding ring dropped at a door the instant it's
+       logged, for a quick "got it" pulse of feedback on the map. */
+    @keyframes knockiq-knock-ripple {
+      0%   { transform: scale(0.3); opacity: 0.85 }
+      80%  { transform: scale(2.6); opacity: 0    }
+      100% { transform: scale(2.6); opacity: 0    }
     }
   `
   document.head.appendChild(style)
@@ -244,7 +330,10 @@ function elapsedLabel(startedAt) {
 const MapView = forwardRef(function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, onRepClick = null, autoFit = false, regionFallback = null, cluster = false, pinValueScale = false, onContextMenu = null, onPinContextMenu = null, onViewportChange = null, renderPins = true }, ref) {
   const containerRef       = useRef(null)
   const mapRef             = useRef(null)
-  const trailRef           = useRef(null)
+  const trailGlowRef       = useRef(null)   // wide soft halo (uniform)
+  const trailFlowRef       = useRef(null)   // thin dashed "marching ants" overlay
+  const trailSegmentsRef   = useRef([])     // fading main line, one polyline per chunk
+  const knockSeenRef       = useRef(null)   // # interactions already seen (ripple gate)
   const markersRef         = useRef([])
   const currentMarker      = useRef(null)
   const territoryLayersRef = useRef([])
@@ -314,10 +403,32 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
       { maxZoom: 20, maxNativeZoom: 19 }
     ).addTo(map)
 
-    trailRef.current = L.polyline([], {
+    // GPS trail is drawn in three stacked layers for a neon, alive look:
+    //   1. trailGlow  — wide, low-opacity halo (the soft outer glow), uniform.
+    //   2. fading main line — built per-update as several chunks whose opacity
+    //      ramps from faint (oldest) to bright (newest); see the trail effect.
+    //   3. trailFlow  — a thin dashed overlay ("marching ants") that slides
+    //      toward the rep, implying forward motion.
+    // Layers 1 and 3 are created here (single polylines we just feed points
+    // to); the fading chunks in layer 2 are rebuilt on each trail update.
+    // Rounded caps/joins keep everything smooth as the path bends.
+    trailGlowRef.current = L.polyline([], {
       color: '#3B82F6',
-      weight: 3,
-      opacity: 0.7,
+      weight: 13,
+      opacity: 0.18,
+      lineCap:  'round',
+      lineJoin: 'round',
+      interactive: false,
+    }).addTo(map)
+
+    trailFlowRef.current = L.polyline([], {
+      color: '#DBEAFE',           // pale blue dashes read as light moving on the line
+      weight: 2,
+      opacity: 0.9,
+      lineCap:  'butt',
+      lineJoin: 'round',
+      className: 'knockiq-trail-flow',
+      interactive: false,
     }).addTo(map)
 
     mapRef.current = map
@@ -388,12 +499,85 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
     }
   }, [onContextMenu, onViewportChange])
 
-  // Update GPS trail
+  // Update GPS trail: feed the glow + flow overlays, then rebuild the fading
+  // main line as a handful of chunks whose opacity ramps oldest → newest.
   useEffect(() => {
-    if (!trailRef.current || !trail.length) return
-    const latlngs = trail.map((p) => [p.lat, p.lng])
-    trailRef.current.setLatLngs(latlngs)
+    const map = mapRef.current
+    if (!map || !trailGlowRef.current) return
+    const latlngs = capTrailPoints(trail.map((p) => [p.lat, p.lng]))
+
+    trailGlowRef.current.setLatLngs(latlngs)
+    if (trailFlowRef.current) trailFlowRef.current.setLatLngs(latlngs)
+
+    // Rebuild fading chunks. Cheap enough to recreate each tick (≤ MAX_CHUNKS
+    // short polylines), and far simpler than diffing per-segment opacity.
+    trailSegmentsRef.current.forEach((seg) => seg.remove())
+    trailSegmentsRef.current = []
+
+    if (latlngs.length >= 2) {
+      const MAX_CHUNKS = 14
+      const MIN_OP = 0.12   // oldest end — faint
+      const MAX_OP = 0.95   // newest end — bright
+      const L0 = latlngs.length
+      const chunks = Math.min(MAX_CHUNKS, L0 - 1)
+      for (let c = 0; c < chunks; c++) {
+        const startIdx = Math.floor((c       * (L0 - 1)) / chunks)
+        const endIdx   = Math.floor(((c + 1) * (L0 - 1)) / chunks)
+        // +1 so adjacent chunks share a vertex and the line has no gaps.
+        const pts = latlngs.slice(startIdx, endIdx + 1)
+        if (pts.length < 2) continue
+        const t = chunks === 1 ? 1 : c / (chunks - 1)
+        const opacity = MIN_OP + (MAX_OP - MIN_OP) * t
+        const seg = L.polyline(pts, {
+          color: '#3B82F6',
+          weight: 4.5,                 // ~50% thicker than the original 3
+          opacity,
+          lineCap:  'round',
+          lineJoin: 'round',
+          className: 'knockiq-trail',   // neon drop-shadow glow
+          interactive: false,
+        }).addTo(map)
+        trailSegmentsRef.current.push(seg)
+      }
+    }
+
+    // Keep the marching-ants overlay above the freshly-added chunks.
+    if (trailFlowRef.current) trailFlowRef.current.bringToFront()
   }, [trail])
+
+  // Knock ripple — when a new interaction appears, drop a one-shot expanding
+  // ring at its location for instant "logged it" feedback. We gate on the
+  // count we've already seen so resuming a session with existing pins doesn't
+  // fire a burst of ripples on mount.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const list = interactions || []
+
+    // First run for this map: record the baseline, don't ripple history.
+    if (knockSeenRef.current === null) {
+      knockSeenRef.current = list.length
+      return
+    }
+    if (list.length <= knockSeenRef.current) {
+      // No growth (or a reset/shrink) — just resync the baseline.
+      knockSeenRef.current = list.length
+      return
+    }
+
+    // Ripple each newly-added interaction that has a location.
+    for (let i = knockSeenRef.current; i < list.length; i++) {
+      const it = list[i]
+      if (!it || it.lat == null || it.lng == null) continue
+      const ripple = L.marker([it.lat, it.lng], {
+        icon: makeKnockRipple(rippleColorFor(it.outcome)),
+        zIndexOffset: 1500,
+        interactive: false,
+      }).addTo(map)
+      setTimeout(() => ripple.remove(), 1100)
+    }
+    knockSeenRef.current = list.length
+  }, [interactions])
 
   // Update interaction pins (re-runs on cluster/zoom/value-scale changes too)
   //
@@ -640,7 +824,7 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
   // Render live rep avatar pins (manager live map)
   useEffect(() => {
     if (!mapRef.current) return
-    ensureStalledPulseStyles()
+    ensureMapFxStyles()
     repMarkersRef.current.forEach((m) => m.remove())
     repMarkersRef.current = []
 

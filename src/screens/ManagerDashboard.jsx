@@ -413,6 +413,10 @@ function OverviewTab({
     return sum + (new Date(s.ended_at) - new Date(s.started_at)) / 3600000
   }, 0)
   const revenuePerHour = totalHours > 0 ? (totalRevenue / totalHours).toFixed(0) : '—'
+  // Doors / Hour = canvassing pace. Lets a manager spot who's slow-walking vs.
+  // moving fast, and (paired with close rate / rev-per-door) whether speed
+  // actually correlates with success or just burns through doors.
+  const doorsPerHour   = totalHours > 0 ? (totalDoors / totalHours).toFixed(1) : '—'
 
   // ── Series for sparklines + the Revenue bar chart ─────────────────────
   // We bucket either by day or by month depending on the selected period.
@@ -466,6 +470,7 @@ function OverviewTab({
       ['Close Rate', `${closeRate}%`],
       ['Revenue / Door', `$${revenuePerDoor}`],
       ['Revenue / Hour', revenuePerHour !== '—' ? `$${revenuePerHour}` : '—'],
+      ['Doors / Hour', doorsPerHour !== '—' ? doorsPerHour : '—'],
       ['Total Sessions', sessions.length],
       ['Total Hours Canvassing', `${totalHours.toFixed(1)}`],
       [],
@@ -669,6 +674,7 @@ function OverviewTab({
             {[
               ['Revenue / Hour',         `$${revenuePerHour}`],
               ['Revenue / Door',         `$${revenuePerDoor}`],
+              ['Doors / Hour',           doorsPerHour === '—' ? '—' : `${doorsPerHour} / hr`],
               ['Estimates Requested',    totalEstimates.toLocaleString()],
               ['Sessions',               sessions.length.toLocaleString()],
               ['Total Hours Canvassing', `${totalHours.toFixed(1)} hrs`],
@@ -921,6 +927,7 @@ function RepsTab({ repStats, allReps = [], sessions = [], dateRange = 'month' })
       closeRate:      r.doors > 0 ? (r.bookings / r.doors) * 100 : 0,
       revenuePerDoor: r.doors > 0 ? r.revenue / r.doors          : 0,
       revenuePerHour: hours    > 0 ? r.revenue / hours           : 0,
+      doorsPerHour:   hours    > 0 ? r.doors   / hours           : 0,
     }
   })
 
@@ -2968,6 +2975,7 @@ const RANK_METRICS = [
   { id: 'closeRate',      label: 'Close %',     hint: 'Bookings / doors',format: (v) => `${v.toFixed(1)}%`,     precision: 1 },
   { id: 'revenuePerDoor', label: 'Rev / Door',  hint: 'Revenue per door',format: (v) => `$${v.toFixed(2)}`,     precision: 2 },
   { id: 'revenuePerHour', label: 'Rev / Hour',  hint: 'Revenue per hour',format: (v) => `$${v.toFixed(0)}`,     precision: 0 },
+  { id: 'doorsPerHour',   label: 'Doors / Hour',hint: 'Canvassing pace — doors knocked per hour',format: (v) => `${v.toFixed(1)}/h`, precision: 1 },
   { id: 'hours',          label: 'Hours',       hint: 'Hours canvassing',format: (v) => `${v.toFixed(1)}h`,     precision: 1 },
   { id: 'sessions',       label: 'Sessions',    hint: 'Total sessions',  format: (v) => v.toLocaleString(),     precision: 0 },
 ]

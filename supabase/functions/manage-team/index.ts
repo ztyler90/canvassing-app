@@ -192,13 +192,21 @@ serve(async (req) => {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-      // Phase 2: role is now parameterized so the same flow handles reps
-      // (door knockers / setters) and closers. 'manager' creation stays
-      // out of this endpoint — owners self-sign-up. Default 'rep' keeps
-      // older callers (the existing rep-add UI) working without changes.
-      if (role !== 'rep' && role !== 'closer') {
+      // Role is parameterized so the same flow handles reps (door knockers /
+      // setters), closers, and now managers. Reps + closers can be added by
+      // any manager. Managers, however, are owner-only: adding a teammate who
+      // can see the whole dashboard (and consumes a billable seat) is an
+      // owner-level decision, so we gate role='manager' behind the same
+      // owner/super-admin check the lifecycle actions use. Default 'rep'
+      // keeps older callers (the existing rep-add UI) working unchanged.
+      if (role !== 'rep' && role !== 'closer' && role !== 'manager') {
         return new Response(JSON.stringify({ error: `Unknown role "${role}"` }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if (role === 'manager' && !canManageLifecycle) {
+        return new Response(JSON.stringify({ error: 'Forbidden: only the account owner can add managers' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
 
@@ -341,10 +349,29 @@ serve(async (req) => {
         .single()
 
       const sameOrg = repProfile?.organization_id === callerProfile.organization_id
-      // Accept rep OR closer here — both are manage-team-managed team
-      // members. Managers and owners can't be deleted through this path.
-      const isTeamMember = repProfile?.role === 'rep' || repProfile?.role === 'closer'
-      if (!repProfile || !isTeamMember || (!sameOrg && !callerProfile.is_super_admin)) {
+      // Reps + closers can be removed by any manager. Managers can also be
+      // removed here now, but only by the owner/super-admin (same gate as
+      // adding one) — and never the org owner themselves, who must use the
+      // delete-org lifecycle path instead.
+      const isTeamMember    = repProfile?.role === 'rep' || repProfile?.role === 'closer'
+      const isManagerTarget = repProfile?.role === 'manager'
+      if (!repProfile || (!sameOrg && !callerProfile.is_super_admin)) {
+        return new Response(JSON.stringify({ error: 'Team member not found or not under your organization' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if (isManagerTarget) {
+        if (!canManageLifecycle) {
+          return new Response(JSON.stringify({ error: 'Forbidden: only the account owner can remove managers' }), {
+            status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+        if (orgRow?.owner_user_id === repId) {
+          return new Response(JSON.stringify({ error: 'The account owner cannot be removed. Transfer ownership or delete the organization instead.' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+      } else if (!isTeamMember) {
         return new Response(JSON.stringify({ error: 'Team member not found or not under your organization' }), {
           status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
@@ -399,8 +426,21 @@ serve(async (req) => {
         .single()
 
       const sameOrg = repProfile?.organization_id === callerProfile.organization_id
-      const isTeamMember = repProfile?.role === 'rep' || repProfile?.role === 'closer'
-      if (!repProfile || !isTeamMember || (!sameOrg && !callerProfile.is_super_admin)) {
+      // Reps/closers: any manager can re-send. Platform managers: owner-only,
+      // matching who can create them.
+      const isTeamMember    = repProfile?.role === 'rep' || repProfile?.role === 'closer'
+      const isManagerTarget = repProfile?.role === 'manager'
+      if (!repProfile || (!sameOrg && !callerProfile.is_super_admin)) {
+        return new Response(JSON.stringify({ error: 'Team member not found or not under your organization' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if (isManagerTarget && !canManageLifecycle) {
+        return new Response(JSON.stringify({ error: 'Forbidden: only the account owner can re-invite managers' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if (!isManagerTarget && !isTeamMember) {
         return new Response(JSON.stringify({ error: 'Team member not found or not under your organization' }), {
           status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })

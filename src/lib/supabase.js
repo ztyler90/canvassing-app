@@ -238,6 +238,10 @@ export async function logInteraction(interaction) {
     .insert(interaction)
     .select()
     .single()
+  // A door logged as a hot lead / booked enters a notifiable phase on insert
+  // (a DB trigger maps outcome→stage), so fan out to any subscribed managers.
+  // Best-effort; never blocks or fails the door log.
+  if (!error && data) notifySubscribedManagers(data.id, data.stage)
   return { data, error }
 }
 
@@ -1247,6 +1251,202 @@ export async function notifyAssignedCloser(interactionId) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// MANAGER PHASE NOTIFICATIONS (Phase 6)
+//
+// Maps a pipeline stage to the notification "phase" managers subscribe to.
+// 'appointment' deliberately spans both appt_scheduled and estimate_sent —
+// the Managers UI offers them as one combined toggle. Non-notifiable stages
+// (closed_*, null) map to null and never dispatch.
+// ──────────────────────────────────────────────────────────────────────────────
+export const PHASE_FOR_STAGE = {
+  hot_lead:       'hot_lead',
+  appt_scheduled: 'appointment',
+  estimate_sent:  'appointment',
+  booked:         'booked',
+}
+
+/**
+ * Fire the notify-managers edge function for a lead that just entered a
+ * notifiable phase. Best-effort and fire-and-forget: a missed manager email
+ * must never roll back the lead change that triggered it. No-ops silently
+ * when the stage isn't notifiable or there's no session.
+ *
+ * Centralized here (not in components) and called from the data-layer
+ * chokepoints — logInteraction, updateLeadStage, updateLeadAppointment — so
+ * every path that moves a lead notifies subscribers. This structural
+ * placement is the fix for the "missed notify hook in one UI path" bug.
+ */
+export async function notifySubscribedManagers(interactionId, stage) {
+  const phase = PHASE_FOR_STAGE[stage]
+  if (!interactionId || !phase) return { delivered: false, reason: 'not-a-notifiable-phase' }
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return { delivered: false, error: 'no session' }
+    const res = await fetch(`${supabaseUrl}/functions/v1/notify-managers`, {
+      method:  'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify({ interactionId, phase }),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) return { delivered: false, error: data?.error || `HTTP ${res.status}` }
+    return data
+  } catch (err) {
+    return { delivered: false, error: err?.message || String(err) }
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MANAGER ROSTER (Phase 6) — owner manages the manager team + their
+// pipeline-phase email subscriptions. Two tiers mirror the closer model:
+//   • platform (public.users role='manager')  — dashboard login + seat
+//   • email-only (manager_contacts)            — notifications only, no seat
+// All of these are owner-gated (RLS on manager_contacts; manage-team owner
+// check for platform managers).
+// ──────────────────────────────────────────────────────────────────────────────
+
+// The three subscribable phases. 'appointment' = appt_scheduled OR
+// estimate_sent (combined toggle). Keep in sync with PHASE_FOR_STAGE and the
+// migration CHECK constraints.
+export const MANAGER_NOTIFY_PHASES = ['hot_lead', 'appointment', 'booked']
+
+function sanitizePhases(arr) {
+  if (!Array.isArray(arr)) return []
+  return [...new Set(arr.filter((p) => MANAGER_NOTIFY_PHASES.includes(p)))]
+}
+
+/**
+ * List every manager in the caller's org as one unified array with a `tier`
+ * discriminator and an `is_owner` flag (the owner row can't be deleted).
+ * Owner is sorted first, then alphabetical. Promoted email-only managers are
+ * excluded (parity with getAllClosersUnified).
+ */
+export async function getAllManagersUnified() {
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
+  const [orgRes, platformRes, contactRes] = await Promise.all([
+    supabase.from('organizations').select('owner_user_id').eq('id', orgId).maybeSingle(),
+    supabase
+      .from('users')
+      .select('id, full_name, email, phone, manager_notify_phases')
+      .eq('role', 'manager')
+      .eq('organization_id', orgId)
+      .order('full_name'),
+    supabase
+      .from('manager_contacts')
+      .select('id, full_name, email, phone, notify_phases')
+      .eq('organization_id', orgId)
+      .is('promoted_to_user_id', null)
+      .order('full_name'),
+  ])
+  const ownerId = orgRes?.data?.owner_user_id || null
+  const platformRows = (platformRes.data || []).map((u) => ({
+    tier:          'platform',
+    id:            u.id,
+    full_name:     u.full_name,
+    email:         u.email,
+    phone:         u.phone,
+    notify_phases: u.manager_notify_phases || [],
+    is_owner:      u.id === ownerId,
+  }))
+  const contactRows = (contactRes.data || []).map((c) => ({
+    tier:          'contact',
+    id:            c.id,
+    full_name:     c.full_name,
+    email:         c.email,
+    phone:         c.phone,
+    notify_phases: c.notify_phases || [],
+    is_owner:      false,
+  }))
+  return [...platformRows, ...contactRows].sort((a, b) => {
+    if (a.is_owner !== b.is_owner) return a.is_owner ? -1 : 1
+    return (a.full_name || '').localeCompare(b.full_name || '')
+  })
+}
+
+/**
+ * Create a platform manager (full dashboard login, consumes a seat). Same
+ * manage-team endpoint as reps/closers, role hard-coded. The endpoint gates
+ * this to the org owner — a non-owner caller gets a 403.
+ */
+export async function createManager({ fullName, email, phone, mode = 'invite', password }) {
+  return createRep({ fullName, email, phone, mode, password, role: 'manager' })
+}
+
+/**
+ * Create an email-only manager (manager_contacts row). No auth user, no
+ * seat — they only receive the pipeline-phase emails they're subscribed to.
+ */
+export async function createManagerContact({ fullName, email, phone, notifyPhases = [] }) {
+  const orgId = await getMyOrgId()
+  if (!orgId) return { data: null, error: new Error('No organization') }
+  if (!fullName || !email) return { data: null, error: new Error('Name + email required') }
+  const { data, error } = await supabase
+    .from('manager_contacts')
+    .insert({
+      organization_id: orgId,
+      full_name:       fullName.trim(),
+      email:           email.trim(),
+      phone:           phone?.trim() || null,
+      notify_phases:   sanitizePhases(notifyPhases),
+    })
+    .select()
+    .single()
+  return { data, error }
+}
+
+/** Patch an email-only manager. Accepts fullName, email, phone, notifyPhases. */
+export async function updateManagerContact(contactId, patch = {}) {
+  const upd = {}
+  if (patch.fullName     !== undefined) upd.full_name     = patch.fullName?.trim()
+  if (patch.email        !== undefined) upd.email         = patch.email?.trim()
+  if (patch.phone        !== undefined) upd.phone         = patch.phone?.trim() || null
+  if (patch.notifyPhases !== undefined) upd.notify_phases = sanitizePhases(patch.notifyPhases)
+  const { data, error } = await supabase
+    .from('manager_contacts')
+    .update(upd)
+    .eq('id', contactId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+/** Remove an email-only manager. */
+export async function deleteManagerContact(contactId) {
+  const { error } = await supabase.from('manager_contacts').delete().eq('id', contactId)
+  return { error: error || null }
+}
+
+/**
+ * Remove a platform manager (owner-only, enforced in manage-team; the owner
+ * themselves can't be removed this way).
+ */
+export async function deleteManagerUser(userId) {
+  const { error } = await callManageTeam({ action: 'delete', repId: userId })
+  return { error: error || null }
+}
+
+/**
+ * Update a platform manager's phase subscriptions. RLS lets a manager update
+ * users in their own org (and their own row), so the owner can toggle any
+ * manager's subscriptions and a manager can toggle their own.
+ *
+ *   phases : array subset of MANAGER_NOTIFY_PHASES
+ */
+export async function updateManagerNotifyPhases(userId, phases) {
+  const { data, error } = await supabase
+    .from('users')
+    .update({ manager_notify_phases: sanitizePhases(phases) })
+    .eq('id', userId)
+    .select('id, manager_notify_phases')
+    .single()
+  return { data, error }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // CLOSER CONTACTS (Phase 5) — email-only closer tier.
 // These contacts don't have an auth user / platform seat. They just
 // receive the lead-assigned email notification.
@@ -1614,7 +1814,8 @@ export async function updateLeadAppointment(leadId, isoOrNull) {
     .eq('id', leadId)
     .maybeSingle()
   const patch = { appointment_at: isoOrNull || null }
-  if (isoOrNull && current?.stage === 'hot_lead') {
+  const promotedToApptScheduled = Boolean(isoOrNull && current?.stage === 'hot_lead')
+  if (promotedToApptScheduled) {
     patch.stage = 'appt_scheduled'
   }
   // maybeSingle on the return: if RLS hides the post-update row we get
@@ -1630,6 +1831,10 @@ export async function updateLeadAppointment(leadId, isoOrNull) {
   if (!error && !data) {
     return { data: null, error: new Error('No rows updated — check your permissions and refresh.') }
   }
+  // Only notify when this edit actually promoted the lead into a new phase
+  // (Hot Lead → Appt Scheduled). Editing the time on an already-scheduled
+  // lead must not re-fire the email.
+  if (!error && data && promotedToApptScheduled) notifySubscribedManagers(data.id, data.stage)
   return { data, error }
 }
 
@@ -1663,6 +1868,10 @@ export async function updateLeadStage(leadId, stage, extras = {}) {
   if (!error && !data) {
     return { data: null, error: new Error('No rows updated — check your permissions and refresh.') }
   }
+  // The lead just changed stage — notify any managers subscribed to the new
+  // phase. notifySubscribedManagers no-ops for non-notifiable stages
+  // (closed_lost, etc.), so this is safe to call unconditionally on success.
+  if (!error && data) notifySubscribedManagers(data.id, data.stage)
   return { data, error }
 }
 
