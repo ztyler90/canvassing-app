@@ -114,7 +114,7 @@ serve(async (req) => {
       .from('interactions')
       .select(`
         id, organization_id, stage, address, contact_name, contact_phone,
-        contact_email, service_types, estimated_value, notes, appointment_at,
+        contact_email, service_types, estimated_value, service_line_items, notes, appointment_at,
         rep_id, setter:rep_id ( id, full_name )
       `)
       .eq('id', interactionId)
@@ -197,6 +197,12 @@ serve(async (req) => {
       { label: 'Phone',       value: lead.contact_phone || '' },
       { label: 'Service',     value: Array.isArray(lead.service_types) ? lead.service_types.join(', ') : '' },
       { label: 'Est. value',  value: lead.estimated_value ? `$${Number(lead.estimated_value).toLocaleString()}` : '' },
+      // Itemized per-service breakdown (only when the rep priced each service
+      // at the door). Empty rows are dropped by brandedEmail, so this is
+      // invisible for single-value estimates.
+      { label: 'Itemized',    value: Array.isArray(lead.service_line_items)
+          ? lead.service_line_items.map((li) => `${li?.service ?? ''}: $${Number(li?.price || 0).toLocaleString()}`).join(' · ')
+          : '' },
       { label: 'Appointment', value: lead.appointment_at ? formatAppt(lead.appointment_at) : '' },
       { label: 'Logged by',   value: setterName },
     ]

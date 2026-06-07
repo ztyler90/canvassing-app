@@ -184,6 +184,24 @@ export default function InteractionModal({
   const [estimatedValue, setEstValue]   = useState(
     existingInteraction?.estimated_value != null ? String(existingInteraction.estimated_value) : ''
   )
+  // ── Itemized estimate ──────────────────────────────────────────────────
+  // A rep can either drop a single lump-sum estimated value (high-ticket
+  // sales) or itemize per-service prices (quick-action closers — pest,
+  // windows). `estimateMode` flips the Pricing UI between the two.
+  // `servicePrices` maps a service label → its price string (kept as
+  // strings so the inputs stay controlled and empty-friendly). On edit we
+  // hydrate both from the stored service_line_items breakdown.
+  const initialLineItems = Array.isArray(existingInteraction?.service_line_items)
+    ? existingInteraction.service_line_items
+    : []
+  const [estimateMode, setEstimateMode]   = useState(initialLineItems.length ? 'itemized' : 'single')
+  const [servicePrices, setServicePrices] = useState(() => {
+    const m = {}
+    for (const li of initialLineItems) {
+      if (li && li.service != null) m[li.service] = String(li.price ?? '')
+    }
+    return m
+  })
   // Free-form notes about the job — captured on the details step only
   // (Estimate / Booked). No-answer and not-interested outcomes save without
   // notes so reps can log them in one tap.
@@ -315,6 +333,24 @@ export default function InteractionModal({
     })),
   [])
 
+  // ── Derived: itemized estimate ───────────────────────────────────────────
+  // Running total of the per-service prices (recomputed each render so the
+  // on-screen "Total" updates live as the rep types — no calculator needed
+  // to quote the homeowner). lineItems is the structured breakdown we
+  // persist; we keep only services that actually carry a price. effectiveValue
+  // is the deal total written to estimated_value: the itemized sum in
+  // itemized mode, otherwise the single typed value.
+  const itemizedTotal = selectedServices.reduce(
+    (sum, svc) => sum + (parseFloat(servicePrices[svc]) || 0),
+    0,
+  )
+  const lineItems = selectedServices
+    .map((svc) => ({ service: svc, price: parseFloat(servicePrices[svc]) || 0 }))
+    .filter((li) => li.price > 0)
+  const effectiveValue = estimateMode === 'itemized'
+    ? (itemizedTotal > 0 ? itemizedTotal : null)
+    : (estimatedValue ? Number(estimatedValue) : null)
+
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   const handleOutcomeSelect = async (outcomeId) => {
@@ -338,8 +374,12 @@ export default function InteractionModal({
   const handleDetailsSave = async (e) => {
     e.preventDefault()
     cancelAutoDismiss()
-    if (!estimatedValue && selectedOutcome === 'booked') {
-      setError('Please enter an estimated job value.')
+    if (selectedOutcome === 'booked' && !(effectiveValue > 0)) {
+      setError(
+        estimateMode === 'itemized'
+          ? 'Add at least one service price to set the job value.'
+          : 'Please enter an estimated job value.'
+      )
       return
     }
     // Phase 3: round-robin closer auto-pick. Only fires when the org's
@@ -364,12 +404,13 @@ export default function InteractionModal({
             ? { closer_id: pick.id }
             : { closer_contact_id: pick.id }
           await saveInteraction(selectedOutcome, {
-            contact_name:    contactName,
-            contact_phone:   contactPhone,
-            contact_email:   contactEmail,
-            service_types:   selectedServices,
-            estimated_value: estimatedValue ? Number(estimatedValue) : null,
-            notes:           notes || null,
+            contact_name:       contactName,
+            contact_phone:      contactPhone,
+            contact_email:      contactEmail,
+            service_types:      selectedServices,
+            estimated_value:    effectiveValue,
+            service_line_items: estimateMode === 'itemized' ? lineItems : null,
+            notes:              notes || null,
             ...closerExtras,
           })
           return
@@ -379,12 +420,13 @@ export default function InteractionModal({
       }
     }
     await saveInteraction(selectedOutcome, {
-      contact_name:    contactName,
-      contact_phone:   contactPhone,
-      contact_email:   contactEmail,
-      service_types:   selectedServices,
-      estimated_value: estimatedValue ? Number(estimatedValue) : null,
-      notes:           notes || null,
+      contact_name:       contactName,
+      contact_phone:      contactPhone,
+      contact_email:      contactEmail,
+      service_types:      selectedServices,
+      estimated_value:    effectiveValue,
+      service_line_items: estimateMode === 'itemized' ? lineItems : null,
+      notes:              notes || null,
     })
   }
 
@@ -456,9 +498,10 @@ export default function InteractionModal({
       payload.contact_name    = null
       payload.contact_phone   = null
       payload.contact_email   = null
-      payload.service_types   = null
-      payload.estimated_value = null
-      payload.notes           = null
+      payload.service_types      = null
+      payload.estimated_value    = null
+      payload.service_line_items = null
+      payload.notes              = null
       // Phase 3 fields don't apply to no_answer either.
       payload.appointment_at    = null
       payload.closer_id         = null
@@ -479,9 +522,10 @@ export default function InteractionModal({
         contact_name:    isNoAnswer ? null : extras.contact_name,
         contact_phone:   isNoAnswer ? null : extras.contact_phone,
         contact_email:   isNoAnswer ? null : extras.contact_email,
-        service_types:   isNoAnswer ? null : extras.service_types,
-        estimated_value: isNoAnswer ? null : extras.estimated_value,
-        notes:           isNoAnswer ? null : extras.notes,
+        service_types:      isNoAnswer ? null : extras.service_types,
+        estimated_value:    isNoAnswer ? null : extras.estimated_value,
+        service_line_items: isNoAnswer ? null : extras.service_line_items,
+        notes:              isNoAnswer ? null : extras.notes,
       }
       // For non-no_answer outcomes, strip undefined so we don't clobber
       // fields the rep didn't touch. For no_answer we WANT the nulls to
@@ -541,12 +585,13 @@ export default function InteractionModal({
         interaction_id:  savedData.id,
         session_id:      sessionId,
         rep_id:          repId,
-        address:         address,
-        contact_name:    extras.contact_name,
-        contact_phone:   extras.contact_phone,
-        service_types:   extras.service_types,
-        estimated_value: extras.estimated_value,
-        status:          'booked',
+        address:            address,
+        contact_name:       extras.contact_name,
+        contact_phone:      extras.contact_phone,
+        service_types:      extras.service_types,
+        estimated_value:    extras.estimated_value,
+        service_line_items: extras.service_line_items ?? null,
+        status:             'booked',
       })
     }
 
@@ -563,8 +608,9 @@ export default function InteractionModal({
         contact_name:    payload.contact_name || null,
         contact_phone:   payload.contact_phone || null,
         contact_email:   payload.contact_email || null,
-        service_types:   payload.service_types || null,
-        estimated_value: payload.estimated_value ?? null,
+        service_types:      payload.service_types || null,
+        estimated_value:    payload.estimated_value ?? null,
+        service_line_items: payload.service_line_items ?? null,
       }
       if (outcome === 'booked')             fireWebhookEvent('booking', base)
       if (outcome === 'estimate_requested') fireWebhookEvent('estimate', base)
@@ -626,7 +672,20 @@ export default function InteractionModal({
   const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i))
 
   const toggleService = (svc) =>
-    setServices((prev) => prev.includes(svc) ? prev.filter((s) => s !== svc) : [...prev, svc])
+    setServices((prev) => {
+      if (prev.includes(svc)) {
+        // Deselecting — drop any itemized price we were holding for it so a
+        // toggled-off service doesn't linger in the breakdown / total.
+        setServicePrices((p) => {
+          if (!(svc in p)) return p
+          const next = { ...p }
+          delete next[svc]
+          return next
+        })
+        return prev.filter((s) => s !== svc)
+      }
+      return [...prev, svc]
+    })
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -1008,18 +1067,80 @@ export default function InteractionModal({
               )}
             </div>
 
-            {/* Estimated value */}
-            <div className="relative">
-              <DollarSign className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
-              <input
-                type="number"
-                inputMode="numeric"
-                placeholder={selectedOutcome === 'booked' ? 'Job value (required)' : 'Estimated value'}
-                value={estimatedValue}
-                onChange={(e) => setEstValue(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none"
-                required={selectedOutcome === 'booked'}
-              />
+            {/* Pricing — either a single lump-sum value or an itemized,
+                per-service breakdown. The toggle lets a high-ticket rep drop
+                one number while a quick-action closer (pest, windows) prices
+                each service and reads the running total straight off the
+                screen — no calculator needed to quote the homeowner. */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {selectedOutcome === 'booked' ? 'Job Value' : 'Pricing'}
+                </p>
+                <div className="inline-flex rounded-lg bg-gray-100 p-0.5">
+                  {[
+                    { id: 'single',   label: 'Quick' },
+                    { id: 'itemized', label: 'Itemized' },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setEstimateMode(m.id)}
+                      className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                        estimateMode === m.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {estimateMode === 'single' ? (
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder={selectedOutcome === 'booked' ? 'Job value (required)' : 'Estimated value'}
+                    value={estimatedValue}
+                    onChange={(e) => setEstValue(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none"
+                    required={selectedOutcome === 'booked'}
+                  />
+                </div>
+              ) : selectedServices.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-xs text-gray-500">
+                  Select one or more services above, then enter a price for each.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selectedServices.map((svc) => (
+                    <div key={svc} className="flex items-center gap-2">
+                      <span className="flex-1 text-sm text-gray-700 truncate" title={svc}>{svc}</span>
+                      <div className="relative w-32 shrink-0">
+                        <DollarSign className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" />
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          placeholder="0"
+                          value={servicePrices[svc] ?? ''}
+                          onChange={(e) => setServicePrices((p) => ({ ...p, [svc]: e.target.value }))}
+                          className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-sm text-right focus:border-blue-400 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {/* Running total — live, so the rep can quote the homeowner
+                      on the spot without reaching for a calculator. */}
+                  <div className="flex items-center justify-between pt-2 mt-1 border-t border-gray-200">
+                    <span className="text-sm font-semibold text-gray-700">Total</span>
+                    <span className="text-lg font-bold text-gray-900 tabular-nums">
+                      ${itemizedTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Photo attachments */}

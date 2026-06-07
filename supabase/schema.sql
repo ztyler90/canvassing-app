@@ -124,6 +124,9 @@ create table public.interactions (
   contact_email   text,
   service_types   text[],
   estimated_value numeric(10,2),
+  -- Optional itemized estimate: JSON array of {service, price}. When present,
+  -- estimated_value holds the sum. NULL = rep used the single-value field.
+  service_line_items jsonb,
   notes           text,
   created_at      timestamptz not null default now()
 );
@@ -155,6 +158,7 @@ create table public.bookings (
   contact_phone   text,
   service_types   text[],
   estimated_value numeric(10,2),
+  service_line_items jsonb,                  -- optional itemized estimate: [{service, price}]; estimated_value holds the sum
   actual_value    numeric(10,2),             -- filled in after job completion
   status          text not null default 'booked' check (status in ('booked', 'completed', 'cancelled')),
   booked_at       timestamptz not null default now(),

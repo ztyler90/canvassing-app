@@ -251,6 +251,24 @@ function LeadCard({ lead, stage, acting, showLostPicker, onAdvance, onShowLost, 
         <span className="text-gray-400 text-[10px] ml-auto">From {setter}</span>
       </div>
 
+      {/* Itemized estimate (if the rep priced each service at the door) —
+          gives the closer the exact per-service quote to build from. */}
+      {Array.isArray(lead.service_line_items) && lead.service_line_items.length > 0 && (
+        <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 overflow-hidden">
+          {lead.service_line_items.map((li, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between px-2.5 py-1 text-[12px] border-b border-gray-100 last:border-b-0"
+            >
+              <span className="text-gray-600 truncate pr-2">{li.service}</span>
+              <span className="font-semibold text-gray-800 tabular-nums">
+                ${Number(li.price || 0).toLocaleString()}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Notes (if rep left any) */}
       {lead.notes && (
         <p className="mt-2 text-[12px] text-gray-600 bg-gray-50 rounded-lg px-2.5 py-1.5 leading-snug">

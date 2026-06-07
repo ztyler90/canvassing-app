@@ -32,6 +32,7 @@ import {
 } from '../lib/callouts.js'
 import RepCallouts from '../components/RepCallouts.jsx'
 import ChatLauncher from '../components/ChatLauncher.jsx'
+import ViewModeSwitch from '../components/ViewModeSwitch.jsx'
 import { StoragePhoto } from '../lib/photos.jsx'
 import {
   RichStatCard, MiniSparkArea, MiniSparkBars,
@@ -387,6 +388,10 @@ export default function RepHome() {
             <p className="text-blue-100 text-xs">{greeting}</p>
             <h1 className="text-white text-xl font-bold truncate leading-tight">{user?.full_name || 'Rep'}</h1>
           </div>
+          {/* Manager ⇄ Canvassing switch — only renders for platform managers
+              who flipped into rep view; gives them a one-tap way back to the
+              dashboard. Invisible to real reps. */}
+          <ViewModeSwitch />
           {/* Next Stops — territories inbox. Moved here from the body
               card so the entry point lives with the other header actions
               (profile, logout) and is reachable from every scroll

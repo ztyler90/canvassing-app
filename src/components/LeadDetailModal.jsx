@@ -411,6 +411,35 @@ export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false
             />
           </Section>
 
+          {/* Itemized estimate — per-service prices the rep quoted at the
+              door. Surfaced so a manager can lift the breakdown straight into
+              their CRM when building the formal proposal. */}
+          {Array.isArray(lead.service_line_items) && lead.service_line_items.length > 0 && (
+            <Section title="Itemized estimate">
+              <div className="rounded-xl border border-gray-200 overflow-hidden">
+                {lead.service_line_items.map((li, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between px-4 py-2 text-sm border-b border-gray-100 last:border-b-0"
+                  >
+                    <span className="text-gray-700">{li.service}</span>
+                    <span className="font-semibold text-gray-900 tabular-nums">
+                      ${Number(li.price || 0).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between px-4 py-2 bg-gray-50 text-sm">
+                  <span className="font-semibold text-gray-700">Total</span>
+                  <span className="font-bold text-gray-900 tabular-nums">
+                    ${lead.service_line_items
+                      .reduce((s, li) => s + Number(li.price || 0), 0)
+                      .toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </Section>
+          )}
+
           {/* Notes — the most-asked-for piece */}
           {lead.notes && (
             <Section title="Notes from the rep">

@@ -2,9 +2,19 @@
  * MapView — Leaflet map with GPS trail and color-coded interaction pins.
  * Works for both the Active Canvassing screen and the Manager Dashboard.
  */
-import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { motionClassifier } from '../lib/motion.js'
+
+// Active-canvassing follow behavior. Rather than hard-recentering on every GPS
+// fix (which makes the map impossible to explore — it snaps back instantly),
+// we let the rep pan/zoom freely and only resume following once they actually
+// start walking again. RESUME_WALK_M is how far the rep must physically move
+// from where they began exploring before we glide back to them; it's set well
+// above typical standing GPS jitter (~5–10 m) so simply standing at a door
+// doesn't yank the map back while they're looking around.
+const RESUME_WALK_M = 6
 
 // Fix Leaflet default icon path issue with Vite
 delete L.Icon.Default.prototype._getIconUrl
@@ -199,16 +209,35 @@ const REP_COLORS = [
   '#F97316','#6366F1',
 ]
 
-// Stalled pins get a pulsing red halo. The halo is a second div behind the
-// normal avatar chip so we don't fight Leaflet's positioning math — iconSize
-// stays 36×36 and the halo just overflows via negative positioning.
-function makeRepPin(initials, color, stalled = false) {
+// Hex (#rgb or #rrggbb) → rgba() string. Used to tint a rep's live pulse with
+// their own pin color at low alpha.
+function hexToRgba(hex, a) {
+  const h = String(hex || '').replace('#', '')
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
+  const n = parseInt(full, 16)
+  if (Number.isNaN(n)) return `rgba(59,130,246,${a})`
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
+}
+
+// Stalled pins get a pulsing red halo; active (non-stalled) pins get a softer
+// pulse in their own color so the manager can see at a glance who's live right
+// now. The halo is a second div behind the avatar chip so we don't fight
+// Leaflet's positioning math — iconSize stays 36×36 and the halo overflows via
+// negative positioning.
+function makeRepPin(initials, color, stalled = false, active = false) {
   const halo = stalled
     ? `<span style="
         position:absolute;inset:-8px;border-radius:50%;
         background:rgba(220,38,38,0.35);
         box-shadow:0 0 0 2px #DC2626, 0 0 14px 2px rgba(220,38,38,0.55);
         animation:knockiq-stalled-pulse 1.6s ease-out infinite;
+      "></span>`
+    : active
+    ? `<span style="
+        position:absolute;inset:-6px;border-radius:50%;
+        background:${hexToRgba(color, 0.30)};
+        box-shadow:0 0 0 2px ${hexToRgba(color, 0.55)}, 0 0 12px 1px ${hexToRgba(color, 0.5)};
+        animation:knockiq-rep-pulse 1.9s ease-out infinite;
       "></span>`
     : ''
   return L.divIcon({
@@ -248,6 +277,14 @@ function ensureMapFxStyles() {
       0%   { transform: scale(0.6); opacity: 0.55 }
       70%  { transform: scale(2.4); opacity: 0    }
       100% { transform: scale(2.4); opacity: 0    }
+    }
+    /* Gentler ring for active rep pins on the manager map — "this rep is
+       live right now". Smaller max scale than the GPS beacon so clustered
+       pins don't overlap their neighbors' halos. */
+    @keyframes knockiq-rep-pulse {
+      0%   { transform: scale(0.85); opacity: 0.5 }
+      75%  { transform: scale(1.8);  opacity: 0   }
+      100% { transform: scale(1.8);  opacity: 0   }
     }
     /* Neon glow on the GPS trail. drop-shadow follows the SVG path outline,
        so the whole breadcrumb line gets a soft blue halo as it draws. */
@@ -334,6 +371,7 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
   const trailFlowRef       = useRef(null)   // thin dashed "marching ants" overlay
   const trailSegmentsRef   = useRef([])     // fading main line, one polyline per chunk
   const knockSeenRef       = useRef(null)   // # interactions already seen (ripple gate)
+  const repStatsSeenRef    = useRef(null)   // per-rep {doors,bookings} seen (manager heartbeat)
   const markersRef         = useRef([])
   const currentMarker      = useRef(null)
   const territoryLayersRef = useRef([])
@@ -342,6 +380,44 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
   const heatmapLayersRef   = useRef([])
   const repMarkersRef      = useRef([])
   const autoFitDoneRef     = useRef(false)
+  const repFitDoneRef      = useRef(false)  // fit-to-reps runs once, not every poll
+
+  // ── Follow / explore state (active-canvassing only) ──────────────────────
+  // `exploring` true means the rep has panned/zoomed away to look around, so
+  // we suspend auto-follow until they start walking again. We keep it in both
+  // a ref (read inside event handlers / the position effect without re-binding)
+  // and state (to drive the Recenter button's visibility).
+  const exploringRef       = useRef(false)
+  const [exploring, setExploring] = useState(false)
+  const exploreAnchorRef   = useRef(null)  // rep's GPS pos when exploration began
+  const lastUserPosRef     = useRef(null)  // most recent GPS pos we've seen
+  const programmaticMoveRef = useRef(false) // guards our own pan/zoom from tripping explore
+
+  const setExploreState = (v) => { exploringRef.current = v; setExploring(v) }
+
+  // Begin "explore" mode: the rep grabbed the map to look around, so freeze
+  // auto-follow and remember where they physically were at that moment (the
+  // anchor) so we can tell when they've walked far enough to resume.
+  function beginExplore() {
+    if (!followUser) return
+    exploreAnchorRef.current =
+      lastUserPosRef.current ||
+      (currentPos ? { lat: currentPos.lat, lng: currentPos.lng } : null)
+    if (!exploringRef.current) setExploreState(true)
+  }
+
+  // Glide back to the rep's current position and resume auto-follow. Uses a
+  // short flyTo so it reads as a smooth "snap back to me," not a hard jump.
+  function recenterToUser(animate = true) {
+    const map = mapRef.current
+    const pos = lastUserPosRef.current || currentPos
+    if (!map || !pos) return
+    const z = Math.max(map.getZoom() || 17.75, 17.75)
+    programmaticMoveRef.current = true
+    if (animate) map.flyTo([pos.lat, pos.lng], z, { duration: 0.6 })
+    else         map.setView([pos.lat, pos.lng], z)
+    setExploreState(false)
+  }
 
   // Expose imperative API so parent (e.g. Manager Map tab) can fly the map
   // to a geocoded address or programmatically re-fit to current activity.
@@ -352,6 +428,11 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
     flyTo(lat, lng, zoom = 17.75) {
       if (!mapRef.current || lat == null || lng == null) return
       mapRef.current.flyTo([lat, lng], zoom, { duration: 0.75 })
+    },
+    // Snap back to the rep and resume auto-follow. Wired to the on-map
+    // Recenter button, and available to the parent if it wants its own.
+    recenter() {
+      recenterToUser(true)
     },
     // Tightest reasonable fit: 12px padding and maxZoom 19 so a small
     // cluster of pins frames to individual-house detail. Single-pin case
@@ -579,6 +660,43 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
     knockSeenRef.current = list.length
   }, [interactions])
 
+  // Knock ripple heartbeat (manager live view). repLocations refreshes on a
+  // poll; when a rep's door count climbs between polls, ripple at their pin so
+  // the team map reads as a live activity feed. Green if a booking also landed,
+  // else blue. Baselines on first run so the initial load doesn't fire a burst.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const list = repLocations || []
+    const snap = (r) => ({
+      doors:    Number(r.session?.doors_knocked || 0),
+      bookings: Number(r.session?.bookings      || 0),
+    })
+
+    if (repStatsSeenRef.current === null) {
+      repStatsSeenRef.current = new Map(list.map((r) => [r.rep_id, snap(r)]))
+      return
+    }
+
+    const prev = repStatsSeenRef.current
+    const next = new Map()
+    for (const r of list) {
+      const cur = snap(r)
+      next.set(r.rep_id, cur)
+      const before = prev.get(r.rep_id)
+      if (before && r.lat != null && r.lng != null && cur.doors > before.doors) {
+        const color = cur.bookings > before.bookings ? '#10B981' : '#3B82F6'
+        const ripple = L.marker([r.lat, r.lng], {
+          icon: makeKnockRipple(color),
+          zIndexOffset: 2500,
+          interactive: false,
+        }).addTo(map)
+        setTimeout(() => ripple.remove(), 1100)
+      }
+    }
+    repStatsSeenRef.current = next
+  }, [repLocations])
+
   // Update interaction pins (re-runs on cluster/zoom/value-scale changes too)
   //
   // Clustering: when `cluster` is on and the zoom is below
@@ -719,14 +837,73 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
       currentMarker.current.setLatLng([currentPos.lat, currentPos.lng])
     }
 
-    if (followUser) {
-      // Preserve the rep's current zoom if they've pinched, but floor at
-      // 17.75 so the first-GPS-fix view stays at the tight default rather
-      // than sticking at whatever the map was initialized with.
-      const z = Math.max(mapRef.current.getZoom() || 17.75, 17.75)
-      mapRef.current.setView([currentPos.lat, currentPos.lng], z)
+    const prevUserPos = lastUserPosRef.current
+    lastUserPosRef.current = { lat: currentPos.lat, lng: currentPos.lng }
+
+    if (!followUser) return
+
+    const map = mapRef.current
+
+    // ── Rep is exploring: hold position until they start walking again ──────
+    if (exploringRef.current) {
+      const anchor = exploreAnchorRef.current
+      const movedFromAnchor = anchor
+        ? map.distance([anchor.lat, anchor.lng], [currentPos.lat, currentPos.lng])
+        : Infinity
+      // Two independent "they're walking now" signals: the accelerometer
+      // classifier (immediate, when the sensor's available) OR enough GPS
+      // displacement from the explore anchor (robust fallback that ignores
+      // standing jitter). Either one glides us back to the rep.
+      const walking = motionClassifier.classify() === 'walking'
+      if (walking || movedFromAnchor > RESUME_WALK_M) {
+        recenterToUser(true)
+      }
+      return
+    }
+
+    // ── Following: glide to the new fix ─────────────────────────────────────
+    // Preserve the rep's current zoom if they've pinched, but floor at 17.75
+    // so the first-GPS-fix view lands at the tight default. If we're already
+    // essentially centered on them, skip the move so a stationary rep's GPS
+    // jitter doesn't cause constant micro-animations.
+    const z = Math.max(map.getZoom() || 17.75, 17.75)
+    programmaticMoveRef.current = true
+    if (map.getZoom() < 17.5) {
+      // First real fix (or zoomed way out): glide in to street level.
+      map.flyTo([currentPos.lat, currentPos.lng], 17.75, { duration: 0.6 })
+    } else {
+      const movedSinceLast = prevUserPos
+        ? map.distance([prevUserPos.lat, prevUserPos.lng], [currentPos.lat, currentPos.lng])
+        : Infinity
+      if (movedSinceLast >= 3) {
+        map.panTo([currentPos.lat, currentPos.lng], { animate: true, duration: 0.5 })
+      } else {
+        programmaticMoveRef.current = false  // no move scheduled; clear the guard
+      }
     }
   }, [currentPos, followUser])
+
+  // Detect manual map gestures so we can pause auto-follow while the rep
+  // explores. `dragstart` only fires from a real user drag, so it's a clean
+  // signal. `zoomstart` fires for both user and programmatic zooms, so we
+  // gate it on the programmatic-move guard. `moveend` clears the guard once
+  // our own animations settle. Only active while following (followUser).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !followUser) return
+    const onDragStart = () => beginExplore()
+    const onZoomStart = () => { if (!programmaticMoveRef.current) beginExplore() }
+    const onMoveEnd   = () => { programmaticMoveRef.current = false }
+    map.on('dragstart', onDragStart)
+    map.on('zoomstart', onZoomStart)
+    map.on('moveend',   onMoveEnd)
+    return () => {
+      map.off('dragstart', onDragStart)
+      map.off('zoomstart', onZoomStart)
+      map.off('moveend',   onMoveEnd)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [followUser])
 
   // Render assigned territory overlays (rep view)
   useEffect(() => {
@@ -832,7 +1009,9 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
       if (!rep.lat || !rep.lng) return
       const color    = REP_COLORS[idx % REP_COLORS.length]
       const initials = repInitials(rep.user?.full_name)
-      const icon     = makeRepPin(initials, color, !!rep.stalled)
+      // Active = mid-session and not flagged stalled → gets the live pulse.
+      const active   = !!rep.session && !rep.stalled
+      const icon     = makeRepPin(initials, color, !!rep.stalled, active)
       // Stalled reps pop above the stack so the pulse is never hidden
       // behind a neighbor's pin when two reps cluster.
       const marker   = L.marker([rep.lat, rep.lng], { icon, zIndexOffset: rep.stalled ? 3000 : 2000 })
@@ -882,16 +1061,19 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
       repMarkersRef.current.push(marker)
     })
 
-    // Auto-fit map to show all active reps. Tighter than before
-    // (single rep → zoom 17, cluster → maxZoom 17 with 20px padding)
-    // so a manager peeking at live activity lands on street-level
-    // context instead of a city-wide overview.
-    if (repLocations.length > 0) {
+    // Auto-fit map to show all active reps — but ONLY once, on the first poll
+    // that has data. Re-fitting on every 10s poll would yank the manager's
+    // viewport back to "all reps" mid-inspection, overriding both their manual
+    // pan/zoom and the flyTo from tapping a rep (which drives the focus trail).
+    // Tight zoom (single rep → 17, cluster → maxZoom 17) lands on street level.
+    if (!repFitDoneRef.current && repLocations.length > 0) {
       const latlngs = repLocations.filter((r) => r.lat && r.lng).map((r) => [r.lat, r.lng])
       if (latlngs.length === 1) {
         mapRef.current.setView(latlngs[0], 17)
+        repFitDoneRef.current = true
       } else if (latlngs.length > 1) {
         mapRef.current.fitBounds(latlngs, { padding: [20, 20], maxZoom: 17 })
+        repFitDoneRef.current = true
       }
     }
   }, [repLocations])
@@ -931,7 +1113,28 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
   }, [regionFallback, interactions])
 
   return (
-    <div ref={containerRef} className={`w-full ${className}`} style={{ minHeight: '200px' }} />
+    <div className={`relative w-full ${className}`} style={{ minHeight: '200px' }}>
+      <div ref={containerRef} className="w-full h-full" style={{ minHeight: '200px' }} />
+
+      {/* Recenter pill — only on the active-canvassing map, and only while the
+          rep has panned away. Tapping snaps back to them and resumes follow.
+          Sits bottom-center, above Leaflet panes (z 1000) and clear of the
+          bottom knock UI. */}
+      {followUser && exploring && (
+        <button
+          type="button"
+          onClick={() => recenterToUser(true)}
+          className="absolute left-1/2 -translate-x-1/2 bottom-4 z-[1000] flex items-center gap-1.5 pl-3 pr-3.5 py-2 rounded-full bg-white shadow-lg ring-1 ring-black/5 text-sm font-semibold text-gray-800 active:bg-gray-100"
+          aria-label="Recenter map on my location"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+          </svg>
+          Recenter
+        </button>
+      )}
+    </div>
   )
 })
 

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Component, useEffect, useState } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'
 import { SessionProvider } from './contexts/SessionContext.jsx'
+import { ViewModeProvider, useViewMode } from './contexts/ViewModeContext.jsx'
 import Login             from './screens/Login.jsx'
 import Signup            from './screens/Signup.jsx'
 import RepJoin           from './screens/RepJoin.jsx'
@@ -18,6 +19,7 @@ import RepDetail         from './screens/RepDetail.jsx'
 import Settings          from './screens/Settings.jsx'
 import PipelineSettings  from './screens/PipelineSettings.jsx'
 import ClosersSettings   from './screens/ClosersSettings.jsx'
+import ManagersSettings  from './screens/ManagersSettings.jsx'
 import CloserHome        from './screens/CloserHome.jsx'
 import CloserProfile     from './screens/CloserProfile.jsx'
 import RepProfile        from './screens/RepProfile.jsx'
@@ -83,6 +85,7 @@ function orgAccessState(org) {
 
 function AppRoutes() {
   const { user, loading } = useAuth()
+  const { viewMode } = useViewMode()
 
   if (loading) return <LoadingScreen />
 
@@ -167,13 +170,22 @@ function AppRoutes() {
     </Routes>
   )
 
-  if (user.role === 'manager') return (
+  // A platform manager who also knocks doors can flip into "rep" view mode
+  // (see ViewModeContext + the header ViewModeSwitch). When they do, we skip
+  // the manager route tree and fall through to the rep <SessionProvider> tree
+  // below — same canvassing UI a real rep gets. Their role stays 'manager';
+  // this is purely which tree renders. In Manager mode (the default) they get
+  // the dashboard exactly as before.
+  const managerInRepMode = user.role === 'manager' && viewMode === 'rep'
+
+  if (user.role === 'manager' && !managerInRepMode) return (
     <Routes>
       <Route path="/manager"           element={<ManagerDashboard />} />
       <Route path="/manager/rep/:repId" element={<RepDetail />} />
       <Route path="/settings"          element={<Settings />} />
       <Route path="/settings/pipeline" element={<PipelineSettings />} />
       <Route path="/settings/closers"  element={<ClosersSettings />} />
+      <Route path="/settings/managers" element={<ManagersSettings />} />
       <Route path="/session/:id"       element={<SessionDetail />} />
       {user.is_super_admin && <Route path="/super-admin"            element={<SuperAdminDashboard />} />}
       {user.is_super_admin && <Route path="/super-admin/org/:orgId" element={<OrganizationDetail />}  />}
@@ -277,7 +289,9 @@ export default function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
-          <AppRoutes />
+          <ViewModeProvider>
+            <AppRoutes />
+          </ViewModeProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

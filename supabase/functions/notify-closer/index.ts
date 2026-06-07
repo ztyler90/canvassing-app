@@ -77,7 +77,7 @@ serve(async (req) => {
       .from('interactions')
       .select(`
         id, organization_id, address, contact_name, contact_phone,
-        contact_email, service_types, estimated_value, notes,
+        contact_email, service_types, estimated_value, service_line_items, notes,
         appointment_at, closer_id, closer_contact_id, rep_id,
         closer:closer_id                 ( id, email, full_name, phone, closer_notification_pref ),
         closer_contact:closer_contact_id ( id, email, full_name, phone, notification_pref ),
@@ -171,6 +171,7 @@ serve(async (req) => {
       phone:        lead.contact_phone || '',
       services:     Array.isArray(lead.service_types) ? lead.service_types.join(', ') : '',
       value:        lead.estimated_value ? `$${Number(lead.estimated_value).toLocaleString()}` : '',
+      lineItems:    formatLineItems(lead.service_line_items),
       appointment:  lead.appointment_at ? formatAppt(lead.appointment_at) : '',
       notes:        lead.notes || '',
       setterName,
@@ -250,10 +251,25 @@ interface LeadSummary {
   phone:        string
   services:     string
   value:        string
+  lineItems:    string
   appointment:  string
   notes:        string
   setterName:   string
   inboxUrl:     string
+}
+
+// Render the itemized estimate (if the rep priced each service at the door)
+// as a single readable line for the email body, e.g.
+//   "Window Cleaning: $250 · Gutter Guards: $900". Empty when not itemized.
+function formatLineItems(items: unknown): string {
+  if (!Array.isArray(items) || items.length === 0) return ''
+  return items
+    .map((li) => {
+      const svc   = li?.service ?? ''
+      const price = Number(li?.price || 0)
+      return `${svc}: $${price.toLocaleString()}`
+    })
+    .join(' · ')
 }
 
 async function sendLeadEmail({
@@ -281,6 +297,7 @@ async function sendLeadEmail({
       { label: 'Phone',       value: summary.phone },
       { label: 'Service',     value: summary.services },
       { label: 'Est. value',  value: summary.value },
+      { label: 'Itemized',    value: summary.lineItems },
       { label: 'Appointment', value: summary.appointment },
       { label: 'Notes',       value: summary.notes },
     ],

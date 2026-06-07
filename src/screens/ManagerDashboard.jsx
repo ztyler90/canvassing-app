@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, subDays, startOfDay, endOfDay, differenceInCalendarDays } from 'date-fns'
 import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight, Target, Flame, Share2, Copy, Eye, EyeOff, Award, Minus, MessageSquare, Lock } from 'lucide-react'
@@ -9,7 +9,7 @@ import {
   setTerritoryAssignments, getAllDoorHistory, getDoNotKnockList,
   addDoNotKnock, removeDoNotKnock,
   getActiveRepLocations, getLeaderboardData, getAllBookings,
-  getMyOrganization, getOrgRegionFallback,
+  getMyOrganization, getOrgRegionFallback, getSessionGpsTrail,
 } from '../lib/supabase.js'
 import { computeConversion } from '../lib/repStats.js'
 import { isProTier, STANDARD_MAX_TERRITORIES, canCreateTerritory } from '../lib/tier.js'
@@ -21,6 +21,7 @@ import TerritoryMap from '../components/TerritoryMap.jsx'
 import PipelineTab from '../components/PipelineTab.jsx'
 import ChatPanel   from '../components/ChatPanel.jsx'
 import ChatLauncher from '../components/ChatLauncher.jsx'
+import ViewModeSwitch from '../components/ViewModeSwitch.jsx'
 import { PhotoThumb } from '../lib/photos.jsx'
 import {
   RichStatCard, MiniSparkArea, MiniSparkBars, RadialGauge,
@@ -222,6 +223,10 @@ export default function ManagerDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Manager ⇄ Canvassing switch — only renders for platform
+                  managers. Lets a manager who also knocks jump into the rep
+                  canvassing UI and back. */}
+              <ViewModeSwitch />
               {user?.is_super_admin && (
                 <button
                   onClick={() => navigate('/super-admin')}
@@ -638,7 +643,10 @@ function OverviewTab({
       </div>
 
       {/* ── Daily Revenue + Rep Leaderboard (2-col on desktop) ────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+      {/* items-start so each card hugs its own content height — otherwise the
+         grid stretches the chart card to match the taller leaderboard and
+         leaves dead space below the bars. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
         <DailyRevenueChart series={series} bucketUnit={bucketUnit} />
         <RepLeaderboard repStats={repStats} />
       </div>
@@ -808,6 +816,7 @@ function BookingsTab({ bookings }) {
           const photos    = b.interactions?.photo_urls || []
           const followUp  = b.interactions?.follow_up  || false
           const services  = Array.isArray(b.service_types) ? b.service_types : []
+          const lineItems = Array.isArray(b.service_line_items) ? b.service_line_items : []
           const createdAt = b.created_at ? new Date(b.created_at) : null
           const isBooked  = b.outcome === 'booked'
 
@@ -863,6 +872,27 @@ function BookingsTab({ bookings }) {
                   </span>
                 ))}
               </div>
+
+              {/* Itemized estimate breakdown — the per-service prices the rep
+                  quoted, ready to lift into a CRM proposal. Only shown when the
+                  rep used itemized mode. */}
+              {lineItems.length > 0 && (
+                <div className="px-4 pb-3">
+                  <div className="rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
+                    {lineItems.map((li, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between px-3 py-1.5 text-xs border-b border-gray-100 last:border-b-0"
+                      >
+                        <span className="text-gray-600 truncate pr-2">{li.service}</span>
+                        <span className="font-semibold text-gray-800 tabular-nums">
+                          ${Number(li.price || 0).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Photo thumbnails */}
               {photos.length > 0 && (
@@ -1859,6 +1889,10 @@ function LiveTab({ allReps }) {
   // Drives a soft highlight on the card so the manager remembers what
   // they're looking at on the map.
   const [focusedRepId, setFocusedRepId] = useState(null)
+  // GPS trail of the focused rep, drawn as a glowing/fading/marching-ants line
+  // on the live map. Only one rep's trail shows at a time; tapping another rep
+  // swaps it. Re-fetched on each poll (below) so it grows as the rep walks.
+  const [focusTrail, setFocusTrail] = useState([])
   // Phase 6: rep id the manager wants to DM. When set, ChatPanel mounts
   // open and points at that user. Null = chat panel closed.
   const [dmRepId, setDmRepId] = useState(null)
@@ -1870,11 +1904,28 @@ function LiveTab({ allReps }) {
   // their pin is tapped on the map. 18.25 keeps just enough block
   // context around the pin to read the street pattern; the 0.75s flyTo
   // duration we get from MapView itself.
+  // Timestamp of the last focus action. The focus flyTo animates down to
+  // zoom 18.25; we ignore viewport events for a moment after focusing so the
+  // fly-in (and MapView's initial viewport callback) don't immediately trip
+  // the auto-unfocus below.
+  const focusGuardRef = useRef(0)
+
   const focusRep = (rep) => {
     if (!rep || rep.lat == null || rep.lng == null) return
+    focusGuardRef.current = Date.now()
     mapRef.current?.flyTo(rep.lat, rep.lng, 18.25)
     setFocusedRepId(rep.rep_id)
   }
+
+  // Auto-clear the focused rep (and its trail) once the manager zooms back out
+  // to survey the team. Threshold sits below the focus zoom (18.25) and the
+  // all-reps view (~17) so it only fires on a deliberate zoom-out.
+  const UNFOCUS_ZOOM = 16.5
+  const handleViewportChange = useCallback(({ zoom }) => {
+    if (!focusedRepId) return
+    if (Date.now() - focusGuardRef.current < 1200) return  // ignore the fly-in itself
+    if (zoom != null && zoom < UNFOCUS_ZOOM) setFocusedRepId(null)
+  }, [focusedRepId])
 
   const refresh = async () => {
     try {
@@ -1899,6 +1950,21 @@ function LiveTab({ allReps }) {
       window.removeEventListener('online', onOnline)
     }
   }, [])
+
+  // Fetch (and keep fresh) the focused rep's GPS trail. Re-runs whenever the
+  // focus changes or activeReps refreshes (every 10s poll), so the glowing
+  // trail extends live as the rep moves. Clears when nothing is focused.
+  useEffect(() => {
+    if (!focusedRepId) { setFocusTrail([]); return }
+    const rep = activeReps.find((r) => r.rep_id === focusedRepId)
+    const sid = rep?.session_id || rep?.session?.id
+    if (!sid) { setFocusTrail([]); return }
+    let alive = true
+    getSessionGpsTrail(sid)
+      .then((pts) => { if (alive) setFocusTrail((pts || []).map((p) => ({ lat: p.lat, lng: p.lng }))) })
+      .catch(() => { /* keep last trail on a transient fetch error */ })
+    return () => { alive = false }
+  }, [focusedRepId, activeReps])
 
   const activeIds  = new Set(activeReps.map((r) => r.rep_id))
   const inactiveReps = allReps.filter((r) => !activeIds.has(r.id))
@@ -1990,7 +2056,9 @@ function LiveTab({ allReps }) {
           <MapView
             ref={mapRef}
             repLocations={annotatedReps}
+            trail={focusTrail}
             onRepClick={focusRep}
+            onViewportChange={handleViewportChange}
             className="w-full h-full"
             followUser={false}
           />
@@ -2804,7 +2872,7 @@ function DailyRevenueChart({ series = [], bucketUnit = 'day' }) {
   const [hoverIdx, setHoverIdx] = useState(null)
   if (!series.length) return null
   const isMonthly = bucketUnit === 'month'
-  const w = 320, h = 140
+  const w = 320, h = 200
   const padL = 30, padR = 8, padT = 12, padB = 28
   const innerW = w - padL - padR
   const innerH = h - padT - padB
@@ -2874,7 +2942,7 @@ function DailyRevenueChart({ series = [], bucketUnit = 'day' }) {
         onMouseMove={onMove}
         onMouseLeave={onLeave}
       >
-        <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-36 md:h-auto md:aspect-[16/7] block">
+        <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-auto aspect-[8/5] block">
           {/* Gridlines */}
           <g stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3">
             {yTicks.map((t, i) => (

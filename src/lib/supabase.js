@@ -1209,7 +1209,7 @@ export async function getMyAssignedLeads() {
     .from('interactions')
     .select(`
       id, stage, address, contact_name, contact_phone, contact_email,
-      service_types, estimated_value, notes, appointment_at,
+      service_types, estimated_value, service_line_items, notes, appointment_at,
       estimate_sent_at, hot_lead_started_at, lost_reason, lost_at,
       created_at, rep_id, closer_id,
       users:rep_id ( full_name )
@@ -1331,7 +1331,7 @@ export async function getAllManagersUnified() {
     supabase.from('organizations').select('owner_user_id').eq('id', orgId).maybeSingle(),
     supabase
       .from('users')
-      .select('id, full_name, email, phone, manager_notify_phases')
+      .select('id, full_name, email, phone, manager_notify_phases, commission_config')
       .eq('role', 'manager')
       .eq('organization_id', orgId)
       .order('full_name'),
@@ -1344,13 +1344,17 @@ export async function getAllManagersUnified() {
   ])
   const ownerId = orgRes?.data?.owner_user_id || null
   const platformRows = (platformRes.data || []).map((u) => ({
-    tier:          'platform',
-    id:            u.id,
-    full_name:     u.full_name,
-    email:         u.email,
-    phone:         u.phone,
-    notify_phases: u.manager_notify_phases || [],
-    is_owner:      u.id === ownerId,
+    tier:              'platform',
+    id:                u.id,
+    full_name:         u.full_name,
+    email:             u.email,
+    phone:             u.phone,
+    notify_phases:     u.manager_notify_phases || [],
+    // Surfaced so the owner can set a knocking manager's pay rule right from
+    // the Managers screen. Email-only managers never canvass, so they don't
+    // carry one.
+    commission_config: u.commission_config || null,
+    is_owner:          u.id === ownerId,
   }))
   const contactRows = (contactRes.data || []).map((c) => ({
     tier:          'contact',
@@ -3104,7 +3108,7 @@ export async function getPipelineLeads(filters = {}) {
     .from('interactions')
     .select(`
       id, stage, outcome, address, lat, lng, contact_name, contact_phone, contact_email,
-      service_types, estimated_value, notes, follow_up,
+      service_types, estimated_value, service_line_items, notes, follow_up,
       appointment_at, estimate_sent_at, hot_lead_started_at,
       closer_id, closer_contact_id, rep_id, created_at, lost_reason, lost_at,
       setter:rep_id                  ( id, full_name ),
