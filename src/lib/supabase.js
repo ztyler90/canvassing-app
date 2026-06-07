@@ -63,8 +63,13 @@ export async function signOut() {
   }
   if (typeof window !== 'undefined') {
     // Use replace() so the back button can't bounce the user back into
-    // an authenticated route after they've signed out.
-    window.location.replace('/login')
+    // an authenticated route after they've signed out. Send signed-out
+    // users to the public marketing welcome page rather than the bare
+    // login screen. We point at the site root (not /welcome.html) so the
+    // address bar shows a clean "www.getknockiq.com" — the vercel.json
+    // rewrite { "src": "/", "dest": "/welcome.html" } serves the welcome
+    // content there.
+    window.location.replace('https://www.getknockiq.com/')
   }
 }
 

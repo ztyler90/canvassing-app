@@ -84,8 +84,8 @@ export default function CloserHome() {
 
   async function handleLogout() {
     if (!window.confirm('Log out?')) return
+    // signOut() hard-redirects to the public welcome page; no /login nav here.
     await signOut()
-    navigate('/login', { replace: true })
   }
 
   // Group leads by stage so we can render one section per stage.

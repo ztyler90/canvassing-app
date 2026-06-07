@@ -214,11 +214,15 @@ export default function RepHome() {
       // handle alive across the sign-in boundary.
       try { gpsTracker.stop?.() } catch { /* ignore */ }
       try { motionClassifier.stop?.() } catch { /* ignore */ }
+      // signOut() hard-redirects to the public welcome page, so we don't
+      // navigate to /login here (that would briefly flash the login screen).
       await signOut()
     } catch (err) {
       console.warn('[Logout] signOut failed', err)
+      // Only fall back to the in-app login route if signOut threw before
+      // its own redirect could fire.
+      navigate('/login', { replace: true })
     }
-    navigate('/login', { replace: true })
   }
 
   const handleStartCanvassing = async () => {
