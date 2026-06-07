@@ -291,6 +291,165 @@ export function computeTeamPulse(todayBoard, repId) {
   }
 }
 
+// ── Goal Pace ────────────────────────────────────────────────────────────────
+
+/**
+ * How close the rep is to today's manager-set daily goal. Fires once they've
+ * made real progress (≥ 60%) so it reads as an encouraging "almost there"
+ * nudge rather than a 9am "you've done nothing" scold, and switches to a
+ * celebratory variant once the goal is hit.
+ *
+ * @param {object} opts
+ * @param {number}  opts.target        the daily goal value (revenue $ or count)
+ * @param {number}  opts.current       today's progress in the same unit
+ * @param {boolean} opts.isRevenue     true → revenue goal, false → count goal
+ * @param {string}  opts.countNoun     'estimates' | 'appointments' (count goals)
+ * @returns null | {
+ *   hit:        boolean,   // goal already met or beaten today
+ *   pctDone:    number,    // 0..100 (capped)
+ *   remaining:  number,    // units left to hit goal (0 when hit)
+ *   isRevenue:  boolean,
+ *   countNoun:  string,
+ * }
+ */
+export function computeGoalPace({ target, current, isRevenue, countNoun } = {}) {
+  const tgt = Number(target) || 0
+  const cur = Number(current) || 0
+  if (tgt <= 0) return null
+  if (cur <= 0) return null  // nothing logged yet today — don't nudge
+
+  const ratio = cur / tgt
+  if (ratio < 0.6 && ratio < 1) return null  // too early to be motivating
+
+  return {
+    hit:       ratio >= 1,
+    pctDone:   Math.min(Math.round(ratio * 100), 100),
+    remaining: Math.max(0, tgt - cur),
+    isRevenue: !!isRevenue,
+    countNoun: countNoun === 'appointments' ? 'appointments' : 'estimates',
+  }
+}
+
+// ── Rival Chase ──────────────────────────────────────────────────────────────
+
+/**
+ * The rep directly above this rep on the (weekly) leaderboard, and the
+ * bookings gap to catch them. Frames the next booking as overtaking a
+ * specific teammate — a sharper motivator than an abstract rank.
+ *
+ * We only fire when there's a closeable gap in BOOKINGS (≥ 1). If the rep
+ * above is ahead purely on revenue with equal bookings, the "one more
+ * booking passes them" story doesn't hold, so we skip it.
+ *
+ * @param {Array}  board   leaderboard rows ({ id, name, revenue, bookings, doors })
+ * @param {string} repId
+ * @returns null | {
+ *   rivalName:    string,
+ *   myRank:       number,   // 1-based
+ *   bookingsGap:  number,   // bookings needed to match the rival
+ *   revenueGap:   number,   // $ behind the rival (secondary context)
+ * }
+ */
+export function computeRivalChase(board, repId) {
+  if (!Array.isArray(board) || !repId) return null
+  if (board.length < 3) return null  // rank is noise on a tiny team
+
+  const sorter = (a, b) => {
+    const ar = Number(a.revenue || 0),  br = Number(b.revenue || 0)
+    if (ar !== br) return br - ar
+    const ab = Number(a.bookings || 0), bb = Number(b.bookings || 0)
+    if (ab !== bb) return bb - ab
+    return (Number(b.doors || 0)) - (Number(a.doors || 0))
+  }
+
+  const sorted = [...board].sort(sorter)
+  const myIdx  = sorted.findIndex((r) => r.id === repId)
+  if (myIdx <= 0) return null  // not found, or already #1 — no one to chase
+
+  const me    = sorted[myIdx]
+  const rival = sorted[myIdx - 1]
+
+  const bookingsGap = Number(rival.bookings || 0) - Number(me.bookings || 0)
+  if (bookingsGap < 1) return null  // gap isn't a bookings story — skip
+
+  return {
+    rivalName:   rival.name || 'the rep ahead',
+    myRank:      myIdx + 1,
+    bookingsGap: Math.round(bookingsGap),
+    revenueGap:  Math.max(0, Number(rival.revenue || 0) - Number(me.revenue || 0)),
+  }
+}
+
+// ── Milestone Within Reach ───────────────────────────────────────────────────
+
+// Round-number milestones per lifetime metric, ascending. Tuned so there's
+// always a meaningful "next big number" without firing on trivial ones.
+const MILESTONE_TIERS = {
+  doors:    [100, 250, 500, 1000, 2500, 5000, 10000, 25000],
+  bookings: [10, 25, 50, 100, 250, 500, 1000],
+  revenue:  [10000, 25000, 50000, 100000, 250000, 500000, 1000000],
+}
+
+const MILESTONE_META = {
+  doors:    { noun: 'doors knocked',    isRevenue: false },
+  bookings: { noun: 'lifetime bookings', isRevenue: false },
+  revenue:  { noun: 'booked',            isRevenue: true  },
+}
+
+/** Smallest tier strictly greater than `value`, or null if past them all. */
+function nextTier(tiers, value) {
+  for (const t of tiers) if (t > value) return t
+  return null
+}
+
+/**
+ * The single closest "round number" lifetime milestone the rep is within
+ * striking distance of (≥ 80% of the way there). Mirrors the level-up
+ * proximity philosophy: one big nearby number, framed as almost-earned.
+ *
+ * Considers doors, bookings, and revenue, and returns whichever the rep is
+ * proportionally closest to.
+ *
+ * @param {object} lifetime  periods.lifetime ({ doors, bookings, revenue })
+ * @returns null | {
+ *   metric:     'doors'|'bookings'|'revenue',
+ *   noun:       string,
+ *   target:     number,
+ *   current:    number,
+ *   remaining:  number,
+ *   pctDone:    number,   // 0..100
+ *   isRevenue:  boolean,
+ * }
+ */
+export function computeMilestone(lifetime) {
+  if (!lifetime) return null
+
+  let best = null
+  for (const metric of ['doors', 'bookings', 'revenue']) {
+    const current = Number(lifetime[metric] || 0)
+    if (current <= 0) continue
+    const target = nextTier(MILESTONE_TIERS[metric], current)
+    if (target == null) continue  // already past the top tier
+    const ratio = current / target
+    if (ratio < 0.8) continue     // not close enough to be motivating
+    if (!best || ratio > best.ratio) {
+      best = { metric, current, target, ratio }
+    }
+  }
+  if (!best) return null
+
+  const meta = MILESTONE_META[best.metric]
+  return {
+    metric:    best.metric,
+    noun:      meta.noun,
+    target:    best.target,
+    current:   best.current,
+    remaining: Math.max(0, best.target - best.current),
+    pctDone:   Math.round(best.ratio * 100),
+    isRevenue: meta.isRevenue,
+  }
+}
+
 // ── Misc helpers ─────────────────────────────────────────────────────────────
 
 /** Render "yyyy-Www" → "the week of Apr 7" for natural copy. */

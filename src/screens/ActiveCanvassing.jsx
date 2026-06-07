@@ -7,7 +7,6 @@ import { gpsTracker } from '../lib/gps.js'
 import { endSession, updateSessionStats, getRepTerritories, getDoNotKnockList, upsertRepLocation, clearRepLocation, fireWebhookEvent, getOrgRecentInteractions, getRepSessions, getMyCommissionConfig, getMyOrganization } from '../lib/supabase.js'
 import { isCommissionEnabled } from '../lib/tier.js'
 import { acquireWakeLock, releaseWakeLock, isWakeLockSupported } from '../lib/wakeLock.js'
-import { usePrefs } from '../lib/prefs.js'
 import { dnkZones, pointInAnyZone, loadDnkZones } from '../lib/dnk.js'
 import { bucketIntoCells, filterByWindow, HEATMAP_COLORS } from '../lib/heatmap.js'
 import {
@@ -75,7 +74,6 @@ export default function ActiveCanvassing() {
   const timerRef                    = useRef(null)
   const locationBroadcastRef        = useRef(null)
   const currentPosRef               = useRef(null)
-  const prefs                       = usePrefs()
 
   // Inactivity auto-end state. See IDLE_WARN_MS / IDLE_STOP_MS above.
   // lastActivityRef holds the last time a gps point or interaction landed;
@@ -442,18 +440,16 @@ export default function ActiveCanvassing() {
   }, [knockToast])
 
   // Auto-dismiss the "Log this door" pill after PENDING_PILL_TIMEOUT_MS.
-  // Only active when auto-open is off — in auto-open mode the modal itself
-  // handles dismissal. The long-stop (45 s) auto-prompt always honors the
-  // auto-open pref too, so we don't auto-bump the modal in manual mode.
+  // The pill is the standard path for a detected knock — the rep taps it to
+  // open the modal, or it clears itself after the timeout if untouched.
   useEffect(() => {
-    if (prefs.autoOpenInteractionModal) return
     if (!pendingKnock) return
     if (tappedKnock) return   // rep already engaged — don't auto-dismiss
     const t = setTimeout(() => {
       dispatch({ type: 'CLEAR_PENDING_KNOCK' })
     }, PENDING_PILL_TIMEOUT_MS)
     return () => clearTimeout(t)
-  }, [prefs.autoOpenInteractionModal, pendingKnock, tappedKnock, dispatch])
+  }, [pendingKnock, tappedKnock, dispatch])
 
   return (
     <div className="flex flex-col bg-gray-100 overflow-hidden" style={{ height: '100dvh' }}>
@@ -626,27 +622,15 @@ export default function ActiveCanvassing() {
       </div>
 
       {/*
-        Door-knock pending UX. Two paths based on the auto-open pref:
-        • ON  → open the modal automatically (legacy behavior).
-        • OFF → show a dismissible "Log this door" pill at the top of the
-                map; rep taps to open the modal. Pill auto-dismisses after
-                60 s. The door has already been counted by REGISTER_KNOCK
-                in either path, so saving the interaction never double-counts.
+        Door-knock pending UX. When a knock is detected we show a dismissible
+        "Log this door" pill at the top of the map; the rep taps it to open the
+        modal. The pill auto-dismisses after 60 s. The door has already been
+        counted by REGISTER_KNOCK, so saving the interaction never
+        double-counts. Tapping the pill avoids interrupting the rep — and
+        because the modal (which loads Google Maps detail) only opens on an
+        explicit tap, it keeps Google Maps API calls down too.
       */}
-      {pendingKnock && prefs.autoOpenInteractionModal && (
-        <InteractionModal
-          knock={pendingKnock}
-          sessionId={state.session?.id}
-          repId={user?.id}
-          onClose={() => dispatch({ type: 'CLEAR_PENDING_KNOCK' })}
-          onSave={(interaction) => {
-            dispatch({ type: 'LOG_INTERACTION', interaction, countDoor: false })
-          }}
-          isAuto
-        />
-      )}
-
-      {pendingKnock && !prefs.autoOpenInteractionModal && !tappedKnock && (
+      {pendingKnock && !tappedKnock && (
         <PendingKnockPill
           knock={pendingKnock}
           onOpen={() => setTappedKnock(pendingKnock)}

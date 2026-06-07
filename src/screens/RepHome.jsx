@@ -22,13 +22,13 @@ import { dnkZones, pointInAnyZone, loadDnkZones } from '../lib/dnk.js'
 import {
   computePeriodStats, computeConversion,
   computeXP, computeLevel, calcCommission, describeCommission,
-  calcBasePay, calcTotalPay, getHourlyRate,
   computeBestHour,
 } from '../lib/repStats.js'
 import { isCommissionEnabled } from '../lib/tier.js'
 import {
   computeRankMovement, computeDrySpell, computePersonalBestCloseRate,
   computeCloseRateDiagnostic, computeLevelUpProximity, computeTeamPulse,
+  computeGoalPace, computeRivalChase, computeMilestone,
 } from '../lib/callouts.js'
 import RepCallouts from '../components/RepCallouts.jsx'
 import ChatLauncher from '../components/ChatLauncher.jsx'
@@ -331,12 +331,9 @@ export default function RepHome() {
   const lifetimeXP  = computeXP(periods.lifetime)
   const levelInfo   = computeLevel(lifetimeXP)
   const commission  = calcCommission(stats, commissionCfg)
-  // Commission tracking is a Pro opt-in add-on. Only surface pay to the rep
+  // Commission tracking is a manager opt-in. Only surface pay to the rep
   // when the org has it enabled.
   const commissionOn = isCommissionEnabled(org)
-  const basePay      = calcBasePay(stats, commissionCfg)
-  const totalPay     = calcTotalPay(stats, commissionCfg)
-  const hourlyRate   = getHourlyRate(commissionCfg)
   const conversion  = computeConversion(stats)
 
   // Callout payloads — each helper returns null when the underlying data
@@ -350,11 +347,19 @@ export default function RepHome() {
   const assignedInboxCount = (territoryInbox || []).filter((t) => t.assigned_to_me).length
 
   const rankMovement   = computeRankMovement(boardThisWeek, boardLastWeek, user.id)
+  const rivalChase     = computeRivalChase(boardThisWeek, user.id)
   const drySpell       = computeDrySpell(allSessions)
   const personalBest   = computePersonalBestCloseRate(allSessions)
   const closeDiag      = computeCloseRateDiagnostic(periods)
   const levelProximity = computeLevelUpProximity(levelInfo)
   const teamPulse      = computeTeamPulse(boardToday, user.id)
+  const goalPace       = computeGoalPace({
+    target:    goalTarget,
+    current:   goalCurrent,
+    isRevenue: isRevenueGoal,
+    countNoun,
+  })
+  const milestone      = computeMilestone(periods.lifetime)
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col pb-10">
@@ -466,9 +471,12 @@ export default function RepHome() {
             so the stack stays relevant without ever showing empty stubs. */}
         <RepCallouts
           bestHour={bestHour}
+          goalPace={goalPace}
           rankMovement={rankMovement}
-          drySpell={drySpell}
+          rivalChase={rivalChase}
           personalBest={personalBest}
+          milestone={milestone}
+          drySpell={drySpell}
           closeDiag={closeDiag}
           levelProximity={levelProximity}
           teamPulse={teamPulse}
@@ -571,10 +579,6 @@ export default function RepHome() {
                   <CommissionCard
                     amount={commission}
                     config={commissionCfg}
-                    basePay={basePay}
-                    totalPay={totalPay}
-                    hourlyRate={hourlyRate}
-                    hours={stats.hours}
                   />
                 )}
               </div>
@@ -796,12 +800,8 @@ export function BigStatCard({ icon, label, value, accent = 'blue' }) {
   )
 }
 
-export function CommissionCard({ amount, config, basePay = 0, totalPay = null, hourlyRate = 0, hours = 0 }) {
+export function CommissionCard({ amount, config }) {
   const hasConfig = !!config && (config.type !== 'flat_pct' || Number(config.value) > 0)
-  const hasHourly = Number(hourlyRate) > 0
-  // When an hourly base is set, the headline number is total pay and we
-  // break out commission + base underneath. Otherwise it's commission-only.
-  const headline = hasHourly && totalPay != null ? totalPay : amount
   const fmt = (n) => `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
   return (
     <div
@@ -813,22 +813,15 @@ export function CommissionCard({ amount, config, basePay = 0, totalPay = null, h
           <DollarSign className="w-4 h-4" />
         </div>
         <p className="text-[11px] uppercase tracking-wide font-semibold text-green-50">
-          {hasHourly ? 'My Total Pay' : 'My Commission'}
+          My Commission
         </p>
       </div>
       <p className="text-2xl font-extrabold leading-tight relative z-10">
-        {fmt(headline)}
+        {fmt(amount)}
       </p>
-      {hasHourly ? (
-        <div className="mt-1.5 relative z-10 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-green-50">
-          <span>Commission {fmt(amount)}</span>
-          <span>Base {fmt(basePay)} · ${Number(hourlyRate)}/hr × {Number(hours || 0).toFixed(1)}h</span>
-        </div>
-      ) : (
-        <p className="text-[10px] text-green-50 mt-0.5 relative z-10 truncate">
-          {hasConfig ? describeCommission(config) : 'Manager has not set a rate yet'}
-        </p>
-      )}
+      <p className="text-[10px] text-green-50 mt-0.5 relative z-10 truncate">
+        {hasConfig ? describeCommission(config) : 'Manager has not set a rate yet'}
+      </p>
       <Trophy className="absolute -bottom-3 -right-2 w-16 h-16 text-white/10" />
     </div>
   )

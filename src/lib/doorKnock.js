@@ -17,7 +17,7 @@
  *   60–90°. If we see a material heading turn in the 6 s before a stop,
  *   we fire at MIN_STOP_SECS_FAST (4 s). Without a turn — which is the
  *   common "pausing at a street corner to check phone" case — we
- *   require a longer MIN_STOP_SECS_SLOW (8 s) before firing.
+ *   require a longer MIN_STOP_SECS_SLOW (5 s) before firing.
  * • **Motion corroboration.** An external `motionClassifier` can tell
  *   us "the rep is in a vehicle right now". When it does, we suppress
  *   both the short-stop knock and the 45 s long-stop prompt, which
@@ -33,7 +33,7 @@
  * ─────────────────
  *   – Speed gate (< 0.6 m/s) or sliding-window fallback (<3 m/5 s)
  *   – Tight anchor radius (4 m)
- *   – Post-knock lockout (rep must move > 12 m to fire again)
+ *   – Post-knock lockout (rep must move > 8 m to fire again)
  *   – The 45 s auto-prompt for when the rep is in conversation
  */
 
@@ -44,11 +44,11 @@ import { wasAddressRecentlyVisited } from './supabase.js'
 // ── Thresholds ──────────────────────────────────────────────────
 const STOP_RADIUS_M        = 4      // anchor drift tolerance once stopped
 const MIN_STOP_SECS_FAST   = 4      // fires when corroborated by a heading turn
-const MIN_STOP_SECS_SLOW   = 8      // fires on a straight-line stop (no turn)
+const MIN_STOP_SECS_SLOW   = 5      // fires on a straight-line stop (no turn)
 const STOP_SPEED_MPS       = 0.6    // below walking pace (~1.4 m/s)
 const WINDOW_MS            = 5000   // sliding window for fallback speed test
 const WINDOW_MAX_DIST_M    = 3      // total path length in window → "stopped"
-const POST_KNOCK_MOVE_M    = 12     // must move this far before firing again
+const POST_KNOCK_MOVE_M    = 8      // must move this far before firing again
 const AUTO_PROMPT_SECS     = 45     // long-stop auto-prompt (handled downstream)
 
 // Heading-turn detection

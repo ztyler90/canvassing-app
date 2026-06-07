@@ -83,29 +83,6 @@ export function describeCommission(config) {
   }
 }
 
-/** Base hourly rate stored on the commission config (0 when unset). */
-export function getHourlyRate(config) {
-  return Number(config?.base_hourly_rate) || 0
-}
-
-/**
- * Base pay = hourly rate × hours canvassed in the period. Returns 0 when no
- * hourly rate is configured.
- */
-export function calcBasePay(stats, config) {
-  if (!stats) return 0
-  return getHourlyRate(config) * (Number(stats.hours) || 0)
-}
-
-/**
- * Total pay = commission + base (hourly) pay. This is what the rep actually
- * takes home for the period when the Pro commission add-on includes an
- * hourly rate.
- */
-export function calcTotalPay(stats, config) {
-  return calcCommission(stats, config) + calcBasePay(stats, config)
-}
-
 // ─── Period filtering + totals ────────────────────────────────────────────────
 
 const DAY_MS = 86_400_000
@@ -135,7 +112,7 @@ export function computePeriodStats(sessions) {
     const rawBookings  = s.bookings  || 0
     const rawEstimates = s.estimates || 0
     const estimates    = Math.max(rawEstimates, rawBookings)
-    // Session duration in hours — drives "total pay" (commission + hourly).
+    // Session duration in hours — feeds doors/hour and revenue/hour stats.
     const sessHours = (s.started_at && s.ended_at)
       ? Math.max(0, (new Date(s.ended_at) - new Date(s.started_at)) / 3600000)
       : 0

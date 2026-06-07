@@ -29,7 +29,6 @@ import {
 import {
   computePeriodStats, computeConversion,
   computeXP, computeLevel, calcCommission,
-  calcBasePay, calcTotalPay, getHourlyRate,
 } from '../lib/repStats.js'
 import { isCommissionEnabled } from '../lib/tier.js'
 import {
@@ -148,9 +147,6 @@ export default function RepDetail() {
   const levelInfo  = computeLevel(lifetimeXP)
   const commission = calcCommission(stats, rep?.commission_config)
   const commissionOn = isCommissionEnabled(org)
-  const basePay    = calcBasePay(stats, rep?.commission_config)
-  const totalPay   = calcTotalPay(stats, rep?.commission_config)
-  const hourlyRate = getHourlyRate(rep?.commission_config)
   const conversion = computeConversion(stats)
 
   if (loading) return (
@@ -279,10 +275,6 @@ export default function RepDetail() {
               <CommissionCard
                 amount={commission}
                 config={rep?.commission_config}
-                basePay={basePay}
-                totalPay={totalPay}
-                hourlyRate={hourlyRate}
-                hours={stats.hours}
               />
             )}
           </div>

@@ -3,32 +3,27 @@
  *
  * Stored in localStorage (device-local, not synced across devices). This
  * keeps prefs instant to read/write with no Supabase round-trip, which
- * matters because some of these are checked on every GPS tick.
+ * matters because some of these are checked on every render.
  *
  * Schema version in the key lets us migrate later without collisions.
+ *
+ * Home callouts used to be individually toggled on/off from Profile. That
+ * surface was removed for basic reps: instead, each callout card carries a
+ * dismiss "✕" and the rep closes the ones they don't want. Dismissals are
+ * remembered here so a closed card stays closed across reloads (until the
+ * rep resets, or — for ephemeral cards — until that specific instance
+ * changes; see how RepCallouts builds dismiss keys).
  */
 import { useEffect, useState } from 'react'
 
-const PREFS_KEY = 'knockiq:rep-prefs-v1'
+// Bumped v1 → v2 when the callout model changed from per-card toggles to
+// per-card dismissals. Old v1 toggle blobs are simply ignored.
+const PREFS_KEY = 'knockiq:rep-prefs-v2'
 
 const DEFAULTS = {
-  // When true (default), detecting a door knock auto-opens the
-  // InteractionModal. When false, a non-modal "Log this door" pill
-  // appears instead — the rep taps it to open the modal.
-  autoOpenInteractionModal: true,
-
-  // Home-screen callouts. Each one can be individually toggled by the
-  // rep in Profile → Home Callouts. Defaults ON — a rep has to explicitly
-  // opt out of a particular nudge. Every card also self-hides when its
-  // underlying data can't credibly fill it, so these toggles only matter
-  // for reps who have enough data to see them and explicitly don't want to.
-  calloutHotHour:              true,
-  calloutRankMovement:         true,
-  calloutDrySpellRecovery:     true,
-  calloutPersonalBestClose:    true,
-  calloutCloseRateDiagnostic:  true,
-  calloutLevelUpProximity:     true,
-  calloutTeamPulse:            true,
+  // Map of callout dismiss-key → true. A key present here means the rep has
+  // closed that callout and it should stay hidden. Absent/false = visible.
+  dismissedCallouts: {},
 }
 
 // ── Internals ────────────────────────────────────────────────────
@@ -41,7 +36,13 @@ function read() {
     const raw = window.localStorage.getItem(PREFS_KEY)
     if (!raw) return { ...DEFAULTS }
     const parsed = JSON.parse(raw)
-    return { ...DEFAULTS, ...(parsed || {}) }
+    return {
+      ...DEFAULTS,
+      ...(parsed || {}),
+      // Defensive: ensure the map is always an object even if a stale/blank
+      // value sneaks in.
+      dismissedCallouts: { ...(parsed?.dismissedCallouts || {}) },
+    }
   } catch {
     return { ...DEFAULTS }
   }
@@ -67,9 +68,30 @@ export function getPrefs() {
   return read()
 }
 
-/** Update a single pref and return the new full prefs object. */
-export function setPref(key, value) {
-  const next = { ...read(), [key]: value }
+/** True if the rep has dismissed the callout with this key. */
+export function isCalloutDismissed(key) {
+  if (!key) return false
+  return read().dismissedCallouts[key] === true
+}
+
+/** Mark a callout dismissed and return the new full prefs object. */
+export function dismissCallout(key) {
+  if (!key) return read()
+  const cur = read()
+  const next = {
+    ...cur,
+    dismissedCallouts: { ...cur.dismissedCallouts, [key]: true },
+  }
+  write(next)
+  return next
+}
+
+/**
+ * Clear all dismissed callouts — brings every (still-relevant) card back.
+ * Handy for a "reset" affordance later if we want one.
+ */
+export function resetDismissedCallouts() {
+  const next = { ...read(), dismissedCallouts: {} }
   write(next)
   return next
 }

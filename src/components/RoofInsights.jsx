@@ -62,22 +62,35 @@ export default function RoofInsights({ lat, lng, isPro = false, enabled = false,
   const [data, setData]   = useState(null)
   const [showUpsell, setShowUpsell] = useState(false)
 
-  const hasCoords = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))
+  const latNum = Number(lat)
+  const lngNum = Number(lng)
+  const hasCoords = Number.isFinite(latNum) && Number.isFinite(lngNum)
   // Only Pro orgs that have switched the add-on ON ever hit the Solar API.
   const live = isPro && enabled
 
+  // During an active session `knock` carries the live GPS fix, which drifts by
+  // a few cm on every watchPosition tick. Keying the fetch off the raw lat/lng
+  // made the panel re-fetch (and blink loading→ready) constantly. Round to
+  // ~5dp (≈1m — well inside a single roof) so only a real move to a new
+  // address retriggers the fetch.
+  const coordKey = hasCoords ? `${latNum.toFixed(5)},${lngNum.toFixed(5)}` : null
+
   useEffect(() => {
     let alive = true
-    if (!live || !hasCoords) return
-    setState('loading'); setData(null)
-    getRoofInsights(lat, lng).then((res) => {
+    if (!live || !coordKey) return
+    const [klat, klng] = coordKey.split(',').map(Number)
+    // Only drop to the loading state on the first load. On a genuine refetch
+    // (rep moved to a new address) keep the current chips on screen until the
+    // new data lands, so the panel never collapses and shifts the fields below.
+    setState((s) => (s === 'ready' ? s : 'loading'))
+    getRoofInsights(klat, klng).then((res) => {
       if (!alive) return
-      if (!res)            { setState('error'); return }
-      if (!res.found || !res.insights) { setState('none'); return }
+      if (!res)            { setState((s) => (s === 'ready' ? s : 'error')); return }
+      if (!res.found || !res.insights) { setState((s) => (s === 'ready' ? s : 'none')); return }
       setData(res.insights); setState('ready')
     })
     return () => { alive = false }
-  }, [lat, lng, live, hasCoords])
+  }, [coordKey, live])
 
   if (!hasCoords) return null
 
@@ -136,6 +149,9 @@ export default function RoofInsights({ lat, lng, isPro = false, enabled = false,
     <div className={`rounded-xl border border-gray-100 bg-white p-3 ${className}`}>
       {header}
 
+      {/* Reserve the chip-row height so loading/none/error states don't change
+          the panel height and jitter the fields below it. */}
+      <div className="min-h-[58px]">
       {state === 'loading' && (
         <div className="flex items-center gap-2 text-xs text-gray-400 py-1">
           <Loader2 className="w-3.5 h-3.5 animate-spin" /> Reading the roof…
@@ -174,6 +190,7 @@ export default function RoofInsights({ lat, lng, isPro = false, enabled = false,
           />
         </div>
       )}
+      </div>
     </div>
   )
 }

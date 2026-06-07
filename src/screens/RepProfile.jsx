@@ -9,13 +9,12 @@
  */
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, User, Mail, Lock, Camera, Bell, Sparkles } from 'lucide-react'
+import { ChevronLeft, User, Mail, Lock, Camera } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import {
   updateUserProfile, sendPasswordReset, uploadAvatar,
 } from '../lib/supabase.js'
 import { StoragePhoto } from '../lib/photos.jsx'
-import { usePrefs, setPref } from '../lib/prefs.js'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
@@ -33,7 +32,6 @@ export default function RepProfile() {
   const [resetting, setResetting]   = useState(false)
   const [toast, setToast]           = useState(null)
   const fileInputRef = useRef(null)
-  const prefs = usePrefs()
 
   const nameChanged  = fullName.trim() !== (user?.full_name || '')
   const emailChanged = email.trim()    !== (user?.email     || '')
@@ -287,70 +285,6 @@ export default function RepProfile() {
           </button>
         </section>
 
-        {/* Preferences — device-local, stored in localStorage */}
-        <section>
-          <h2 className="text-gray-600 font-semibold text-sm mb-3 uppercase tracking-wide">Preferences</h2>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 py-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                <Bell className="w-4 h-4 text-blue-600" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <label htmlFor="pref-auto-open" className="flex items-center justify-between gap-3 cursor-pointer">
-                  <span className="block">
-                    <span className="block text-gray-800 font-semibold text-sm">
-                      Auto-open Log Interaction
-                    </span>
-                    <span className="block text-gray-500 text-xs mt-0.5 leading-snug">
-                      Pop the interaction screen automatically when a door knock is detected.
-                      Turn off to get a "Log this door" pill instead — tap it to open.
-                    </span>
-                  </span>
-                  <Toggle
-                    id="pref-auto-open"
-                    checked={prefs.autoOpenInteractionModal}
-                    onChange={(v) => setPref('autoOpenInteractionModal', v)}
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Home-screen callouts — toggle any individual nudge on or off. */}
-        <section>
-          <h2 className="text-gray-600 font-semibold text-sm mb-3 uppercase tracking-wide">Home Callouts</h2>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-4 pt-4 pb-2 flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
-                <Sparkles className="w-4 h-4 text-purple-600" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-gray-800 font-semibold text-sm">Personalized nudges</p>
-                <p className="text-gray-500 text-xs mt-0.5 leading-snug">
-                  Toggle the prompts you see between Start Canvassing and your goal card.
-                  Each one only shows when there's enough data to say something useful.
-                </p>
-              </div>
-            </div>
-            <div className="border-t mt-3 divide-y divide-gray-50">
-              {CALLOUT_TOGGLES.map((row) => (
-                <div key={row.key} className="px-4 py-3 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-gray-800 font-semibold text-sm">{row.label}</p>
-                    <p className="text-gray-500 text-xs mt-0.5 leading-snug">{row.description}</p>
-                  </div>
-                  <Toggle
-                    id={`pref-${row.key}`}
-                    checked={prefs[row.key] !== false}
-                    onChange={(v) => setPref(row.key, v)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
         {/* Password reset */}
         <section>
           <h2 className="text-gray-600 font-semibold text-sm mb-3 uppercase tracking-wide">Security</h2>
@@ -390,42 +324,3 @@ export default function RepProfile() {
   )
 }
 
-// Source of truth for the Home Callouts toggle section. Keeping this
-// in one array keeps label copy + pref keys colocated, and any future
-// addition is a one-line change. Keys match DEFAULTS in lib/prefs.js.
-const CALLOUT_TOGGLES = [
-  { key: 'calloutHotHour',             label: 'Hot hour',             description: 'Your best hour of the day for closes. Shows late afternoon (4–6pm).' },
-  { key: 'calloutRankMovement',        label: 'Rank movement',        description: 'Weekly leaderboard moves — up or down — vs. last week.' },
-  { key: 'calloutDrySpellRecovery',    label: 'Dry-spell recovery',   description: 'When a slump shows up, reminds you how you\'ve bounced back before.' },
-  { key: 'calloutPersonalBestClose',   label: 'Personal best close',  description: 'Your best-ever weekly close rate, and how this week stacks up.' },
-  { key: 'calloutCloseRateDiagnostic', label: 'Close-rate check',     description: 'A heads-up if your week\'s close rate dips well below your 30-day average.' },
-  { key: 'calloutLevelUpProximity',    label: 'Level-up within reach',description: 'Fires when you\'re one good session away from the next level.' },
-  { key: 'calloutTeamPulse',           label: 'Team pulse',           description: 'A snapshot of your team\'s activity and your share of it today.' },
-]
-
-/**
- * Minimal iOS-style toggle. Controlled component — checked + onChange(bool).
- * Keeps the whole Preferences section self-contained (no dep on shadcn).
- */
-function Toggle({ id, checked, onChange }) {
-  return (
-    <button
-      type="button"
-      id={id}
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={
-        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 ' +
-        (checked ? 'bg-blue-600' : 'bg-gray-300')
-      }
-    >
-      <span
-        className={
-          'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ' +
-          (checked ? 'translate-x-5' : 'translate-x-0.5')
-        }
-      />
-    </button>
-  )
-}

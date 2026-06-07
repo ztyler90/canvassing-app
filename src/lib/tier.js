@@ -4,8 +4,9 @@
  * marketed on the website but not yet configured in-app, so there is no
  * 'enterprise' tier value here on purpose.
  *
- * The org row carries `tier` ('standard' | 'pro') and, for the Pro
- * commission add-on, `commission_enabled` (boolean).
+ * The org row carries `tier` ('standard' | 'pro'). Commission tracking is a
+ * standard feature controlled by the per-org `commission_enabled` (boolean)
+ * toggle — it is not tier-gated.
  */
 
 // Standard tier caps territories; Pro is effectively unlimited (51+).
@@ -17,11 +18,12 @@ export function isProTier(org, user = null) {
 }
 
 /**
- * Commission tracking is a Pro-only, opt-in add-on. It only counts as "on"
- * when the org is Pro AND the manager has explicitly enabled the add-on.
+ * Commission tracking is part of the Standard package — available on every
+ * tier. It's a manager opt-in: it only counts as "on" when the manager has
+ * enabled the toggle for the org (defaults on for new signups).
  */
-export function isCommissionEnabled(org, user = null) {
-  return isProTier(org, user) && !!org?.commission_enabled
+export function isCommissionEnabled(org /* , user */) {
+  return !!org?.commission_enabled
 }
 
 /**

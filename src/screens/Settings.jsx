@@ -12,7 +12,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2, Workflow, HelpCircle, PauseCircle, AlertTriangle, Calendar, ShieldAlert, Sun } from 'lucide-react'
 import { getOrgWebhookConfig, saveOrgWebhookConfig, DEFAULT_WEBHOOK_EVENTS, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled, setOrgRoofInsightsEnabled, pauseOrganization, cancelOrganization, deleteOrganization, signOut, createPortalSession, syncSeats } from '../lib/supabase.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
-import { describeCommission, DEFAULT_COMMISSION_CONFIG, getHourlyRate } from '../lib/repStats.js'
+import { describeCommission, DEFAULT_COMMISSION_CONFIG } from '../lib/repStats.js'
 import { isProTier, isCommissionEnabled, isRoofInsightsEnabled } from '../lib/tier.js'
 import { ProBadge, ProUpgradeModal } from '../components/ProGate.jsx'
 
@@ -58,7 +58,6 @@ export default function Settings() {
   const [resendingRepId, setResendingRepId] = useState(null)   // rep id currently being re-invited
   const [commissionRepId, setCommissionRepId] = useState(null) // rep whose commission is being edited
   const [savingCommissionToggle, setSavingCommissionToggle] = useState(false)
-  const [showCommissionUpsell, setShowCommissionUpsell] = useState(false)
   const [savingRoofToggle, setSavingRoofToggle] = useState(false)
   const [showRoofUpsell, setShowRoofUpsell] = useState(false)
   // Credentials panel — shown after a successful temp-password create so
@@ -573,11 +572,10 @@ export default function Settings() {
   const willDowngrade  = inTrial && postTrialPlan === 'standard'
   // Flat off-season pause "keep-warm" fee (dollars). Defaults to $15.
   const keepWarm    = org?.pause_fee_cents != null ? (org.pause_fee_cents / 100) : 15
-  // Commission tracking is a Pro-only, opt-in add-on.
+  // Commission tracking is part of Standard — a manager opt-in toggle.
   const commissionOn = isCommissionEnabled(org, user)
 
   async function handleToggleCommission() {
-    if (!isPro) { setShowCommissionUpsell(true); return }
     if (!org?.id) return
     setSavingCommissionToggle(true)
     const next = !org.commission_enabled
@@ -618,13 +616,6 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <ProUpgradeModal
-        open={showCommissionUpsell}
-        onClose={() => setShowCommissionUpsell(false)}
-        feature="Commission tracking + base pay"
-        blurb="Pay your reps right and let them see it. Upgrade to Pro to turn on commission tracking as an add-on."
-        perks={['Per-rep commission (flat %, per-booking, or tiered)', 'Base hourly rate → reps see total pay', 'Export, expanded pipeline & 51+ territories']}
-      />
       <ProUpgradeModal
         open={showRoofUpsell}
         onClose={() => setShowRoofUpsell(false)}
@@ -1047,8 +1038,8 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* ── Commission tracking add-on (Pro) ──────────────────────── */}
-          <div className={`rounded-2xl p-4 shadow-sm border mb-2 ${commissionOn ? 'border-gray-100 bg-white' : 'border-gray-100 bg-white' + (isPro ? '' : ' opacity-90')}`}>
+          {/* ── Commission tracking (Standard) ────────────────────────── */}
+          <div className="rounded-2xl p-4 shadow-sm border border-gray-100 bg-white mb-2">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
@@ -1058,37 +1049,26 @@ export default function Settings() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-gray-800 text-sm">Commission tracking</p>
-                    {!isPro && <ProBadge />}
                     {commissionOn && (
                       <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
                         style={{ backgroundColor: '#ECFDF5', color: '#059669' }}>On</span>
                     )}
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                    Optional Pro add-on. Reps see their commission <span className="font-medium">and total pay</span> (commission + base hourly).
-                    Set each rep's rate &amp; hourly below.
+                    Reps see their commission on their dashboard. Set each rep's rate below.
                   </p>
                 </div>
               </div>
 
-              {isPro ? (
-                <button
-                  onClick={handleToggleCommission}
-                  disabled={savingCommissionToggle}
-                  role="switch"
-                  aria-checked={!!org?.commission_enabled}
-                  className="relative shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50"
-                  style={{ backgroundColor: org?.commission_enabled ? '#059669' : '#D1D5DB' }}>
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${org?.commission_enabled ? 'translate-x-5' : ''}`} />
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowCommissionUpsell(true)}
-                  className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl text-white"
-                  style={{ backgroundColor: BRAND_BLUE }}>
-                  Upgrade
-                </button>
-              )}
+              <button
+                onClick={handleToggleCommission}
+                disabled={savingCommissionToggle}
+                role="switch"
+                aria-checked={!!org?.commission_enabled}
+                className="relative shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50"
+                style={{ backgroundColor: org?.commission_enabled ? '#059669' : '#D1D5DB' }}>
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${org?.commission_enabled ? 'translate-x-5' : ''}`} />
+              </button>
             </div>
           </div>
 
@@ -1119,7 +1099,6 @@ export default function Settings() {
                           <p className="text-[11px] font-medium mt-0.5" style={{ color: rep.commission_config ? BRAND_BLUE : '#9CA3AF' }}>
                             <DollarSign className="inline w-3 h-3 -mt-0.5" />
                             {rep.commission_config ? describeCommission(rep.commission_config) : 'No commission set'}
-                            {getHourlyRate(rep.commission_config) > 0 && ` · $${getHourlyRate(rep.commission_config)}/hr base`}
                           </p>
                         )}
                       </div>
@@ -1606,7 +1585,7 @@ export default function Settings() {
                 </div>
               </div>
               <ul className="space-y-1.5 mt-3">
-                {['Manager dashboard & live leaderboard', 'Automatic door tracking', 'Pipeline & lead management', 'Territory management', 'Full game mechanics & cards', 'Up to 50 territories'].map(f => (
+                {['Manager dashboard & live leaderboard', 'Automatic door tracking', 'Pipeline & lead management', 'Territory management', 'Commission tracking', 'Full game mechanics & cards', 'Up to 50 territories'].map(f => (
                   <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
                     <Check className="w-4 h-4 flex-shrink-0" style={{ color: BRAND_LIME }} />
                     {f}
@@ -1641,7 +1620,7 @@ export default function Settings() {
                 </div>
               </div>
               <ul className="space-y-1.5 mt-3">
-                {['Everything in Standard', 'Expanded Pipeline View', '51+ territories', 'Commission tracking + base pay (add-on)', 'Export to CSV & Google Sheets', 'Zapier integration (6,000+ apps)', 'Phone support'].map(f => (
+                {['Everything in Standard', 'Expanded Pipeline View', '51+ territories', 'Export to CSV & Google Sheets', 'Zapier integration (6,000+ apps)', 'Phone support'].map(f => (
                   <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
                     <Check className="w-4 h-4 flex-shrink-0" style={{ color: BRAND_LIME }} />
                     {f}
@@ -2271,7 +2250,6 @@ function CommissionEditor({ initialConfig, onSave, onCancel }) {
       ? seed.tiers
       : [{ upto: 10000, pct: 10 }, { upto: null, pct: 15 }]
   )
-  const [hourly, setHourly]       = useState(seed.base_hourly_rate ?? 0)
   const [saving, setSaving]       = useState(false)
 
   function updateTier(i, patch) {
@@ -2307,8 +2285,6 @@ function CommissionEditor({ initialConfig, onSave, onCancel }) {
         .filter(t => t.pct > 0 || t.upto != null)
       config = { type, tiers: cleaned }
     }
-    // Base hourly rate is optional and stored alongside any commission type.
-    config.base_hourly_rate = Number(hourly) || 0
     await onSave(config)
     setSaving(false)
   }
@@ -2441,28 +2417,6 @@ function CommissionEditor({ initialConfig, onSave, onCancel }) {
           </p>
         </div>
       )}
-
-      {/* Base hourly rate — drives "total pay" (commission + hourly) on the
-          rep's dashboard. Optional; leave at 0 for commission-only. */}
-      <div className="pt-2 border-t border-gray-200/70">
-        <label className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 block mb-1">Base Hourly Rate <span className="text-gray-400 normal-case font-medium">(optional)</span></label>
-        <div className="relative">
-          <span className="absolute left-3 top-2.5 text-gray-400 text-sm">$</span>
-          <input
-            type="number"
-            min="0" step="0.5"
-            value={hourly}
-            onChange={e => setHourly(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl pl-6 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
-          <span className="absolute right-3 top-2.5 text-gray-400 text-sm">/hr</span>
-        </div>
-        <p className="text-[11px] text-gray-500 mt-1">
-          {Number(hourly) > 0
-            ? <>Rep sees <span className="font-semibold" style={{ color: BRAND }}>total pay</span> = commission + ${Number(hourly)}/hr × hours canvassed.</>
-            : 'Set a rate so reps see total pay, not just commission. Leave at $0 for commission-only.'}
-        </p>
-      </div>
 
       {/* Actions */}
       <div className="flex gap-2 pt-1">
