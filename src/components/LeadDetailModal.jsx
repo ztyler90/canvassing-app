@@ -44,7 +44,9 @@ const LOST_REASONS = [
   { id: 'other',      label: 'Other' },
 ]
 
-// Stage display config — used for the timeline and the advance buttons.
+// Stage display config — used for the timeline and stage labels. This is
+// the full canonical order; the advance progression is derived from it per
+// org (see advanceOrder below) so it can drop stages that don't apply.
 const STAGE_ORDER = [
   { id: 'hot_lead',       label: 'Hot Lead'        },
   { id: 'appt_scheduled', label: 'Appt Scheduled'  },
@@ -52,7 +54,18 @@ const STAGE_ORDER = [
   { id: 'booked',         label: 'Booked'          },
 ]
 
-export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false, roofEnabled = false }) {
+// Quick-quote orgs price at the door and never schedule an appointment, so
+// the "Appt Scheduled" stage is skipped entirely — a Hot Lead advances
+// straight to "Estimate Sent". Mirrors visibleStageColumns() in PipelineTab
+// so the kanban columns and this modal's advance button stay in sync.
+function advanceOrderFor(salesCycle) {
+  if (salesCycle === 'quick_quote') {
+    return STAGE_ORDER.filter((s) => s.id !== 'appt_scheduled')
+  }
+  return STAGE_ORDER
+}
+
+export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false, roofEnabled = false, salesCycle = 'mixed' }) {
   const [closers,      setClosers]      = useState([])
   const [saving,       setSaving]       = useState(false)
   const [showLost,     setShowLost]     = useState(false)
@@ -187,8 +200,18 @@ export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false
     onUpdate?.(data)
   }
 
-  const stageIdx     = STAGE_ORDER.findIndex((s) => s.id === lead.stage)
-  const nextStage    = STAGE_ORDER[stageIdx + 1]
+  // Advance progression is org-specific: quick-quote orgs skip the
+  // appt_scheduled rung, so a Hot Lead's next stage is Estimate Sent. We
+  // index into the filtered order — and fall back to STAGE_ORDER if the
+  // lead is somehow already sitting on a skipped stage (e.g. its org was
+  // switched to quick-quote after the appt was set) so "next" still moves
+  // forward instead of stalling.
+  const advanceOrder = advanceOrderFor(salesCycle)
+  const advIdx       = advanceOrder.findIndex((s) => s.id === lead.stage)
+  const nextStage    = advIdx === -1
+    ? advanceOrder.find((s) => STAGE_ORDER.findIndex((o) => o.id === s.id)
+        > STAGE_ORDER.findIndex((o) => o.id === lead.stage))
+    : advanceOrder[advIdx + 1]
   const setterName   = lead.setter?.full_name || lead.users?.full_name || '—'
   // Closer name comes from whichever side of the two-tier model is set
   // on this lead. The currentCloserKey drives the dropdown selection.

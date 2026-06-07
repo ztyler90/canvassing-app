@@ -342,6 +342,7 @@ export default function PipelineTab() {
           lead={openLead}
           isPro={isPro}
           roofEnabled={roofEnabled}
+          salesCycle={salesCycle}
           onClose={() => setOpenLead(null)}
           onUpdate={handleLeadUpdate}
         />
