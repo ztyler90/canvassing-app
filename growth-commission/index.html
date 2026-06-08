@@ -110,6 +110,38 @@
   <section id="dashView" class="hidden">
     <div class="cards" id="summaryCards"></div>
 
+    <!-- Growth-manager "your terms" panel: referral code + rev-share schedule.
+         Hidden for admins; gives a GM transparency even with 0 accounts. -->
+    <div class="panel hidden" id="gmTermsPanel">
+      <h2>Your revenue share</h2>
+      <div class="grid2" style="align-items:start">
+        <div>
+          <label>Your referral code</label>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:2px">
+            <span class="chip r20" id="gmCodeChip" style="font-size:14px;letter-spacing:.3px">—</span>
+            <button class="ghost sm" id="copyCodeBtn">Copy</button>
+          </div>
+          <p class="muted" style="font-size:12px;margin-top:8px">
+            When an account signs up with this code (or is assigned to you), it's credited to you and appears below.
+          </p>
+        </div>
+        <div>
+          <label>Your share, by account tenure</label>
+          <div class="legend" style="margin-top:4px">
+            <span><i class="dot" style="background:var(--green)"></i> Year 1 · 20%</span>
+            <span><i class="dot" style="background:var(--accent)"></i> Year 2 · 10%</span>
+            <span><i class="dot" style="background:var(--amber)"></i> Year 3 · 5%</span>
+            <span><i class="dot" style="background:var(--red)"></i> Year 4+ · 0%</span>
+          </div>
+          <p class="muted" style="font-size:12px;margin-top:8px">
+            You earn that month's billed subscription revenue × your rate for each account's tenure.
+            The clock starts the month an account becomes a paying subscription; trials count as $0.
+          </p>
+        </div>
+      </div>
+      <div id="gmCodeMsg"></div>
+    </div>
+
     <!-- Admin tools -->
     <div id="adminTools" class="hidden">
       <div class="panel">
@@ -232,6 +264,14 @@ function render(d){
   $('changePassPanel').classList.toggle('hidden', isAdmin);
   $('accountsTitle').textContent = isAdmin ? 'All recruited accounts' : 'My recruited accounts';
 
+  // Growth-manager "your terms" panel — show referral code + rev-share schedule.
+  $('gmTermsPanel').classList.toggle('hidden', isAdmin || !d.me);
+  if(!isAdmin && d.me){
+    const code = d.me.referral_code || '—';
+    $('gmCodeChip').textContent = code;
+    $('copyCodeBtn').classList.toggle('hidden', !d.me.referral_code);
+  }
+
   const accts = d.accounts||[];
   const thisMonth = accts.reduce((s,a)=> s + (a.org_status==='active'? Number(a.projected_commission||0):0), 0);
   const lifetime  = accts.reduce((s,a)=> s + Number(a.lifetime_commission||0), 0);
@@ -319,6 +359,14 @@ $('loginBtn').onclick = async ()=>{
 $('password').addEventListener('keydown',e=>{ if(e.key==='Enter') $('loginBtn').click(); });
 $('signOutBtn').onclick = async ()=>{ await sb.auth.signOut(); showLogin(); };
 $('refreshBtn').onclick = loadDashboard;
+
+$('copyCodeBtn').onclick = async ()=>{
+  const code = $('gmCodeChip').textContent.trim();
+  if(!code || code==='—') return;
+  try { await navigator.clipboard.writeText(code); note($('gmCodeMsg'),'Referral code copied.',true); }
+  catch(_){ note($('gmCodeMsg'),'Copy failed — your code is '+code,false); }
+  setTimeout(()=>{ $('gmCodeMsg').innerHTML=''; }, 2500);
+};
 
 $('snapshotBtn').onclick = async ()=>{
   $('snapshotBtn').disabled=true; $('snapshotBtn').textContent='Locking…';
