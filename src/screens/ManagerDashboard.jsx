@@ -10,6 +10,7 @@ import {
   addDoNotKnock, removeDoNotKnock,
   getActiveRepLocations, getLeaderboardData, getAllBookings,
   getMyOrganization, getOrgRegionFallback, getSessionGpsTrail,
+  getSessionInteractions,
 } from '../lib/supabase.js'
 import { computeConversion } from '../lib/repStats.js'
 import { isProTier, STANDARD_MAX_TERRITORIES, canCreateTerritory } from '../lib/tier.js'
@@ -1906,6 +1907,12 @@ function LiveTab({ allReps }) {
   // on the live map. Only one rep's trail shows at a time; tapping another rep
   // swaps it. Re-fetched on each poll (below) so it grows as the rep walks.
   const [focusTrail, setFocusTrail] = useState([])
+  // Live door markers + per-rep walking paths for EVERY active rep — so the
+  // manager's live map mirrors what each rep sees on their own canvassing
+  // screen (color-coded outcome dots + the GPS line trail), not just a bare
+  // "current position" pin. Refreshed on each poll so dots/paths grow live.
+  const [liveInteractions, setLiveInteractions] = useState([])
+  const [repTrails, setRepTrails] = useState([])
   // Phase 6: rep id the manager wants to DM. When set, ChatPanel mounts
   // open and points at that user. Null = chat panel closed.
   const [dmRepId, setDmRepId] = useState(null)
@@ -1978,6 +1985,43 @@ function LiveTab({ allReps }) {
       .catch(() => { /* keep last trail on a transient fetch error */ })
     return () => { alive = false }
   }, [focusedRepId, activeReps])
+
+  // Fetch every active rep's door interactions (the outcome dots) + GPS trail
+  // (their walking path) so the live map shows the same markings the rep sees.
+  // Re-runs on each 10s poll (activeReps changes) so dots and paths extend live
+  // as reps knock and walk. Each rep's path is colored to match its REP_COLORS
+  // slot so the manager can tell whose line is whose at a glance.
+  useEffect(() => {
+    const active = activeReps.filter((r) => r.session_id || r.session?.id)
+    if (active.length === 0) { setLiveInteractions([]); setRepTrails([]); return }
+    let alive = true
+    Promise.all(
+      active.map(async (rep) => {
+        const sid = rep.session_id || rep.session?.id
+        const [ints, trail] = await Promise.all([
+          getSessionInteractions(sid).catch(() => []),
+          getSessionGpsTrail(sid).catch(() => []),
+        ])
+        return { rep, ints: ints || [], trail: trail || [] }
+      })
+    )
+      .then((results) => {
+        if (!alive) return
+        const allInts = []
+        const trails = []
+        results.forEach(({ rep, ints, trail }) => {
+          const idx = activeReps.findIndex((r) => r.rep_id === rep.rep_id)
+          const color = REP_COLORS[(idx >= 0 ? idx : 0) % REP_COLORS.length]
+          ints.forEach((i) => { if (i.lat != null && i.lng != null) allInts.push(i) })
+          const pts = trail.map((p) => ({ lat: p.lat, lng: p.lng }))
+          if (pts.length >= 2) trails.push({ repId: rep.rep_id, color, points: pts })
+        })
+        setLiveInteractions(allInts)
+        setRepTrails(trails)
+      })
+      .catch(() => { /* keep last markers on a transient fetch error */ })
+    return () => { alive = false }
+  }, [activeReps])
 
   const activeIds  = new Set(activeReps.map((r) => r.rep_id))
   const inactiveReps = allReps.filter((r) => !activeIds.has(r.id))
@@ -2069,6 +2113,8 @@ function LiveTab({ allReps }) {
           <MapView
             ref={mapRef}
             repLocations={annotatedReps}
+            interactions={liveInteractions}
+            repTrails={repTrails}
             trail={focusTrail}
             onRepClick={focusRep}
             onViewportChange={handleViewportChange}

@@ -376,12 +376,13 @@ function elapsedLabel(startedAt) {
  *                                                parent can drive a "current view"
  *                                                summary panel.
  */
-const MapView = forwardRef(function MapView({ trail = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, onRepClick = null, autoFit = false, regionFallback = null, cluster = false, pinValueScale = false, onContextMenu = null, onPinContextMenu = null, onViewportChange = null, renderPins = true }, ref) {
+const MapView = forwardRef(function MapView({ trail = [], repTrails = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, onRepClick = null, autoFit = false, regionFallback = null, cluster = false, pinValueScale = false, onContextMenu = null, onPinContextMenu = null, onViewportChange = null, renderPins = true }, ref) {
   const containerRef       = useRef(null)
   const mapRef             = useRef(null)
   const trailGlowRef       = useRef(null)   // wide soft halo (uniform)
   const trailFlowRef       = useRef(null)   // thin dashed "marching ants" overlay
   const trailSegmentsRef   = useRef([])     // fading main line, one polyline per chunk
+  const repTrailLayersRef  = useRef([])     // per-rep walking paths (manager live view)
   const knockSeenRef       = useRef(null)   // # interactions already seen (ripple gate)
   const repStatsSeenRef    = useRef(null)   // per-rep {doors,bookings} seen (manager heartbeat)
   const markersRef         = useRef([])
@@ -637,6 +638,32 @@ const MapView = forwardRef(function MapView({ trail = [], interactions = [], cur
     // Keep the marching-ants overlay above the freshly-added chunks.
     if (trailFlowRef.current) trailFlowRef.current.bringToFront()
   }, [trail])
+
+  // Per-rep walking paths (manager live view). Unlike the single `trail` above
+  // — which gets the fancy fading/marching-ants treatment for one focused rep —
+  // this draws a simple neon-glow polyline per active rep, each in that rep's
+  // own color, so the manager sees every rep's path at once. Rebuilt on each
+  // poll (repTrails is refetched every 10s as reps walk).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    repTrailLayersRef.current.forEach((l) => l.remove())
+    repTrailLayersRef.current = []
+    for (const t of repTrails || []) {
+      const latlngs = capTrailPoints((t.points || []).map((p) => [p.lat, p.lng]))
+      if (latlngs.length < 2) continue
+      const seg = L.polyline(latlngs, {
+        color: t.color || '#3B82F6',
+        weight: 4,
+        opacity: 0.85,
+        lineCap: 'round',
+        lineJoin: 'round',
+        className: 'knockiq-trail',   // shared neon drop-shadow glow
+        interactive: false,
+      }).addTo(map)
+      repTrailLayersRef.current.push(seg)
+    }
+  }, [repTrails])
 
   // Knock ripple — when a new interaction appears, drop a one-shot expanding
   // ring at its location for instant "logged it" feedback. We gate on the
