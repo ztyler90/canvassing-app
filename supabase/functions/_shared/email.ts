@@ -22,6 +22,12 @@
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ''
 const RESEND_FROM    = Deno.env.get('RESEND_FROM')    || 'KnockIQ <onboarding@resend.dev>'
+// Default Reply-To for every transactional email. The sending domain
+// (send.getknockiq.com) is send-only — its MX points at SES's bounce
+// handler, not an inbox — so replies need to route to a real monitored
+// mailbox on the root domain. Set via the RESEND_REPLY_TO secret
+// (e.g. hello@getknockiq.com). A per-call replyTo still overrides this.
+const RESEND_REPLY_TO = Deno.env.get('RESEND_REPLY_TO') || ''
 
 // Brand tokens — single source of truth for the look of every email.
 export const BRAND = {
@@ -89,7 +95,7 @@ export async function sendEmail({
         subject,
         html,
         text,
-        ...(replyTo ? { reply_to: replyTo } : {}),
+        ...((replyTo || RESEND_REPLY_TO) ? { reply_to: replyTo || RESEND_REPLY_TO } : {}),
       }),
     })
     if (!res.ok) {

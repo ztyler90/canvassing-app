@@ -1,15 +1,13 @@
 # KnockIQ Terms of Service
 
-**Effective Date:** [INSERT]
-**Last Updated:** [INSERT]
-
-> **[ATTORNEY REVIEW: this Terms of Service is a starting-point draft. Every bracketed item requires confirmation or input. Before publishing, your counsel should verify enforceability of each clause in your governing-law state, confirm arbitration provider designation, and revise indemnification, limitation of liability, and warranty disclaimers to fit your insurance coverage and risk posture.]**
+**Effective Date:** June 8, 2026
+**Last Updated:** June 8, 2026
 
 ---
 
 ## 1. Acceptance of Terms
 
-These Terms of Service ("**Terms**") constitute a binding legal agreement between **[ENTITY LEGAL NAME — e.g., "KnockIQ Software, Inc."]** ("**KnockIQ**," "**we**," "**us**") and the entity or individual that subscribes to the KnockIQ service ("**Customer**," "**you**"). By creating an account, accessing the service, paying a subscription fee, or directing your employees or contractors to use the service, you agree to be bound by these Terms.
+These Terms of Service ("**Terms**") constitute a binding legal agreement between **KnockIQ, LLC** ("**KnockIQ**," "**we**," "**us**") and the entity or individual that subscribes to the KnockIQ service ("**Customer**," "**you**"). By creating an account, accessing the service, paying a subscription fee, or directing your employees or contractors to use the service, you agree to be bound by these Terms.
 
 If you are accepting these Terms on behalf of an organization, you represent and warrant that you have authority to bind that organization, and "you" refers to that organization.
 
@@ -37,7 +35,7 @@ The Service is offered to businesses for use in commercial canvassing operations
 - Provide accurate and complete information during registration.
 - Promptly update your information if it changes.
 - Keep your account credentials confidential and not share them with anyone outside your organization.
-- Notify us promptly at [security@knockiq.com] of any suspected unauthorized access.
+- Notify us promptly at security@knockiq.com of any suspected unauthorized access.
 
 You are responsible for everything that happens under your Customer Account, including actions taken by your Authorized Users.
 
@@ -46,7 +44,7 @@ You are responsible for everything that happens under your Customer Account, inc
 ## 4. Subscription, Fees, and Renewal
 
 ### 4.1 Plans and fees
-Subscription Plans, included features, seat counts, and pricing are described at [URL — pricing page]. You agree to pay all fees applicable to the Subscription Plan you select.
+Subscription Plans, included features, seat counts, and pricing are described at https://www.getknockiq.com/pricing. You agree to pay all fees applicable to the Subscription Plan you select.
 
 ### 4.2 Billing
 We bill subscription fees in advance on a monthly or annual basis, depending on the Plan you choose. Billing is handled by our payment processor, Stripe. By providing payment information, you authorize us (through Stripe) to charge your payment method for all fees as they become due.
@@ -55,7 +53,7 @@ We bill subscription fees in advance on a monthly or annual basis, depending on 
 We may offer a free trial period. At the end of a free trial, your Subscription Plan automatically converts to a paid plan unless you cancel before the trial ends. You may cancel at any time during the trial through your account settings.
 
 ### 4.4 Auto-renewal
-Subscriptions renew automatically at the end of each billing period at the then-current rate for your Plan, unless you cancel at least [INSERT — e.g., "one (1) day"] before the renewal date. You can cancel from your account settings.
+Subscriptions renew automatically at the end of each billing period at the then-current rate for your Plan, unless you cancel at least one (1) day before the renewal date. You can cancel from your account settings.
 
 ### 4.5 Taxes
 Fees are exclusive of taxes. You are responsible for any sales, use, value-added, or similar taxes applicable to your subscription, other than taxes on KnockIQ's net income.
@@ -65,8 +63,6 @@ If your payment fails, we may suspend or terminate access to the Service. Past-d
 
 ### 4.7 Refunds
 Subscription fees are **non-refundable**, except where required by law or expressly stated otherwise in writing. If we terminate your account for cause (Section 17), no refund is owed.
-
-> **[ATTORNEY REVIEW: check enforceability of non-refundable language in your governing-law jurisdiction. Some jurisdictions require pro-rated refunds for unused service periods, and consumer-protection statutes may apply if any Customers are individuals rather than businesses.]**
 
 ---
 
@@ -104,17 +100,17 @@ Because the Service is used to record information about individuals (Visited Per
 
 You are responsible for any tort, statutory, or criminal claim arising from a Rep's failure to follow these restrictions.
 
-**(f) TCPA and CAN-SPAM compliance for follow-up communications.** Phone numbers, email addresses, and other contact information logged in the Service are operational records of a doorstep interaction. **They do not constitute prior express written consent for marketing telephone calls, text messages, or emails.** If you or any party to whom you provide this information later contacts a Visited Person by phone, text, or email, you must independently obtain any consent required by the federal Telephone Consumer Protection Act (47 U.S.C. § 227), the CAN-SPAM Act (15 U.S.C. § 7701 et seq.), state mini-TCPAs, and any other applicable communications law. KnockIQ does not transmit marketing communications on your behalf and is not a "seller," "telemarketer," or initiator of communications under the TCPA.
+**(f) TCPA and CAN-SPAM compliance for follow-up communications.** Phone numbers, email addresses, and other contact information logged in the Service are operational records of a doorstep interaction. **They do not constitute prior express written consent for marketing telephone calls, text messages, or emails.** If you or any party to whom you provide this information later contacts a Visited Person by phone, text, or email — including through an outbound webhook or other integration you enable — you must independently obtain any consent required by the federal Telephone Consumer Protection Act (47 U.S.C. § 227), the CAN-SPAM Act (15 U.S.C. § 7701 et seq.), state mini-TCPAs, and any other applicable communications law. KnockIQ does not transmit marketing communications on your behalf and is not a "seller," "telemarketer," or initiator of communications under the TCPA.
 
 **(g) Home solicitation sales acts.** Any sale closed at the door is subject to the Federal Trade Commission's Cooling-Off Rule (16 C.F.R. Part 429) and to state Home Solicitation Sales Acts. The Service does not generate sales contracts and does not provide statutory cancellation notices. You are responsible for providing all required disclosures, contracts, and cooling-off notices to your customers (the Visited Persons who become buyers).
 
 **(h) Visited Person privacy requests.** If a Visited Person contacts you to exercise privacy rights (e.g., a request to access or delete information), you must respond as required by applicable law. KnockIQ will assist you in locating and acting on the relevant records on reasonable request, and may itself receive and process such requests as a controller (see our Privacy Policy).
 
-**(i) Rep training.** You must train your Authorized Users on the obligations in this Section 5 before authorizing them to use the Service in the field. KnockIQ may, but is not required to, provide training materials.
+**(i) Outbound integrations.** If you enable an outbound webhook or other integration, you are responsible for the security and lawful use of the destination endpoint and for any onward processing of Customer Data (including Visited Person address, contact, service-interest, and estimated-value fields) that the integration transmits. You are responsible for configuring which events and data the integration sends.
 
-**(j) No automated decisioning in regulated contexts.** You must not use the Service or data from the Service as the sole basis for any decision producing legal or similarly significant effects on a Visited Person (for example, denial of a service offer based solely on automated profiling), without separately ensuring compliance with the relevant law.
+**(j) Rep training.** You must train your Authorized Users on the obligations in this Section 5 before authorizing them to use the Service in the field. KnockIQ may, but is not required to, provide training materials.
 
-> **[ATTORNEY REVIEW: confirm that the Customer indemnity in Section 16 is broad enough to cover claims arising from any breach of Section 5.2. Add any additional carve-outs your insurance carrier requires.]**
+**(k) No automated decisioning in regulated contexts.** You must not use the Service or data from the Service as the sole basis for any decision producing legal or similarly significant effects on a Visited Person (for example, denial of a service offer based solely on automated profiling), without separately ensuring compliance with the relevant law.
 
 ---
 
@@ -142,8 +138,6 @@ You grant KnockIQ a non-exclusive, worldwide, royalty-free license to host, stor
 ### 7.3 Aggregated and de-identified data
 KnockIQ may create aggregated and de-identified data from Customer Data and may use that aggregated data for internal analytics, benchmarking, and product improvement. Aggregated data must not contain any information that could reasonably be used to identify you, any Rep, or any Visited Person.
 
-> **[ATTORNEY REVIEW: this aggregated-data clause is standard but conflicts with MODPA's strict-necessity rule for sensitive data. If KnockIQ wants to use geolocation-derived data in aggregated analytics, that must be (a) limited to truly de-identified data per CCPA § 1798.140(m) and equivalent state definitions, and (b) disclosed in the Privacy Policy. Confirm scope.]**
-
 ### 7.4 Responsibility for accuracy
 You are responsible for the accuracy and lawfulness of Customer Data, including data your Reps enter about Visited Persons. KnockIQ does not validate the accuracy of doorstep entries.
 
@@ -154,11 +148,9 @@ You may export Customer Data through the Service at any time during the term. Wi
 
 ## 8. Data Processing Addendum
 
-A **Data Processing Addendum** ("**DPA**") is incorporated into these Terms by reference and forms part of the agreement between us. The DPA describes our respective roles, the technical and organizational measures we maintain, the sub-processors we use, and our commitments regarding data-subject rights requests and breach notification. The current DPA is available at [URL].
+A **Data Processing Addendum** ("**DPA**") is incorporated into these Terms by reference and forms part of the agreement between us. The DPA describes our respective roles, the technical and organizational measures we maintain, the sub-processors we use, and our commitments regarding data-subject rights requests and breach notification. The current DPA is available at https://www.getknockiq.com/dpa.
 
 To the extent any provision of the DPA conflicts with these Terms, the DPA controls with respect to the processing of personal information.
-
-> **[ATTORNEY REVIEW: the DPA is a critical companion document required by 11 CCR § 7051 (California) and the equivalent processor provisions in VA, CO, CT, TX, OR, MT, DE, NH, NJ, MD, MN, TN, IN, KY, RI, NE, and IA. The DPA must include all nine 7051-mandatory clauses: purpose limitation, no sale/share/CCBA, sub-processor flow-down, customer assistance with rights requests, audit rights, breach notification, processor self-certification, return/deletion, and confidentiality. Draft this separately and finalize before launch.]**
 
 ---
 
@@ -185,9 +177,9 @@ If you provide suggestions, ideas, or feedback about the Service, you grant Knoc
 
 ## 11. Third-Party Services
 
-The Service integrates with third-party services that we use to operate the platform (e.g., Supabase, Stripe, OpenStreetMap, Resend) and that you may optionally enable (e.g., webhook integrations). KnockIQ does not control third-party services, and your use of them is governed by their respective terms and privacy policies. KnockIQ is not responsible for the acts, omissions, or content of third-party services.
+The Service integrates with third-party services that we use to operate the platform (e.g., Supabase, Stripe, Google Maps Platform, OpenStreetMap, Resend) and that you may optionally enable (e.g., outbound webhook integrations such as Zapier). When you enable an outbound integration, the Service may transmit Customer Data — including per-interaction records about Visited Persons — to the destination you configure; that onward transfer is governed by Section 5.2(i). KnockIQ does not control third-party services, and your use of them is governed by their respective terms and privacy policies. KnockIQ is not responsible for the acts, omissions, or content of third-party services.
 
-The current list of sub-processors is maintained at [URL — sub-processor page]. We will provide notice of material changes to the sub-processor list as described in the DPA.
+The current list of sub-processors is maintained at https://www.getknockiq.com/sub-processors. We will provide notice of material changes to the sub-processor list as described in the DPA.
 
 ---
 
@@ -196,8 +188,6 @@ The current list of sub-processors is maintained at [URL — sub-processor page]
 We strive to keep the Service available but do not guarantee uninterrupted access. The Service may be unavailable from time to time for scheduled maintenance, urgent fixes, or events beyond our reasonable control. We will use commercially reasonable efforts to provide advance notice of scheduled maintenance.
 
 We do not currently offer a contractual service-level commitment ("SLA") through these Terms.
-
-> **[ATTORNEY REVIEW: confirm whether KnockIQ offers an SLA on any Plan. If yes, attach as a schedule and cross-reference here. If no, confirm that the explicit "no SLA" statement is acceptable; some enterprise prospects will refuse this and require contract-level commitments.]**
 
 ---
 
@@ -212,7 +202,7 @@ WITHOUT LIMITING THE GENERALITY OF THE FOREGOING, KNOCKIQ MAKES **NO WARRANTY** 
 - ANY PHOTOGRAPH OR OTHER DATA CAPTURED THROUGH THE SERVICE COMPLIES WITH ANY APPLICABLE PHOTOGRAPHY OR PRIVACY LAW IN ANY JURISDICTION;
 - ANY DO-NOT-KNOCK ENTRY OR LIST AVAILABLE THROUGH THE SERVICE IS COMPLETE OR CURRENT;
 - THE SERVICE WILL PREVENT A REP FROM IGNORING A DO-NOT-KNOCK ENTRY OR FROM ENGAGING IN ANY UNLAWFUL CANVASSING ACTIVITY;
-- ADDRESS, GEOCODING, OR TERRITORY DATA IS ACCURATE;
+- ADDRESS, GEOCODING, ROOF/PROPERTY-INSIGHT, OR TERRITORY DATA IS ACCURATE;
 - ANY FOLLOW-UP COMMUNICATION YOU SEND USING DATA FROM THE SERVICE COMPLIES WITH THE TCPA, CAN-SPAM, OR ANY STATE COMMUNICATIONS LAW.
 
 SOME JURISDICTIONS DO NOT ALLOW THE EXCLUSION OF CERTAIN WARRANTIES; IN THOSE JURISDICTIONS, THE EXCLUSIONS IN THIS SECTION APPLY ONLY TO THE EXTENT PERMITTED.
@@ -225,13 +215,11 @@ TO THE MAXIMUM EXTENT PERMITTED BY LAW:
 
 (a) **No indirect damages.** NEITHER PARTY IS LIABLE TO THE OTHER FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, INCLUDING LOST PROFITS, LOST REVENUE, LOST DATA, OR BUSINESS INTERRUPTION, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
 
-(b) **Cap on direct damages.** EACH PARTY'S TOTAL AGGREGATE LIABILITY ARISING OUT OF OR RELATING TO THESE TERMS WILL NOT EXCEED THE GREATER OF (i) THE FEES YOU PAID KNOCKIQ FOR THE SERVICE IN THE **TWELVE (12) MONTHS** PRECEDING THE CLAIM, OR (ii) **[INSERT — e.g., "ONE HUNDRED DOLLARS ($100)"]**.
+(b) **Cap on direct damages.** EACH PARTY'S TOTAL AGGREGATE LIABILITY ARISING OUT OF OR RELATING TO THESE TERMS WILL NOT EXCEED THE GREATER OF (i) THE FEES YOU PAID KNOCKIQ FOR THE SERVICE IN THE **TWELVE (12) MONTHS** PRECEDING THE CLAIM, OR (ii) **ONE HUNDRED DOLLARS ($100)**.
 
 (c) **Exceptions.** The limitations in this Section 14 do not apply to (i) a party's indemnification obligations under Section 16, (ii) a party's breach of confidentiality obligations under Section 9, (iii) Customer's payment obligations under Section 4, (iv) liability that cannot be limited under applicable law (including gross negligence, willful misconduct, or fraud).
 
 (d) **Allocation of risk.** You acknowledge that the limitations in this Section reflect an allocation of risk between the parties, that the fees for the Service reflect this allocation, and that the limitations form an essential basis of the bargain.
-
-> **[ATTORNEY REVIEW: the 12-month/fees-paid cap is standard SaaS. Confirm acceptable against your insurance. If KnockIQ has cyber liability or E&O coverage with a specific aggregate, align the cap with the coverage limits. The fees-paid carve-back is the most heavily negotiated SaaS clause — expect enterprise customers to push for a multiple of fees or a fixed-dollar minimum.]**
 
 ---
 
@@ -252,7 +240,7 @@ Customer will defend, indemnify, and hold harmless KnockIQ and its officers, dir
 (a) Customer's breach of these Terms (including Section 5);
 (b) Customer Data, including its accuracy, lawfulness, and any third-party claim that Customer Data infringes or violates a right;
 (c) Any act or omission of an Authorized User (including but not limited to a Rep), including trespass, unlawful recording, unauthorized photography, harassment, ignoring a do-not-knock entry, or violation of a solicitor-licensing requirement;
-(d) Any follow-up communication initiated by Customer or by any party to whom Customer transferred Customer Data, including any claim under the TCPA, CAN-SPAM, or a state telemarketing or anti-spam law;
+(d) Any follow-up communication initiated by Customer or by any party to whom Customer transferred Customer Data (including via an outbound integration Customer enables), including any claim under the TCPA, CAN-SPAM, or a state telemarketing or anti-spam law;
 (e) Any home-solicitation-sales transaction, including any failure to provide required cancellation notices;
 (f) Any claim by a Visited Person arising from Customer's collection, use, or disclosure of personal information about that Visited Person;
 (g) Customer's failure to obtain any consent required by applicable wiretapping, recording, or biometric privacy law (including BIPA in Illinois, CUBI in Texas, and RCW 19.375 in Washington);
@@ -277,7 +265,7 @@ Either party may terminate immediately on written notice if the other party (a) 
 KnockIQ may suspend access to the Service immediately, without prior notice, if (a) Customer's account is past due, (b) Customer's use of the Service threatens the security or stability of the Service or other users, (c) KnockIQ reasonably believes Customer's use violates law or these Terms (including Section 5.2), or (d) required by law or regulator order.
 
 ### 17.5 Effect of termination
-On termination: (a) all licenses granted under these Terms end immediately, (b) Customer's access to the Service ends, (c) Customer may export Customer Data for up to [30 days], after which KnockIQ will delete it as described in Section 7.5, and (d) any provision that by its nature should survive termination (including Sections 4, 7, 9, 10, 13, 14, 15, 16, 18, 19, and 21) survives.
+On termination: (a) all licenses granted under these Terms end immediately, (b) Customer's access to the Service ends, (c) Customer may export Customer Data for up to 30 days, after which KnockIQ will delete it as described in Section 7.5, and (d) any provision that by its nature should survive termination (including Sections 4, 7, 9, 10, 13, 14, 15, 16, 18, 19, and 21) survives.
 
 ---
 
@@ -287,7 +275,7 @@ On termination: (a) all licenses granted under these Terms end immediately, (b) 
 Before filing any formal claim, the party with the dispute will send written notice to the other party describing the dispute and proposed resolution. The parties will negotiate in good faith for at least 30 days to resolve the dispute.
 
 ### 18.2 Binding arbitration
-If the dispute is not resolved within the negotiation period, **any dispute arising out of or relating to these Terms or the Service** will be resolved by **binding individual arbitration** administered by **[INSERT — e.g., JAMS or the American Arbitration Association]** under its commercial arbitration rules (or the streamlined rules if the amount in controversy is below the applicable threshold), by a single arbitrator. Arbitration will take place in **[INSERT — e.g., "the City and County of San Francisco, California"]** (or by remote hearing at the arbitrator's discretion). Judgment on the award may be entered in any court of competent jurisdiction.
+If the dispute is not resolved within the negotiation period, **any dispute arising out of or relating to these Terms or the Service** will be resolved by **binding individual arbitration** administered by **JAMS** under its Comprehensive Arbitration Rules and Procedures (or its Streamlined Arbitration Rules if the amount in controversy is below the applicable threshold), by a single arbitrator. Arbitration will take place in **Hillsborough County, Florida (Tampa)** (or by remote hearing at the arbitrator's discretion). Judgment on the award may be entered in any court of competent jurisdiction.
 
 ### 18.3 Class-action waiver
 **EACH PARTY WAIVES ANY RIGHT TO PARTICIPATE IN A CLASS ACTION, COLLECTIVE ACTION, OR REPRESENTATIVE PROCEEDING. ARBITRATION WILL BE CONDUCTED ON AN INDIVIDUAL BASIS ONLY.** If a court finds this waiver unenforceable, the entire arbitration agreement is null and void, and the parties' disputes will be resolved in court (Section 18.5).
@@ -296,17 +284,13 @@ If the dispute is not resolved within the negotiation period, **any dispute aris
 Either party may seek (a) injunctive or equitable relief in any court of competent jurisdiction to protect its intellectual property, Confidential Information, or Service security without first proceeding through informal resolution or arbitration, and (b) small-claims-court actions to the extent permitted by that court's jurisdictional limits.
 
 ### 18.5 Court fallback
-If arbitration is unavailable for any reason, the parties consent to the exclusive jurisdiction of the state and federal courts located in **[INSERT — e.g., "San Francisco County, California"]** for resolution of any dispute.
-
-> **[ATTORNEY REVIEW: arbitration clauses are heavily scrutinized and the enforceability rules differ by state. Confirm (1) arbitration provider selection, (2) seat / venue, (3) cost-sharing provisions (one-sided cost shifting can void the clause), (4) whether to require pre-dispute mediation, (5) the class-action waiver under California McGill v. Citibank and similar state cases, and (6) any required consumer-arbitration disclosures.]**
+If arbitration is unavailable for any reason, the parties consent to the exclusive jurisdiction of the state and federal courts located in **Hillsborough County, Florida** for resolution of any dispute.
 
 ---
 
 ## 19. Governing Law
 
-These Terms are governed by the laws of the **State of [INSERT — e.g., "Delaware"]**, without regard to its conflict-of-laws principles. The United Nations Convention on Contracts for the International Sale of Goods does not apply.
-
-> **[ATTORNEY REVIEW: governing-law choice is strategic. Delaware is the most common for SaaS due to favorable corporate law and predictable commercial decisions. California has consumer-protective default rules that affect SaaS contracts. Confirm based on your incorporation state and where the highest-volume customer base will be.]**
+These Terms are governed by the laws of the **State of Florida**, without regard to its conflict-of-laws principles. The United Nations Convention on Contracts for the International Sale of Goods does not apply.
 
 ---
 
@@ -316,16 +300,14 @@ These Terms are governed by the laws of the **State of [INSERT — e.g., "Delawa
 We may modify, enhance, or discontinue features of the Service from time to time. We will not materially degrade the core functionality of a paid subscription during the paid term.
 
 ### 20.2 To these Terms
-We may update these Terms from time to time. If we make a material change, we will give Customer notice at least **30 days** before the change takes effect, by email to the Customer Account's billing contact and by posting the updated Terms at [URL]. Continued use after the effective date constitutes acceptance. If you do not accept material changes, your sole remedy is to terminate before the effective date and receive a pro-rata refund of any pre-paid fees for the unused period.
-
-> **[ATTORNEY REVIEW: confirm whether 30-day notice + continued-use acceptance is enforceable in your governing-law state for material changes. Some jurisdictions (and certain consumer-facing contexts) require affirmative re-acceptance.]**
+We may update these Terms from time to time. If we make a material change, we will give Customer notice at least **30 days** before the change takes effect, by email to the Customer Account's billing contact and by posting the updated Terms at https://www.getknockiq.com/terms. Continued use after the effective date constitutes acceptance. If you do not accept material changes, your sole remedy is to terminate before the effective date and receive a pro-rata refund of any pre-paid fees for the unused period.
 
 ---
 
 ## 21. General
 
 ### 21.1 Notices
-Notices to KnockIQ must be sent to **[legal@knockiq.com]** with a copy to **[ENTITY LEGAL NAME], Attn: Legal, [ADDRESS]**. Notices to Customer will be sent to the email address on file for the Customer Account.
+Notices to KnockIQ must be sent to **legal@knockiq.com** with a copy to **KnockIQ, LLC, Attn: Legal, 4609 N Clark Ave, Tampa, FL 33614**. Notices to Customer will be sent to the email address on file for the Customer Account.
 
 ### 21.2 Assignment
 You may not assign these Terms or any rights or obligations under them without KnockIQ's prior written consent, except to a successor in a merger, acquisition, or sale of substantially all assets. KnockIQ may assign these Terms freely. Any assignment in violation of this section is void.
@@ -357,26 +339,24 @@ You represent that you and your Authorized Users are not located in, organized u
 ### 21.11 Federal customers
 The Service is "commercial computer software" and "commercial computer software documentation" under FAR 2.101 and DFARS 252.227-7014(a)(1). Use by US Government end users is subject to commercial-license terms.
 
-> **[ATTORNEY REVIEW: confirm sanctions / export-control language with any relevant counsel. If KnockIQ has or expects federal customers, additional FedRAMP or government-cloud language may be needed.]**
-
 ---
 
 ## 22. Contact
 
-**Questions about these Terms:** [legal@knockiq.com]
-**Billing questions:** [billing@knockiq.com]
-**Privacy questions:** [privacy@knockiq.com]
-**Security incident reports:** [security@knockiq.com]
+**Questions about these Terms:** legal@knockiq.com
+**Billing questions:** billing@knockiq.com
+**Privacy questions:** privacy@knockiq.com
+**Security incident reports:** security@knockiq.com
+**Phone:** (813) 669-0997
 
 **Mailing address:**
-[ENTITY LEGAL NAME]
-[STREET ADDRESS]
-[CITY, STATE, ZIP]
+KnockIQ, LLC
+4609 N Clark Ave
+Tampa, FL 33614
 United States
 
 ---
 
-**Version:** [INSERT]
-**Drafted with the assistance of automated tools and intended for review by counsel before publication.**
+**Version:** 2.0
 
-> **[ATTORNEY REVIEW: final pass: (1) confirm every bracketed item, (2) ensure consistency with the Privacy Policy, the DPA, and any order forms, (3) confirm the customer-indemnification scope satisfies your insurance carrier, (4) confirm dispute-resolution clauses are current with arbitration-provider rules and state law.]**
+*These Terms of Service are provided for general informational purposes and do not constitute legal advice. KnockIQ recommends review by qualified counsel before publication and periodically thereafter.*

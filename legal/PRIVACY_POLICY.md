@@ -1,9 +1,7 @@
 # KnockIQ Privacy Policy
 
-**Effective Date:** [INSERT — date the policy goes live]
-**Last Updated:** [INSERT]
-
-> **[ATTORNEY REVIEW: Every bracketed section in this document needs your input or confirmation. Before publishing, also confirm: legal entity name, state of incorporation, principal place of business, Data Protection Officer / privacy contact name, registered agent for service of process, and the technical accuracy of every system claim against the engineering team.]**
+**Effective Date:** June 8, 2026
+**Last Updated:** June 8, 2026
 
 ---
 
@@ -17,15 +15,13 @@ KnockIQ is a software platform that helps door-to-door canvassing companies coor
 2. **Canvassing companies ("Customers")** that subscribe to KnockIQ — typically owners, managers, and administrators.
 3. **Homeowners and other prospects ("Visited Persons")** whose information is recorded by Reps during canvassing activity, even though Visited Persons do not have a direct relationship with KnockIQ.
 
-If you are a Visited Person and want to understand or exercise your rights, go directly to **Section 14 (Your Privacy Rights — Visited Persons)** below.
-
-> **[ATTORNEY REVIEW: confirm whether "Visited Persons" should be defined more narrowly (e.g., "individuals residing at addresses visited") or more broadly. Some state laws treat any identifiable person as a "consumer," so the policy should mirror that broad scope.]**
+If you are a Visited Person and want to understand or exercise your rights, go directly to **Section 14 (Your Privacy Rights — United States)** below.
 
 ---
 
 ## 2. Who We Are and Our Role Under Privacy Law
 
-**KnockIQ** ([ENTITY LEGAL NAME — e.g., "KnockIQ Software, Inc."]) is a [STATE] [ENTITY TYPE — corporation / LLC] with its principal place of business at [ADDRESS].
+**KnockIQ** (KnockIQ, LLC) is a Florida limited liability company with its principal place of business at 4609 N Clark Ave, Tampa, FL 33614, United States.
 
 Under US state privacy laws (California CCPA/CPRA, Virginia VCDPA, Colorado CPA, Connecticut CTDPA, Utah UCPA, Texas TDPSA, Oregon OCPA, Montana MCDPA, Iowa ICDPA, Delaware DPDPA, New Hampshire NHPA, New Jersey NJDPA, Tennessee TIPA, Minnesota MCDPA, Maryland MODPA, Indiana INCDPA, Kentucky KCDPA, Rhode Island RIDTPPA, Nebraska NDPA, and Florida FDBR), Canadian PIPEDA, Quebec Law 25, and Alberta/British Columbia PIPA, our role depends on whose data is in question:
 
@@ -34,8 +30,6 @@ Under US state privacy laws (California CCPA/CPRA, Virginia VCDPA, Colorado CPA,
 | Rep account, location, performance metrics | **Processor / Service Provider** | The Customer (canvassing company) |
 | Customer account, billing, configuration | **Controller** | KnockIQ |
 | Visited Person address, lat/lng, contact info, notes, photos | **Controller** (jointly with the Customer in most cases) | KnockIQ and the Customer |
-
-> **[ATTORNEY REVIEW: confirm controller posture for Visited Person data. The "processor only" model is not defensible — no contract authorizes KnockIQ to capture that data through the homeowner, so KnockIQ inherits direct controller obligations. Confirm whether joint-controller framing is preferable to sole-controller framing for indemnification purposes.]**
 
 ---
 
@@ -60,7 +54,7 @@ When you use KnockIQ as a Rep, we collect:
 
 We collect:
 
-- **Company information**: legal name, billing contact, subscription tier, trial dates, integrations configured (e.g., a Zapier webhook URL if provided).
+- **Company information**: legal name, billing contact, subscription tier, trial dates, and integrations configured (for example, a webhook URL if the Customer connects an outbound integration such as Zapier, and whether the Pro "Roof Insights" add-on is enabled).
 - **Billing information** processed by our payment provider, Stripe: payment card details (handled directly by Stripe; KnockIQ stores only the Stripe customer and subscription identifiers), billing address, subscription status, plan history.
 - **Operational configuration**: territories drawn on the map, do-not-knock pins and zones, service catalog, daily goals, branding settings.
 
@@ -72,14 +66,13 @@ When a Rep logs a door interaction, KnockIQ stores:
 - **Precise geographic coordinates** (latitude and longitude) of the doorstep.
 - **Outcome** of the visit (no answer, not interested, estimate requested, booked).
 - **Contact information** if the Visited Person provided it, including name, phone number, and email address.
-- **Service interest and estimated value** for any quoted job.
-- **Free-text notes** entered by the Rep, which may include descriptions of the conversation, the residence, and follow-up instructions. Reps type these notes — we do not collect audio.
+- **Service interest and estimated value** for any quoted job, including an optional itemized, per-service breakdown of the estimate.
+- **Free-text notes** entered by the Rep, which may include descriptions of the conversation, the residence, and follow-up instructions. Reps type these notes — **we do not collect audio**.
 - **Photographs** uploaded by the Rep, typically of structures relevant to the quoted service (roof, siding, gutters, driveway). Reps are contractually prohibited from photographing interiors, identifiable people, license plates, or minors.
+- **Property and roof insights** (Pro tier only). If the Customer subscribes to the Pro tier and enables the optional "Roof Insights" add-on, KnockIQ sends the doorstep coordinates of a visited address to Google's Solar API to retrieve property characteristics such as roof area, orientation, and estimated solar potential. These are attributes of the building, not additional personal identifiers, but they are associated with the address record.
 - **Do-not-knock entries**: if you have requested not to be solicited, your address (and optionally a reason) may be recorded in a do-not-knock list maintained by the Customer.
 
-**A record is created for every door visited, including doors where no one answered.** This means an entry exists about your residence regardless of whether anyone in your household interacted with the Rep.
-
-> **[ATTORNEY REVIEW: confirm whether this disclosure is sufficient under CCPA/CPRA "categories of personal information collected" requirements when the data subject (Visited Person) never directly interacted with KnockIQ. Consider whether a more prominent standalone notice — separate from this policy — is required.]**
+**A record is created for every door visited, including doors where no one answered.** This means an entry exists about your residence regardless of whether anyone in your household interacted with the Rep. For no-answer doors, the record contains only the doorstep coordinate, timestamp, and outcome — no address, contact information, notes, or photographs are stored.
 
 ---
 
@@ -90,7 +83,7 @@ When a Rep logs a door interaction, KnockIQ stores:
 | Rep account info | The Rep directly, or the Rep's Customer (when a manager invites the Rep) |
 | Rep geolocation, performance metrics | The Rep's device while the application is in use |
 | Customer info | The Customer directly during signup or in account settings |
-| Visited Person info | A Rep entering the data during a canvassing visit; reverse-geocoding services (OpenStreetMap Overpass / Nominatim, and Google Maps Geocoding if the Customer has enabled it) translating coordinates into addresses |
+| Visited Person info | A Rep entering the data during a canvassing visit; reverse-geocoding services (Google Maps Geocoding and OpenStreetMap Overpass / Nominatim) translating coordinates into addresses; Google's Solar API returning roof/property insights when the Roof Insights add-on is enabled |
 | Billing info | The Customer directly; Stripe via its webhook |
 
 ---
@@ -104,6 +97,7 @@ We use information for the following purposes:
 - Log canvassing activity, render maps, calculate territories, attribute leads to Reps.
 - Surface real-time Rep locations to managers for safety, coordination, and oversight.
 - Generate performance reports, leaderboards, and analytics for the Customer.
+- Provide optional property/roof insights to Customers who enable that add-on.
 - Process payments and manage subscriptions.
 
 **To operate, maintain, and improve our platform:**
@@ -116,9 +110,7 @@ We use information for the following purposes:
 - Enforce our Terms of Service.
 - Establish, exercise, or defend legal claims.
 
-**Sensitive personal information — strict necessity.** For precise geolocation and any data treated as sensitive under applicable state law (including, in Maryland, biometric data and certain other categories), we process it **only as strictly necessary** to provide the canvassing-coordination service the Customer requested. We do not use sensitive personal information for targeted advertising, profiling unrelated to service delivery, training of generative AI models, or any other secondary purpose. We do not sell sensitive personal information.
-
-> **[ATTORNEY REVIEW: Maryland MODPA's "strictly necessary" standard for sensitive data is the strictest baseline. Confirm that "strict necessity" is the correct positioning given the actual product use. If KnockIQ uses precise geolocation for any purpose beyond service delivery (e.g., heatmaps shown to other Customer companies), that must be disclosed or stopped.]**
+**Sensitive personal information — strict necessity.** For precise geolocation and any data treated as sensitive under applicable state law (including, in Maryland, certain heightened categories), we process it **only as strictly necessary** to provide the canvassing-coordination service the Customer requested. We do not use sensitive personal information for targeted advertising, profiling unrelated to service delivery, training of generative AI models, or any other secondary purpose. We do not sell sensitive personal information.
 
 ---
 
@@ -133,8 +125,6 @@ Where applicable Canadian law requires us to identify a legal basis:
 
 For Visited Person information, we rely on the Customer's representation in our Terms of Service that the Customer has the lawful basis required to capture this information through its Reps. **If you are a Visited Person and you want your information removed, see Section 14.**
 
-> **[ATTORNEY REVIEW: PIPEDA's "meaningful consent" standard requires that consent be voluntary, informed, and specific. For Visited Persons, KnockIQ cannot claim consent because none was obtained. Consider whether this section requires a more candid statement about that gap and a stronger commitment to honor deletion requests.]**
-
 ---
 
 ## 7. Who We Share Information With (Sub-Processors and Third Parties)
@@ -145,17 +135,16 @@ We rely on the following service providers to operate KnockIQ. Each one receives
 |---|---|---|---|
 | **Supabase, Inc.** | Hosted database, authentication, file storage, edge compute | United States | All KnockIQ-stored data |
 | **Stripe, Inc.** | Subscription billing | United States | Customer billing identifiers, payment events |
-| **Resend** | Email delivery (Rep invitations and account emails) | United States / EU | Rep email address, name, organization name |
-| **OpenStreetMap Foundation** (tile servers, Overpass, Nominatim) | Map rendering and reverse geocoding | Germany / EU | IP address and viewport coordinates of the requesting device; door coordinates during reverse geocoding |
-| **Google Maps Platform** (Geocoding API) | Optional reverse geocoding | United States | Door coordinates; only used when the Customer has enabled this option |
-| **Customer-configured webhooks** (e.g., Zapier) | Outbound integrations selected by the Customer | Varies | Session-level rollups only; per-Visited-Person data is not currently sent to webhooks |
-| **Google Fonts, unpkg.com** | Static asset delivery (fonts, CSS libraries) | United States | IP address and user-agent of the requesting device |
+| **Resend** | Email delivery (Rep/manager/closer invitations and account emails) | United States / EU | Recipient email address, name, organization name |
+| **Google Maps Platform (Geocoding API)** | Reverse geocoding of doorstep coordinates into addresses | United States | Door coordinates |
+| **Google Maps Platform (Solar API)** | Roof/property insights for Customers with the Pro "Roof Insights" add-on enabled | United States | Visited Person address / doorstep coordinates |
+| **OpenStreetMap Foundation** (tile servers, Overpass, Nominatim) | Map rendering and fallback reverse geocoding | Germany / EU | IP address and viewport coordinates of the requesting device; door coordinates during reverse geocoding |
+| **Customer-configured webhooks** (e.g., Zapier) | Outbound integrations selected by the Customer | Varies (determined by the Customer's endpoint) | Depending on the events the Customer enables: session summary statistics and/or per-interaction records that may include the Visited Person's address, contact name, phone number, email address, service interest, estimated value, and itemized line items |
+| **Google Fonts, unpkg.com** | Static asset delivery (fonts, CSS/JS libraries) | United States | IP address and user-agent of the requesting device |
 
 We do not **sell** personal information for monetary consideration, and we do not **share** personal information for cross-context behavioral advertising. We do not currently engage in profiling that produces legal or similarly significant effects.
 
-**Visited Person information specifically:** we transmit address, latitude, longitude, and photographs to the sub-processors listed above as needed to operate the service. We do not sell Visited Person data, we do not use it for advertising, and (in compliance with Maryland law and Virginia law effective July 1, 2026) we **do not sell precise geolocation data**.
-
-> **[ATTORNEY REVIEW: confirm whether KnockIQ ever combines Customer-specific data for cross-Customer benchmarking, "industry insights," or product improvement. If yes, that must be disclosed here and is likely a sub-processor-restricted purpose under MODPA's strict-necessity rule.]**
+**Visited Person information specifically.** We transmit address, latitude, longitude, photographs, and doorstep coordinates to the sub-processors listed above as needed to operate the service (for example, coordinates to Google or OpenStreetMap for reverse geocoding, and to Google's Solar API when the Roof Insights add-on is enabled). **If a Customer enables outbound webhook integrations, per-interaction records — which may include a Visited Person's address, contact name, phone number, email address, service interest, estimated value, and itemized line items — are transmitted to the endpoint the Customer configures when a booking, estimate, or appointment event occurs.** The Customer controls whether webhooks are enabled, which events fire, and where the data is sent. We do not sell Visited Person data, we do not use it for advertising, and (consistent with Maryland law and Virginia law effective July 1, 2026) we **do not sell precise geolocation data**.
 
 ---
 
@@ -172,7 +161,7 @@ We do not knowingly collect:
 - Information about racial or ethnic origin, religion, political beliefs, union membership, health, sexual orientation, or gender identity.
 - Genetic information or biometric identifiers used for identification.
 
-**Right to limit use of sensitive personal information (California, Virginia, Colorado, Connecticut, Utah, and other applicable states).** You may request that we limit our use of sensitive personal information about you to the purposes strictly necessary to provide the service. Contact us at [privacy@knockiq.com] to make this request. Because precise geolocation is essential to canvassing coordination, limiting its use will substantially impair or end your ability to use KnockIQ as a Rep.
+**Right to limit use of sensitive personal information (California, Virginia, Colorado, Connecticut, Utah, and other applicable states).** You may request that we limit our use of sensitive personal information about you to the purposes strictly necessary to provide the service. Contact us at privacy@knockiq.com to make this request. Because precise geolocation is essential to canvassing coordination, limiting its use will substantially impair or end your ability to use KnockIQ as a Rep.
 
 ---
 
@@ -181,8 +170,6 @@ We do not knowingly collect:
 **KnockIQ does not collect audio recordings.** The voice-note feature that previously allowed Reps to dictate notes through their device microphone has been removed from the product. We do not capture audio. We do not transmit audio to any third party. We do not generate voiceprints, run speaker identification or speaker diarization, or produce any "biometric identifier" within the meaning of the Illinois Biometric Information Privacy Act (740 ILCS 14), the Texas Capture or Use of Biometric Identifier Act (Tex. Bus. & Com. Code § 503.001 as amended by HB 149 / TRAIGA effective January 1, 2026), the Washington biometric statute (RCW 19.375), or the New York City biometric ordinance (NYC Admin. Code § 22-1201 et seq.).
 
 If KnockIQ ever reintroduces a voice or audio feature, this Policy will be amended before that feature ships and all of the disclosures and consent flows required by the laws above will be in place. We will also notify existing users by email and post a prominent in-app notice at least 30 days before any such feature is enabled.
-
-> **[ATTORNEY REVIEW: this section is the rewrite of the original voice-note disclosure, reflecting the removal of the voice-note feature from the product. If KnockIQ ever adds an audio capture or voice-AI feature, this section MUST be replaced with a full BIPA-compliant notice (written notice + written release + public retention schedule) BEFORE the feature ships.]**
 
 ---
 
@@ -198,15 +185,14 @@ If KnockIQ ever reintroduces a voice or audio feature, this Policy will be amend
 
 ## 11. Cross-Border Data Transfers
 
-KnockIQ is headquartered in [STATE], United States, and our primary database and storage are hosted in the United States by Supabase, Inc. The following cross-border transfers may occur:
+KnockIQ is headquartered in Florida, United States, and our primary database and storage are hosted in the United States by Supabase, Inc. The following cross-border transfers may occur:
 
-- **From all users to the United States:** all data stored in KnockIQ.
-- **From all users to Germany:** map-tile, reverse-geocoding, and address-lookup requests directed to OpenStreetMap-operated services.
-- **Canadian users:** all of the above transfers leave Canada. If you are a resident of **Quebec**, please note that we have conducted (or will conduct, prior to the effective date of this Policy) a privacy impact assessment under section 17 of Quebec Law 25 to evaluate the protection afforded by each receiving jurisdiction and the contractual safeguards in place. A summary is available on request at [privacy@knockiq.com].
+- **From all users to the United States:** all data stored in KnockIQ, plus doorstep coordinates and addresses sent to Google Maps Platform (Geocoding and, where enabled, Solar API).
+- **From all users to Germany:** map-tile and fallback reverse-geocoding requests directed to OpenStreetMap-operated services.
+- **To Customer-designated destinations:** where a Customer enables an outbound webhook integration, the data described in Section 7 is sent to the endpoint the Customer configures, which may be located in any country.
+- **Canadian users:** all of the above transfers leave Canada and are stored or processed in the United States and the European Union (Germany).
 
 For Canadian users, we rely on contractual protections in our agreements with each sub-processor and on the disclosure of these transfers as part of obtaining your consent to use KnockIQ.
-
-> **[ATTORNEY REVIEW: the Quebec Law 25 §17 PIA must actually exist before this Policy is published in any market where Quebec residents might use KnockIQ. The PIA is also required for any future change of sub-processor or processing location. Confirm scope and store the executed PIA in the legal file.]**
 
 ---
 
@@ -228,8 +214,6 @@ We retain personal information only as long as needed for the purposes described
 | Do-not-knock entries | Retained indefinitely while the Customer's account is active, because the purpose is precisely to remember the request not to be visited; you may request deletion at any time |
 | Logs and security records | 12 months |
 
-> **[ATTORNEY REVIEW: confirm that the 7-year billing-record retention matches your tax counsel's advice for your governing-law state, and confirm that the 90-day post-deletion grace period for rep accounts and session headers is consistent with any commitments KnockIQ has made to canvassing-company customers about historical data access after off-boarding.]**
-
 ---
 
 ## 13. Security
@@ -239,13 +223,12 @@ We implement administrative, technical, and physical safeguards designed to prot
 - Encryption in transit (TLS) for all communications with our servers and sub-processors.
 - Encryption at rest for our primary database and file storage, as provided by Supabase.
 - Row-level access controls in our database that restrict each Customer's users to their own organization's data.
+- Private file storage for uploaded photographs and avatars, accessed only through short-lived signed URLs.
 - Multi-factor authentication on administrative and infrastructure accounts.
 - Periodic review of access controls, code, and infrastructure configurations.
-- Limited use of a "super admin" role for internal support, with each cross-tenant access event logged.
+- Limited use of a "super admin" role for internal support, with cross-tenant access restricted to authorized personnel.
 
 No security system is perfect. If we become aware of a security incident affecting your personal information, we will notify you as required by applicable law.
-
-> **[ATTORNEY REVIEW: confirm operational readiness of every safeguard claimed here. Confirm super-admin access logging is implemented and reviewable. Confirm bucket privacy posture (the `interaction-photos` and `avatars` Supabase Storage buckets are currently public per the data audit) before claiming safeguards around photographs of Visited Persons; if those buckets remain public on launch, this section is misleading.]**
 
 ---
 
@@ -263,9 +246,9 @@ The rights available to you depend on the state in which you reside. KnockIQ pro
 - **Right to appeal** a denial of any of the above (Colorado, Connecticut, Virginia, Texas, Oregon, Montana, Delaware, New Hampshire, New Jersey, Maryland, Minnesota, Tennessee, and others). If we deny your request, you may appeal by replying to the denial within 45 days; we will respond to the appeal within 60 days, and where required will provide information on how to contact your state attorney general.
 
 **How to make a request:**
-- Email: [privacy@knockiq.com]
-- Mail: [INSERT — physical address]
-- Online form: [INSERT — URL once built]
+- Email: privacy@knockiq.com
+- Mail: KnockIQ, LLC, Attn: Privacy Officer, 4609 N Clark Ave, Tampa, FL 33614, United States
+- Phone: (813) 669-0997
 
 We will verify your identity before responding to a request. Verification methods are proportionate to the sensitivity of the request. We will respond to most requests within **45 days**; if we need more time we will notify you within that period.
 
@@ -275,12 +258,10 @@ We will verify your identity before responding to a request. Verification method
 
 **Visited Persons.** If you are a Visited Person — meaning a Rep visited your residence and recorded information about you — you have **the same rights** under California CCPA/CPRA and parallel state laws as any other resident of your state. You do not need to have a KnockIQ account. To exercise your rights:
 
-1. Email **[privacy@knockiq.com]** with the **street address** of the visited residence (so we can locate records) and your contact information for verification.
-2. We will acknowledge your request within 10 business days and complete the substantive response within 45 days.
-3. We will search all of the systems where Visited Person data is stored (interaction records, GPS breadcrumbs, do-not-knock lists, photographs) and process your request as you direct.
+1. Email **privacy@knockiq.com** with the **street address** of the visited residence (so we can locate records) and your contact information for verification.
+2. We will acknowledge your request promptly and complete the substantive response within 45 days.
+3. We will search the systems where Visited Person data is stored (interaction records, GPS breadcrumbs, do-not-knock lists, photographs) and process your request as you direct.
 4. We will notify our sub-processors to delete your data as well, where applicable.
-
-> **[ATTORNEY REVIEW: this commitment requires the platform to actually have an operational search-by-address workflow that touches every system. Confirm with engineering before publication. Also confirm whether the 10-business-day acknowledgment commitment is operationally achievable; if not, drop to "without undue delay."]**
 
 ---
 
@@ -297,7 +278,7 @@ If you are a resident of Canada, you have the following rights under the federal
 - **Right to be informed of the use of automated decision-making** that produces legal or similarly significant effects (Quebec Law 25; not currently applicable as we do not engage in such automated decisions).
 - **Right to lodge a complaint** with the Office of the Privacy Commissioner of Canada or your provincial commissioner (Quebec: Commission d'accès à l'information; Alberta: Office of the Information and Privacy Commissioner; British Columbia: Office of the Information and Privacy Commissioner).
 
-To exercise these rights, contact our **Privacy Officer**: [NAME], [email], [phone], [mailing address].
+To exercise these rights, contact our **Privacy Officer**: Zach Tyler, privacy@knockiq.com, (813) 669-0997, 4609 N Clark Ave, Tampa, FL 33614, United States.
 
 We will respond to access and correction requests within **30 days** of receipt, as required by PIPEDA, unless we have notified you of an extension.
 
@@ -309,7 +290,7 @@ KnockIQ is not directed at children under 13, and we do not knowingly collect pe
 
 **Reps must be 18 or older** to use the service, by the terms of their employment with a Customer. **Visited Persons** are typically the adult occupants of a household. Our Terms of Service require Customers to train Reps not to collect information from a minor who answers the door, and to remove any information that may have been collected from a minor.
 
-If you believe we have inadvertently collected information from a child under 13, please contact us at [privacy@knockiq.com] and we will delete it.
+If you believe we have inadvertently collected information from a child under 13, please contact us at privacy@knockiq.com and we will delete it.
 
 We comply with the Children's Online Privacy Protection Act (COPPA) and its 2025 amendments (which took full effect April 22, 2026), and with applicable state laws governing the personal information of minors.
 
@@ -337,7 +318,7 @@ Our service responds to Global Privacy Control (GPC) signals as an opt-out of sa
 
 ## 19. Third-Party Links and Integrations
 
-The KnockIQ application may link to or integrate with third-party services that the Customer has enabled (for example, a Zapier webhook configured by the Customer's account owner). When you interact with those services, their own privacy policies govern. We are not responsible for the privacy practices of third-party services, including but not limited to OpenStreetMap, Google Maps, Stripe, Resend, and Zapier.
+The KnockIQ application may link to or integrate with third-party services that the Customer has enabled (for example, an outbound webhook configured by the Customer's account owner). When you interact with those services, their own privacy policies govern. We are not responsible for the privacy practices of third-party services, including but not limited to Google Maps Platform, OpenStreetMap, Stripe, Resend, and Zapier.
 
 ---
 
@@ -346,27 +327,26 @@ The KnockIQ application may link to or integrate with third-party services that 
 We may update this Policy from time to time. The "Last Updated" date at the top of the Policy reflects the most recent change. If we make material changes, we will:
 
 - Notify you by email (for Reps and Customer administrators) at least **30 days** before the changes take effect, and
-- Post a prominent notice on knockiq.com and in the application.
+- Post a prominent notice on getknockiq.com and in the application.
 
-For Visited Persons, we will post material changes prominently on knockiq.com/privacy. Continued use of KnockIQ after the effective date of any change constitutes acceptance of the updated Policy.
+For Visited Persons, we will post material changes prominently on https://www.getknockiq.com/privacy. Continued use of KnockIQ after the effective date of any change constitutes acceptance of the updated Policy.
 
 ---
 
 ## 21. Contact Us
 
 **KnockIQ Privacy Team**
-Email: [privacy@knockiq.com]
-Mail: [ENTITY LEGAL NAME]
+KnockIQ, LLC
 Attn: Privacy Officer
-[STREET ADDRESS]
-[CITY, STATE, ZIP]
+4609 N Clark Ave
+Tampa, FL 33614
 United States
+Email: privacy@knockiq.com
+Phone: (813) 669-0997
 
-**Privacy Officer (Canada):** [NAME], [email], [phone].
+**Privacy Officer (United States and Canada):** Zach Tyler, privacy@knockiq.com, (813) 669-0997.
 
-For California-specific requests, you may also use our online intake form at [URL] or call us toll-free at [PHONE — if applicable; California requires a toll-free number for businesses that handle personal information of 10,000+ consumers per year].
-
-> **[ATTORNEY REVIEW: confirm whether the California toll-free number requirement applies (it applies to businesses processing personal info of 10,000+ California consumers). If yes, a phone intake is required. Confirm same for Quebec Law 25 Privacy Officer designation — the role must be publicly identified by name and title.]**
+For California-specific requests, you may email privacy@knockiq.com or call us at (813) 669-0997.
 
 ---
 
@@ -387,13 +367,10 @@ Residents of these states have similar rights to those described above. State-sp
 ### Florida (FDBR)
 The Florida Digital Bill of Rights applies to entities meeting specific thresholds. To the extent KnockIQ is covered, Florida residents have rights to access, correct, delete, opt out of sale, opt out of targeted advertising, and opt out of profiling.
 
-> **[ATTORNEY REVIEW: confirm KnockIQ's status under each of these state laws and revise this appendix to reflect actual coverage. Some statutes have specific notice requirements (e.g., MODPA's standalone "right to limit" language) that may need their own subsections.]**
-
 ---
 
 ## End of Policy
 
-**Version:** [INSERT — e.g., "1.0"]
-**Drafted with the assistance of automated tools and reviewed by counsel.**
+**Version:** 2.0
 
-> **[ATTORNEY REVIEW: every bracketed item above is awaiting your input. Additionally, review the entire Policy against (1) the actual technical state of the platform as documented in the data audit, (2) the specific statutes and decisions cited in the legal research memo, and (3) any commitments KnockIQ has made in marketing materials, customer contracts, or sales conversations that would create representations beyond what this Policy says.]**
+*This Privacy Policy is provided for general informational purposes and does not constitute legal advice. KnockIQ recommends review by qualified counsel before publication and periodically thereafter.*

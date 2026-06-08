@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sub-Processors — KnockIQ</title>
+<meta name="description" content="The third-party service providers KnockIQ uses to deliver its service." />
+<link rel="canonical" href="https://www.getknockiq.com/sub-processors" />
+<link rel="icon" href="/favicon.ico" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+*{box-sizing:border-box}
+:root{--blue-600:#1B4FCC;--ink:#0F172A;--ink-2:#1E293B;--text:#334155;--muted:#64748B;--line:#E2E8F0;--line-2:#F1F5F9;--bg:#F8FAFC;--white:#fff}
+body{font-family:"Inter",system-ui,-apple-system,sans-serif;color:var(--text);background:var(--bg);margin:0;line-height:1.65;-webkit-font-smoothing:antialiased}
+a{color:var(--blue-600);text-decoration:none}a:hover{text-decoration:underline}
+.topbar{background:var(--white);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+.topbar .inner{max-width:1000px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+.topbar img{height:30px;width:auto;display:block}
+.topbar .back{font-size:14px;font-weight:600;color:var(--muted)}
+.wrap{max-width:820px;margin:0 auto;padding:44px 24px 72px}
+.doc{background:var(--white);border:1px solid var(--line);border-radius:16px;padding:48px 56px;box-shadow:0 4px 14px rgba(15,23,42,.05)}
+.doc h1{font-size:32px;font-weight:800;letter-spacing:-.02em;color:var(--ink);margin:0 0 8px;line-height:1.15}
+.doc h2{font-size:22px;font-weight:700;color:var(--ink);margin:40px 0 12px;letter-spacing:-.01em}
+.doc h3{font-size:17px;font-weight:700;color:var(--ink-2);margin:26px 0 8px}
+.doc p,.doc li{font-size:15.5px}
+.doc strong{color:var(--ink-2)}
+.doc hr{border:none;border-top:1px solid var(--line);margin:32px 0}
+.doc table{width:100%;border-collapse:collapse;margin:18px 0;font-size:13.5px;display:block;overflow-x:auto}
+.doc th,.doc td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}
+.doc th{background:var(--bg);font-weight:700;color:var(--ink-2)}
+.doc code{background:var(--line-2);padding:1px 5px;border-radius:4px;font-size:13px}
+.doc em{color:var(--muted)}
+.doc ul{padding-left:22px}
+.legal-footer{text-align:center;font-size:13px;color:var(--muted);padding:8px 24px 48px}
+.legal-footer a{color:var(--muted);margin:0 10px}
+@media(max-width:640px){.doc{padding:28px 22px}.wrap{padding:20px 12px 56px}}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="inner">
+  <a href="/" aria-label="KnockIQ home"><img src="/logo.png" alt="KnockIQ" /></a>
+  <a class="back" href="/">&larr; Back to site</a>
+</div></div>
+<main class="wrap"><article class="doc">
+<h1 id="knockiq-sub-processors">KnockIQ Sub-Processors</h1>
+<p><strong>Last Updated:</strong> June 8, 2026</p>
+<p>KnockIQ, LLC engages the third-party service providers ("sub-processors") listed below to help us deliver the KnockIQ service. Each sub-processor Processes personal information only as needed to perform its function and is contractually required to protect that information at a level no less protective than our own commitments. This page is referenced by our <a href="https://www.getknockiq.com/privacy">Privacy Policy</a>, <a href="https://www.getknockiq.com/terms">Terms of Service</a>, and <a href="https://www.getknockiq.com/dpa">Data Processing Addendum</a>.</p>
+<h2 id="current-sub-processors">Current sub-processors</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Sub-processor</th>
+<th>Function</th>
+<th>Location</th>
+<th>Data processed</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Supabase, Inc.</strong></td>
+<td>Primary hosted database, authentication, file storage, and edge compute</td>
+<td>United States</td>
+<td>All KnockIQ-stored data</td>
+</tr>
+<tr class="even">
+<td><strong>Stripe, Inc.</strong></td>
+<td>Subscription billing and payment processing</td>
+<td>United States</td>
+<td>Customer billing identifiers, billing address, payment events</td>
+</tr>
+<tr class="odd">
+<td><strong>Resend</strong></td>
+<td>Transactional email delivery (invitations and account notifications)</td>
+<td>United States / EU</td>
+<td>Recipient name, email address, organization name</td>
+</tr>
+<tr class="even">
+<td><strong>Google Maps Platform — Geocoding API</strong></td>
+<td>Reverse geocoding of doorstep coordinates into addresses</td>
+<td>United States</td>
+<td>Doorstep coordinates</td>
+</tr>
+<tr class="odd">
+<td><strong>Google Maps Platform — Solar API</strong></td>
+<td>Roof/property insights for Customers with the Pro "Roof Insights" add-on enabled</td>
+<td>United States</td>
+<td>Visited Person address / doorstep coordinates</td>
+</tr>
+<tr class="even">
+<td><strong>OpenStreetMap Foundation</strong> (tiles, Overpass, Nominatim)</td>
+<td>Map rendering and fallback reverse geocoding</td>
+<td>Germany / EU</td>
+<td>Requesting device IP and viewport coordinates; doorstep coordinates during reverse geocoding</td>
+</tr>
+<tr class="odd">
+<td><strong>Google Fonts; unpkg.com</strong></td>
+<td>Delivery of static assets (fonts, CSS/JS libraries)</td>
+<td>United States</td>
+<td>Requesting device IP address and user-agent</td>
+</tr>
+</tbody>
+</table>
+<h2 id="customer-enabled-integrations">Customer-enabled integrations</h2>
+<p>If a Customer chooses to enable an outbound webhook integration (for example, Zapier), KnockIQ transmits the data described in our Privacy Policy to the endpoint the Customer configures. The destination, retention, and onward use of that data are controlled by the Customer, and the recipient is not a KnockIQ sub-processor. See Section 5.2 of the Terms of Service.</p>
+<h2 id="what-we-do-not-use">What we do not use</h2>
+<p>KnockIQ does not collect audio and uses no audio-transcription or voice-biometric sub-processor. KnockIQ does not currently use third-party analytics, advertising, or cross-site tracking SDKs.</p>
+<h2 id="notifications-of-changes">Notifications of changes</h2>
+<p>We update this page before a new sub-processor begins processing personal information. To receive advance email notice of additions or replacements, subscribe by emailing <strong><a href="mailto:privacy@knockiq.com">privacy@knockiq.com</a></strong> with the subject line "Sub-processor notifications." We provide at least ten (10) days' notice as described in our Data Processing Addendum.</p>
+<h2 id="contact">Contact</h2>
+<p>Questions about our sub-processors: <strong><a href="mailto:privacy@knockiq.com">privacy@knockiq.com</a></strong> · (813) 669-0997 · KnockIQ, LLC, 4609 N Clark Ave, Tampa, FL 33614, United States.</p>
+<hr />
+<p><em>This page is provided for general informational purposes and does not constitute legal advice.</em></p>
+</article></main>
+<div class="legal-footer">
+  <a href="/privacy">Privacy Policy</a> ·
+  <a href="/terms">Terms of Service</a> ·
+  <a href="/dpa">Data Processing Addendum</a> ·
+  <a href="/sub-processors">Sub-Processors</a>
+  <div style="margin-top:10px;opacity:.7">© 2026 KnockIQ, LLC · 4609 N Clark Ave, Tampa, FL 33614 · (813) 669-0997</div>
+</div>
+</body>
+</html>

@@ -46,12 +46,12 @@ export default function Settings() {
   const [newRepName, setNewRepName]   = useState('')
   const [newRepEmail, setNewRepEmail] = useState('')
   const [newRepPhone, setNewRepPhone] = useState('')
-  // Onboarding flow is temp-password-only for now. The email-invite path
-  // (magic link via Resend) has been disabled in the UI until we wire up
-  // a verified sending domain — see ONBOARDING_EMAIL_SETUP.md. The edge
-  // function still supports `mode: 'invite'`, so re-enabling is a UI-only
-  // change when the time comes. `resend_invite` on existing reps is
-  // unaffected; it stays in the rep list as an optional escape hatch.
+  // Onboarding mode. 'invite' (default) emails the rep a one-time
+  // set-password link via Resend — the manager never handles a credential.
+  // 'temp_password' is kept as a fallback (manager sets/generates a temp
+  // password and delivers it out-of-band) for reps who don't reliably use
+  // email, or if an invite email bounces. The edge function supports both.
+  const [newRepMode, setNewRepMode] = useState('invite')
   const [newRepPassword, setNewRepPassword] = useState('')
   const [showTempPass, setShowTempPass] = useState(false)
   const [addingRep, setAddingRep]     = useState(false)
@@ -376,19 +376,20 @@ export default function Settings() {
     const mail  = newRepEmail.trim()
     const phone = newRepPhone.trim()
     const pass  = newRepPassword
+    const isInvite = newRepMode === 'invite'
     if (!name || !mail) {
       showToast('Name and email are required.', 'error'); return
     }
-    if (!pass || pass.length < 8) {
+    if (!isInvite && (!pass || pass.length < 8)) {
       showToast('Temporary password must be at least 8 characters.', 'error'); return
     }
     setAddingRep(true)
-    const { user: created, loginUrl, error } = await createRep({
+    const { user: created, loginUrl, emailSent, emailError, error } = await createRep({
       fullName: name,
       email:    mail,
       phone:    phone || null,
-      mode:     'temp_password',
-      password: pass,
+      mode:     isInvite ? 'invite' : 'temp_password',
+      password: isInvite ? undefined : pass,
     })
     setAddingRep(false)
     if (error) {
@@ -400,15 +401,33 @@ export default function Settings() {
       phone: created.phone || null, role: 'rep',
     }])
 
-    // Reset the form — but keep the section expanded until the manager
-    // dismisses the creds panel.
+    // Reset the form. For temp-password we keep the section context until
+    // the manager dismisses the creds panel; for invite we just close it.
     setNewRepName(''); setNewRepEmail(''); setNewRepPhone(''); setNewRepPassword('')
     setShowTempPass(false)
 
-    // Surface credentials so the manager can copy/SMS them. The password
-    // is plaintext here by design — it's the only moment we can show it,
-    // and the manager explicitly asked for it. Once the rep logs in,
-    // force_password_change rotates them to their own.
+    if (isInvite) {
+      setShowAddRep(false)
+      if (emailSent) {
+        showToast(`Invite sent to ${created.email}.`)
+      } else {
+        // Rep exists but the email didn't go out (unverified domain, bad
+        // address, etc.). Don't leave the manager stranded — point them at
+        // the per-rep Resend button and the Temp Password fallback.
+        showToast(
+          `${created.full_name} was added, but the invite email failed` +
+          (emailError ? ` (${emailError})` : '') +
+          `. Use the ✈ Resend button on their row, or re-add them with Temp Password.`,
+          'error',
+        )
+      }
+      return
+    }
+
+    // Temp-password path — surface credentials so the manager can copy/SMS
+    // them. The password is plaintext here by design — it's the only moment
+    // we can show it. Once the rep logs in, force_password_change rotates
+    // them to their own.
     setPendingCreds({
       fullName: created.full_name,
       email:    created.email,
@@ -890,9 +909,31 @@ export default function Settings() {
                 </p>
               </div>
 
-              {/* Email-invite flow is disabled for now — the Add Rep form
-                  goes straight into the temp-password setup. See the
-                  state comment above handleAddRep. */}
+              {/* Onboarding method toggle. Email Invite (default) sends the
+                  rep a one-time set-password link; Temp Password lets the
+                  manager set a credential to deliver out-of-band. */}
+              <div>
+                <label className="text-xs text-gray-400 font-medium block mb-1">Onboarding method</label>
+                <div className="grid grid-cols-2 gap-1 bg-gray-100 rounded-xl p-1">
+                  {[
+                    { id: 'invite',        label: 'Email Invite' },
+                    { id: 'temp_password', label: 'Temp Password' },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setNewRepMode(m.id)}
+                      className={`py-2 rounded-lg text-xs font-bold transition-colors ${
+                        newRepMode === m.id
+                          ? 'bg-white shadow-sm text-gray-900'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div>
                 <label className="text-xs text-gray-400 font-medium block mb-1">Full Name</label>
@@ -928,58 +969,71 @@ export default function Settings() {
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
                 <p className="text-[11px] text-gray-400 mt-1">
-                  Add a phone so you can text the credentials straight from the confirmation panel.
+                  {newRepMode === 'invite'
+                    ? 'Stored on the rep’s profile — handy for follow-up texts later.'
+                    : 'Add a phone so you can text the credentials straight from the confirmation panel.'}
                 </p>
               </div>
 
-              {/* Temp password — always shown, with a "Generate" button
-                  that fills a readable two-word password and a show/hide
-                  toggle. */}
-              <div>
-                <label className="text-xs text-gray-400 font-medium block mb-1">Temporary Password</label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type={showTempPass ? 'text' : 'password'}
-                      value={newRepPassword}
-                      onChange={e => setNewRepPassword(e.target.value)}
-                      placeholder="At least 8 characters"
-                      autoComplete="off"
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    />
+              {/* Temp password — only in temp-password mode. "Generate" fills
+                  a readable two-word password; show/hide toggles visibility. */}
+              {newRepMode === 'temp_password' && (
+                <div>
+                  <label className="text-xs text-gray-400 font-medium block mb-1">Temporary Password</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={showTempPass ? 'text' : 'password'}
+                        value={newRepPassword}
+                        onChange={e => setNewRepPassword(e.target.value)}
+                        placeholder="At least 8 characters"
+                        autoComplete="off"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowTempPass(s => !s)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-gray-500 px-2 py-1 rounded-md hover:bg-gray-100">
+                        {showTempPass ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => setShowTempPass(s => !s)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-gray-500 px-2 py-1 rounded-md hover:bg-gray-100">
-                      {showTempPass ? 'Hide' : 'Show'}
+                      onClick={() => { setNewRepPassword(generateTempPassword()); setShowTempPass(true) }}
+                      className="flex items-center gap-1.5 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Generate
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => { setNewRepPassword(generateTempPassword()); setShowTempPass(true) }}
-                    className="flex items-center gap-1.5 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    Generate
-                  </button>
                 </div>
-              </div>
+              )}
 
-              {/* Explainer — keeps the manager oriented on what happens
-                  after they click Create. */}
-              <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
-                <Key className="w-4 h-4 text-amber-700 mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-amber-800 leading-relaxed">
-                  We'll show the password once so you can text it to {newRepName.trim() || 'the rep'}.
-                  They'll be prompted to pick their own on first login — nothing is stored in plaintext afterwards.
-                </p>
-              </div>
+              {/* Explainer — what happens after the manager clicks the CTA,
+                  tailored to the selected onboarding method. */}
+              {newRepMode === 'invite' ? (
+                <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
+                  <Mail className="w-4 h-4 text-blue-700 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-blue-800 leading-relaxed">
+                    We'll email {newRepName.trim() || 'the rep'} a one-time link to set their own password and log in.
+                    The link expires in 24 hours — they can be re-invited any time from their row below.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
+                  <Key className="w-4 h-4 text-amber-700 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    We'll show the password once so you can text it to {newRepName.trim() || 'the rep'}.
+                    They'll be prompted to pick their own on first login — nothing is stored in plaintext afterwards.
+                  </p>
+                </div>
+              )}
 
               <div className="flex gap-2">
                 <button
                   onClick={() => {
                     setShowAddRep(false)
                     setNewRepName(''); setNewRepEmail(''); setNewRepPhone('')
-                    setNewRepPassword(''); setShowTempPass(false)
+                    setNewRepPassword(''); setShowTempPass(false); setNewRepMode('invite')
                   }}
                   className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium">
                   Cancel
@@ -988,7 +1042,9 @@ export default function Settings() {
                   onClick={handleAddRep}
                   disabled={addingRep}
                   className="btn-brand flex-1 py-2.5 rounded-xl text-sm font-bold">
-                  {addingRep ? 'Creating rep…' : 'Create & Show Credentials'}
+                  {addingRep
+                    ? (newRepMode === 'invite' ? 'Sending invite…' : 'Creating rep…')
+                    : (newRepMode === 'invite' ? 'Send Invite'      : 'Create & Show Credentials')}
                 </button>
               </div>
             </div>

@@ -200,7 +200,13 @@ export default function InteractionModal({
   const initialLineItems = Array.isArray(existingInteraction?.service_line_items)
     ? existingInteraction.service_line_items
     : []
-  const [estimateMode, setEstimateMode]   = useState(initialLineItems.length ? 'itemized' : 'single')
+  // Default to the itemized per-service view for NEW logs. When editing an
+  // existing interaction that was saved as a single lump-sum (no line items),
+  // stay in 'single' so its saved value remains visible instead of being
+  // stranded behind the itemized inputs.
+  const [estimateMode, setEstimateMode]   = useState(
+    initialLineItems.length ? 'itemized' : existingInteraction ? 'single' : 'itemized'
+  )
   const [servicePrices, setServicePrices] = useState(() => {
     const m = {}
     for (const li of initialLineItems) {
@@ -429,6 +435,33 @@ export default function InteractionModal({
       }
     }
     await saveInteraction(selectedOutcome, {
+      contact_name:       contactName,
+      contact_phone:      contactPhone,
+      contact_email:      contactEmail,
+      service_types:      selectedServices,
+      estimated_value:    effectiveValue,
+      service_line_items: estimateMode === 'itemized' ? lineItems : null,
+      notes:              notes || null,
+    })
+  }
+
+  // Skip-the-estimate shortcut: on the estimate details screen the rep can
+  // convert the job straight to "booked" if the homeowner says yes on the
+  // spot. Same payload as a normal save but forces the booked outcome (which
+  // maps to the booked stage), so it needs a job value just like Book Job.
+  const handleConvertToBooked = async () => {
+    cancelAutoDismiss()
+    if (!(effectiveValue > 0)) {
+      setError(
+        estimateMode === 'itemized'
+          ? 'Add at least one service price to set the job value before booking.'
+          : 'Please enter a job value before booking this job.'
+      )
+      return
+    }
+    setOutcome('booked')
+    outcomeRef.current = 'booked'
+    await saveInteraction('booked', {
       contact_name:       contactName,
       contact_phone:      contactPhone,
       contact_email:      contactEmail,
@@ -1230,6 +1263,19 @@ export default function InteractionModal({
               >
                 ← Back
               </button>
+              {/* On the estimate flow, let the rep skip the estimate stage and
+                  book the job on the spot. Styled like Back (secondary) so the
+                  amber "Save Estimate" stays the primary action. */}
+              {selectedOutcome !== 'booked' && (
+                <button
+                  type="button"
+                  onClick={handleConvertToBooked}
+                  disabled={saving}
+                  className="flex-1 py-3.5 rounded-xl border-2 border-gray-200 text-gray-600 font-semibold text-sm disabled:opacity-60"
+                >
+                  Convert to booked job
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={saving}
