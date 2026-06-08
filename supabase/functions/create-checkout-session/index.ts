@@ -93,7 +93,7 @@ serve(async (req) => {
 
     const { data: org } = await admin
       .from('organizations')
-      .select('id, name, selected_plan, stripe_customer_id, stripe_subscription_id')
+      .select('id, name, selected_plan, stripe_customer_id, stripe_subscription_id, trial_days_override')
       .eq('id', profile.organization_id)
       .single()
     if (!org) return json({ error: 'Organization not found' }, 404)
@@ -145,13 +145,21 @@ serve(async (req) => {
     // Invisible to everyone else — the public checkout never shows a promo field.
     const applyBeta = String(body.promo || '').toLowerCase() === 'beta' && !!STRIPE_BETA_COUPON
 
+    // Trial length: default 14 days, or a growth-offer override stamped on the
+    // org at signup (growth_apply_referral). Clamped 1-60 defensively so a bad
+    // DB value can never grant an absurd free trial.
+    const overrideDays = Number(org.trial_days_override)
+    const trialDays = Number.isFinite(overrideDays) && overrideDays >= 1 && overrideDays <= 60
+      ? Math.floor(overrideDays)
+      : 14
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
       client_reference_id: org.id,
       line_items: [{ price, quantity }],
       subscription_data: {
-        trial_period_days: 14,
+        trial_period_days: trialDays,
         metadata: { organization_id: org.id, selected_plan: plan, interval, promo: applyBeta ? 'beta' : '' },
       },
       // Collect a card even though the trial is free, so day-15 conversion is automatic.

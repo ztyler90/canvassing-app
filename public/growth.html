@@ -142,6 +142,31 @@
       <div id="gmCodeMsg"></div>
     </div>
 
+    <!-- GM signup links + offer builder. Hidden for admins. -->
+    <div class="panel hidden" id="gmLinksPanel">
+      <h2 style="margin:0 0 2px">Your signup links</h2>
+      <p class="muted" style="font-size:12.5px;margin:0 0 14px">
+        Share these with prospects. Anyone who signs up through one is automatically credited to you.
+      </p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Offer</th><th>Free trial</th><th>Link</th><th></th></tr></thead>
+          <tbody id="gmLinksBody"></tbody>
+        </table>
+      </div>
+      <details style="margin-top:16px">
+        <summary>+ Create a new offer link</summary>
+        <div class="grid2" style="margin-top:12px">
+          <div><label>Offer name</label><input id="offLabel" placeholder="e.g. 30-day free trial" /></div>
+          <div><label>Free trial days (1–60)</label><input id="offDays" type="number" min="1" max="60" value="30" /></div>
+          <div><label>Link code (optional)</label><input id="offSlug" placeholder="auto from name" /></div>
+          <div><button id="createOfferBtn">Create offer</button></div>
+        </div>
+        <div id="offMsg"></div>
+        <p class="muted" style="font-size:12px">Offers grant up to 60 free trial days and go live immediately.</p>
+      </details>
+    </div>
+
     <!-- Admin tools -->
     <div id="adminTools" class="hidden">
       <div class="panel">
@@ -219,6 +244,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = 'https://mcwspvhihekhkytfxggv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TrrRKAkdoHFGdCwu1qHNIA_3XxFTvK8';
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+// Where prospects sign up — referral/offer links point here.
+const APP_ORIGIN = 'https://app.getknockiq.com';
 
 const $ = id => document.getElementById(id);
 const money = n => '$' + (Number(n||0)).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0});
@@ -246,6 +273,34 @@ function taperViz(tenure){
   return html;
 }
 function note(el,msg,ok){ el.innerHTML = `<div class="notice ${ok?'ok':'err'}">${msg}</div>`; }
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function signupLink(code, slug){
+  const u = new URL(APP_ORIGIN + '/signup');
+  u.searchParams.set('ref', code);
+  if(slug) u.searchParams.set('offer', slug);
+  return u.toString();
+}
+function renderGmLinks(code, offers){
+  const rows = [{ name:'Base link', trial:'14 days (default)', url:signupLink(code,null) }];
+  for(const o of (offers||[])){
+    if(o.active===false) continue;
+    rows.push({ name:o.label, trial:o.trial_days+' days', url:signupLink(code,o.slug) });
+  }
+  $('gmLinksBody').innerHTML = rows.map(r=>`
+    <tr>
+      <td><b>${esc(r.name)}</b></td>
+      <td>${esc(r.trial)}</td>
+      <td class="muted" style="max-width:380px;overflow:hidden;text-overflow:ellipsis">${esc(r.url)}</td>
+      <td><button class="ghost sm" data-copy="${encodeURIComponent(r.url)}">Copy</button></td>
+    </tr>`).join('');
+  document.querySelectorAll('[data-copy]').forEach(b=>{
+    b.onclick = async ()=>{
+      try{ await navigator.clipboard.writeText(decodeURIComponent(b.dataset.copy)); b.textContent='Copied'; }
+      catch(_){ b.textContent='Copy failed'; }
+      setTimeout(()=>{ b.textContent='Copy'; }, 1500);
+    };
+  });
+}
 
 let CURRENT = null; // last dashboard payload
 
@@ -266,10 +321,12 @@ function render(d){
 
   // Growth-manager "your terms" panel — show referral code + rev-share schedule.
   $('gmTermsPanel').classList.toggle('hidden', isAdmin || !d.me);
+  $('gmLinksPanel').classList.toggle('hidden', isAdmin || !d.me || !d.me.referral_code);
   if(!isAdmin && d.me){
     const code = d.me.referral_code || '—';
     $('gmCodeChip').textContent = code;
     $('copyCodeBtn').classList.toggle('hidden', !d.me.referral_code);
+    if(d.me.referral_code) renderGmLinks(d.me.referral_code, d.offers||[]);
   }
 
   const accts = d.accounts||[];
@@ -366,6 +423,21 @@ $('copyCodeBtn').onclick = async ()=>{
   try { await navigator.clipboard.writeText(code); note($('gmCodeMsg'),'Referral code copied.',true); }
   catch(_){ note($('gmCodeMsg'),'Copy failed — your code is '+code,false); }
   setTimeout(()=>{ $('gmCodeMsg').innerHTML=''; }, 2500);
+};
+
+$('createOfferBtn').onclick = async ()=>{
+  const label=$('offLabel').value.trim();
+  const days=parseInt($('offDays').value,10);
+  const slug=$('offSlug').value.trim() || label;
+  if(!label){ note($('offMsg'),'Give the offer a name.',false); return; }
+  if(!(days>=1 && days<=60)){ note($('offMsg'),'Free trial days must be between 1 and 60.',false); return; }
+  $('createOfferBtn').disabled=true;
+  const { error } = await sb.rpc('growth_create_offer',{ p_label:label, p_slug:slug, p_trial_days:days });
+  $('createOfferBtn').disabled=false;
+  if(error){ note($('offMsg'),error.message,false); return; }
+  note($('offMsg'),'Offer created — your new link is in the table above.',true);
+  $('offLabel').value=''; $('offSlug').value=''; $('offDays').value='30';
+  await loadDashboard();
 };
 
 $('snapshotBtn').onclick = async ()=>{

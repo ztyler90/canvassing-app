@@ -512,6 +512,28 @@ export async function provisionNewOrganization(businessName, selectedPlan = 'sta
 }
 
 /**
+ * Credit a growth-manager referral (and apply any offer) for the org the
+ * caller just provisioned. Server-side (SECURITY DEFINER): it derives the
+ * org from the authenticated owner, matches `ref` to an active growth
+ * manager's referral_code (idempotent — one attribution per org), and if a
+ * valid `offer` slug is supplied, stamps the org's trial_days_override so
+ * checkout grants the longer free trial. Best-effort: a missing/unknown code
+ * is a no-op and must never block signup. Returns the RPC payload or {error}.
+ */
+export async function applyGrowthReferral(ref, offer = null) {
+  if (!ref) return { skipped: true }
+  try {
+    const { data, error } = await supabase.rpc('growth_apply_referral', {
+      p_ref: ref, p_offer: offer || null,
+    })
+    if (error) return { error }
+    return data || {}
+  } catch (err) {
+    return { error: err instanceof Error ? err : new Error(String(err)) }
+  }
+}
+
+/**
  * Fire the send-welcome edge function for the just-provisioned owner.
  * Best-effort: a missed welcome email must never block signup, so this
  * swallows every failure and returns it for optional logging. Call it

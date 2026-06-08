@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { signUpWithEmail, signInWithEmail, provisionNewOrganization, sendWelcomeEmail } from '../lib/supabase.js'
+import { signUpWithEmail, signInWithEmail, provisionNewOrganization, sendWelcomeEmail, applyGrowthReferral } from '../lib/supabase.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -39,6 +39,11 @@ export default function Signup() {
   // Private beta discount: a ?promo=beta on the signup link pre-applies the
   // 50%-off-for-life coupon at checkout. Absent/anything else → no discount.
   const promo = searchParams.get('promo') || null
+  // Growth referral tracking: ?ref=<code> credits the new org to that growth
+  // manager; optional ?offer=<slug> applies their promotion (e.g. a longer
+  // free trial). Both are validated server-side in growth_apply_referral.
+  const refCode  = searchParams.get('ref')   || null
+  const refOffer = searchParams.get('offer') || null
 
   const [businessName, setBusinessName] = useState('')
   const [fullName,     setFullName]     = useState('')
@@ -92,6 +97,12 @@ export default function Signup() {
     // 3. Explicit sign-in to force a fresh session + profile rebuild with the
     //    new organization_id attached. onAuthStateChange will then route us.
     await signInWithEmail(em, password)
+
+    // 3a. Credit the growth referral + apply any offer. Server-validated and
+    //     best-effort. Awaited (it's quick) so the org's trial_days_override is
+    //     stamped BEFORE the checkout gate reads it — otherwise the longer
+    //     trial wouldn't take effect. A bad/missing code is a silent no-op.
+    if (refCode) { try { await applyGrowthReferral(refCode, refOffer) } catch { /* never block signup */ } }
 
     // 3b. Fire the branded welcome email. Best-effort and intentionally NOT
     //     awaited — a slow/failed email must never delay the redirect into
