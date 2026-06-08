@@ -1470,6 +1470,55 @@ export async function updateManagerNotifyPhases(userId, phases) {
   return { data, error }
 }
 
+/**
+ * List reps in the caller's org that the owner could promote to
+ * manager. Same shape as getAllReps but only what the picker needs.
+ * Server-side RLS already scopes to the caller's org; we still
+ * .eq('organization_id', orgId) so super-admin sessions don't pull
+ * a cross-org roster.
+ */
+export async function getPromotableReps() {
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, full_name, email, phone')
+    .eq('role', 'rep')
+    .eq('organization_id', orgId)
+    .order('full_name')
+  if (error) {
+    console.warn('[getPromotableReps] query failed:', error)
+    return []
+  }
+  return data || []
+}
+
+/**
+ * Promote an existing rep to platform manager. Owner-only — the RPC
+ * enforces this server-side, so a non-owner caller gets a clear
+ * error back instead of a silently-failed write.
+ */
+export async function promoteRepToManager(userId) {
+  const { error } = await supabase.rpc('change_user_role', {
+    target_user_id: userId,
+    new_role:       'manager',
+  })
+  return { error: error || null }
+}
+
+/**
+ * Demote a platform manager back to rep. Same RPC, opposite
+ * direction. Owner protected server-side — calling on the owner
+ * raises. Caller can't demote themselves.
+ */
+export async function demoteManagerToRep(userId) {
+  const { error } = await supabase.rpc('change_user_role', {
+    target_user_id: userId,
+    new_role:       'rep',
+  })
+  return { error: error || null }
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // CLOSER CONTACTS (Phase 5) — email-only closer tier.
 // These contacts don't have an auth user / platform seat. They just

@@ -29,6 +29,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft, Users, Plus, X, Trash2, Send, Loader2, Check,
   Flame, CalendarCheck, CheckCircle2, Crown, ShieldAlert, DollarSign,
+  UserPlus, ArrowDownCircle, Search,
 } from 'lucide-react'
 import {
   getCurrentUser, getMyOrganization,
@@ -41,6 +42,9 @@ import {
   updateManagerNotifyPhases,
   updateRepCommissionConfig,
   resendRepInvite,
+  getPromotableReps,        // existing-rep picker source
+  promoteRepToManager,
+  demoteManagerToRep,
 } from '../lib/supabase.js'
 import CommissionEditor from '../components/CommissionEditor.jsx'
 import { describeCommission } from '../lib/repStats.js'
@@ -72,10 +76,20 @@ export default function ManagersSettings() {
   const [name,      setName]      = useState('')
   const [email,     setEmail]     = useState('')
   const [phone,     setPhone]     = useState('')
-  const [tier,      setTier]      = useState('contact')   // 'contact' (default) | 'platform'
+  // Third tier 'promote' opens a picker of existing reps instead of
+  // the name/email/phone inputs — the owner clicks a rep, the RPC
+  // flips users.role to 'manager' atomically.
+  const [tier,      setTier]      = useState('contact')   // 'contact' | 'platform' | 'promote'
   const [adding,    setAdding]    = useState(false)
   const [busyId,    setBusyId]    = useState(null)
   const [toast,     setToast]     = useState(null)
+
+  // Rep roster for the "Promote existing rep" picker. Loaded once when
+  // the owner first opens the Add form; refreshed whenever a promotion
+  // or demotion lands so the list stays in sync.
+  const [repsRoster,   setRepsRoster]   = useState([])
+  const [repsLoaded,   setRepsLoaded]   = useState(false)
+  const [repSearch,    setRepSearch]    = useState('')
 
   useEffect(() => { init() }, [])
 
@@ -93,6 +107,20 @@ export default function ManagersSettings() {
     setManagers(await getAllManagersUnified())
   }
 
+  async function loadRepsRoster() {
+    setRepsRoster(await getPromotableReps())
+    setRepsLoaded(true)
+  }
+
+  // Lazy-load the rep roster the first time the owner switches into
+  // the "Promote existing rep" tier — keeps the screen fast for the
+  // common case (most managers are added by email).
+  useEffect(() => {
+    if (showAdd && tier === 'promote' && !repsLoaded) {
+      loadRepsRoster()
+    }
+  }, [showAdd, tier, repsLoaded])
+
   function showToast(text, type = 'success') {
     setToast({ text, type })
     setTimeout(() => setToast(null), 2600)
@@ -100,7 +128,7 @@ export default function ManagersSettings() {
 
   async function handleAdd(e) {
     e.preventDefault()
-    if (!name.trim() || !email.trim()) return
+    if (tier !== 'promote' && (!name.trim() || !email.trim())) return
     setAdding(true)
     if (tier === 'contact') {
       const { error } = await createManagerContact({
@@ -109,7 +137,7 @@ export default function ManagersSettings() {
       setAdding(false)
       if (error) { showToast(error.message || 'Add failed', 'error'); return }
       showToast('Manager added — emailed on Booked by default')
-    } else {
+    } else if (tier === 'platform') {
       const { error, emailSent, emailError, user } = await createManager({
         fullName: name, email, phone: phone || undefined, mode: 'invite',
       })
@@ -120,9 +148,51 @@ export default function ManagersSettings() {
       setAdding(false)
       showToast(emailSent ? 'Manager invited' : `Created. Email: ${emailError || 'failed'}`,
                 emailSent ? 'success' : 'error')
+    } else {
+      // tier === 'promote' — handled by handlePromote() called from the
+      // rep picker; reaching this branch via the form submit is a no-op
+      // because there's no submit button when the picker is visible.
+      setAdding(false)
+      return
     }
     setName(''); setEmail(''); setPhone(''); setTier('contact')
     setShowAdd(false)
+    await load()
+  }
+
+  // Promote an existing rep — invoked from the rep picker row.
+  async function handlePromote(rep) {
+    if (!rep?.id) return
+    setBusyId(rep.id)
+    const { error } = await promoteRepToManager(rep.id)
+    setBusyId(null)
+    if (error) { showToast(error.message || 'Promote failed', 'error'); return }
+    showToast(`${rep.full_name || rep.email} is now a manager`)
+    // Close the form, reset tier, and refresh both lists so the
+    // promoted rep disappears from the picker and lands in the
+    // manager roster with Booked as their default subscription.
+    setShowAdd(false)
+    setTier('contact')
+    setRepSearch('')
+    setRepsLoaded(false)
+    await load()
+  }
+
+  // Demote a platform manager back to rep. Owner-only, owner-protected,
+  // self-demote blocked — all enforced server-side. We still confirm at
+  // the UI to make "I clicked the wrong button" recoverable.
+  async function handleDemote(m) {
+    if (m.is_owner) return
+    if (!window.confirm(
+      `Demote ${m.full_name || m.email} to a rep? They'll lose dashboard access ` +
+      `and stop receiving pipeline emails. You can promote them back any time.`
+    )) return
+    setBusyId(m.id)
+    const { error } = await demoteManagerToRep(m.id)
+    setBusyId(null)
+    if (error) { showToast(error.message || 'Demote failed', 'error'); return }
+    showToast('Demoted to rep')
+    setRepsLoaded(false)   // next time the picker opens, refresh
     await load()
   }
 
@@ -275,7 +345,10 @@ export default function ManagersSettings() {
                   <p className="text-sm font-bold text-gray-900">Add a manager</p>
                   <button
                     type="button"
-                    onClick={() => { setShowAdd(false); setName(''); setEmail(''); setPhone(''); setTier('contact') }}
+                    onClick={() => {
+                      setShowAdd(false); setName(''); setEmail(''); setPhone('')
+                      setTier('contact'); setRepSearch('')
+                    }}
                     className="text-gray-400 hover:text-gray-600"
                     aria-label="Cancel"
                   >
@@ -300,21 +373,104 @@ export default function ManagersSettings() {
                     badge="Uses a seat"
                     description="Gets an invite to log into the dashboard and review team performance — plus any phase emails."
                   />
+                  <TierOption
+                    id="promote"
+                    active={tier === 'promote'}
+                    onPick={setTier}
+                    title="Promote existing rep"
+                    badge="No invite needed"
+                    description="Pick a rep on your team — they keep their account but gain dashboard access. Reversible any time."
+                  />
                 </div>
 
-                <Input value={name}  onChange={setName}  placeholder="Full name"        required />
-                <Input value={email} onChange={setEmail} placeholder="Email address"    type="email" required />
-                <Input value={phone} onChange={setPhone} placeholder="Phone (optional)" type="tel" />
+                {/* Tier-specific body. 'contact' and 'platform' share
+                    the name/email/phone inputs; 'promote' replaces
+                    them with a searchable rep picker. */}
+                {tier === 'promote' ? (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={repSearch}
+                        onChange={(e) => setRepSearch(e.target.value)}
+                        placeholder="Search reps by name or email…"
+                        className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 text-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600 outline-none"
+                      />
+                    </div>
 
-                <button
-                  type="submit"
-                  disabled={adding || !name.trim() || !email.trim()}
-                  className="w-full py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50 flex items-center justify-center gap-2"
-                  style={{ background: BRAND_BLUE }}
-                >
-                  {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  {tier === 'platform' ? 'Send manager invite' : 'Add manager'}
-                </button>
+                    {!repsLoaded ? (
+                      <div className="flex items-center justify-center py-6">
+                        <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                      </div>
+                    ) : repsRoster.length === 0 ? (
+                      <div className="text-center py-6 px-3 text-[12px] text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                        <Users className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />
+                        No reps on your team yet. Add a rep from Settings first, then come back to promote them.
+                      </div>
+                    ) : (() => {
+                      const q = repSearch.trim().toLowerCase()
+                      const filtered = q
+                        ? repsRoster.filter((r) =>
+                            (r.full_name || '').toLowerCase().includes(q) ||
+                            (r.email || '').toLowerCase().includes(q))
+                        : repsRoster
+                      if (filtered.length === 0) return (
+                        <p className="text-[12px] text-gray-500 text-center py-4">
+                          No reps match "{repSearch}".
+                        </p>
+                      )
+                      return (
+                        <div className="max-h-72 overflow-y-auto space-y-1 -mx-1 px-1">
+                          {filtered.map((r) => {
+                            const busy = busyId === r.id
+                            return (
+                              <button
+                                key={r.id}
+                                type="button"
+                                onClick={() => handlePromote(r)}
+                                disabled={busy || adding}
+                                className="w-full flex items-center gap-2.5 p-2.5 rounded-xl border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/40 disabled:opacity-50 text-left"
+                              >
+                                <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 text-xs font-bold flex items-center justify-center shrink-0">
+                                  {(r.full_name || r.email || 'R')[0].toUpperCase()}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[13px] font-semibold text-gray-900 truncate">{r.full_name || '—'}</p>
+                                  <p className="text-[11px] text-gray-500 truncate">{r.email}</p>
+                                </div>
+                                <span className="text-[11px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 shrink-0"
+                                  style={{ color: BRAND_BLUE, backgroundColor: '#EEF2FF' }}>
+                                  {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
+                                  Promote
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )
+                    })()}
+                    <p className="text-[11px] text-gray-400 leading-snug">
+                      Promoted reps get dashboard access immediately and start receiving Booked emails. You can demote them back at any time from the manager list below.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <Input value={name}  onChange={setName}  placeholder="Full name"        required />
+                    <Input value={email} onChange={setEmail} placeholder="Email address"    type="email" required />
+                    <Input value={phone} onChange={setPhone} placeholder="Phone (optional)" type="tel" />
+
+                    <button
+                      type="submit"
+                      disabled={adding || !name.trim() || !email.trim()}
+                      className="w-full py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50 flex items-center justify-center gap-2"
+                      style={{ background: BRAND_BLUE }}
+                    >
+                      {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      {tier === 'platform' ? 'Send manager invite' : 'Add manager'}
+                    </button>
+                  </>
+                )}
               </form>
             )}
 
@@ -342,6 +498,7 @@ export default function ManagersSettings() {
                     onSaveCommission={(cfg) => handleSaveCommission(m.id, cfg)}
                     onResend={() => handleResend(m)}
                     onDelete={() => handleDelete(m)}
+                    onDemote={() => handleDemote(m)}
                     onPhaseToggle={(p) => handlePhaseToggle(m, p)}
                   />
                 ))}
@@ -387,7 +544,9 @@ function TierOption({ id, active, onPick, title, badge, description }) {
           <div className="flex items-center gap-2 flex-wrap">
             <p className={`text-sm font-semibold ${active ? 'text-blue-900' : 'text-gray-900'}`}>{title}</p>
             <span className={`text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded ${
-              id === 'contact' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+              id === 'contact'  ? 'bg-green-100 text-green-700' :
+              id === 'platform' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-blue-100 text-blue-700'
             }`}>
               {badge}
             </span>
@@ -413,7 +572,7 @@ function Input({ value, onChange, placeholder, type = 'text', required }) {
 }
 
 function ManagerRow({
-  manager, busy, onResend, onDelete, onPhaseToggle,
+  manager, busy, onResend, onDelete, onDemote, onPhaseToggle,
   commissionOn = false, isEditingCommission = false,
   onEditCommission, onCancelCommission, onSaveCommission,
 }) {
@@ -460,11 +619,25 @@ function ManagerRow({
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </button>
           )}
+          {/* Demote to rep — platform managers only. Email-only
+              "managers" don't have a user account to demote, and the
+              owner is owner-protected server-side, so we hide the
+              button for both. */}
+          {isPlatform && !manager.is_owner && onDemote && (
+            <button
+              onClick={onDemote}
+              disabled={busy}
+              title="Demote to rep"
+              className="p-2 rounded-lg text-amber-600 hover:bg-amber-50 disabled:opacity-40"
+            >
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowDownCircle className="w-4 h-4" />}
+            </button>
+          )}
           {!manager.is_owner && (
             <button
               onClick={onDelete}
               disabled={busy}
-              title="Remove manager"
+              title={isPlatform ? 'Delete manager account' : 'Remove manager'}
               className="p-2 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-40"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
