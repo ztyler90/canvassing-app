@@ -339,11 +339,17 @@ const TerritoryMap = forwardRef(function TerritoryMap(
       finishDraw()
     })
 
-    // Any direct user gesture on the map counts as "the user is in charge now"
-    // — block the pending geolocation auto-center from hijacking the view.
+    // A genuine user pan means "the user is in charge now" — block the pending
+    // geolocation auto-center AND the auto-fit from yanking the view back.
+    // NOTE: we deliberately do NOT listen to 'zoomstart' here. Leaflet fires
+    // it for our OWN programmatic fitBounds/setView (e.g. the regionFallback
+    // fit that lands a tick after mount), and that false positive was setting
+    // userMovedRef before the territories auto-fit ran — stranding the map on
+    // the wide continental view ("Territories shows the whole USA"). A real
+    // user drag still fires 'dragstart', which is the gesture we actually care
+    // about for "don't reframe under me."
     const markUserMoved = () => { userMovedRef.current = true }
     map.on('dragstart', markUserMoved)
-    map.on('zoomstart', markUserMoved)
 
     // ESC → cancel
     const onKey = (e) => { if (e.key === 'Escape') clearDraw() }
@@ -601,9 +607,15 @@ const TerritoryMap = forwardRef(function TerritoryMap(
           // don't override that with a GPS snap.
           if (autoFitDoneRef.current) return
           const { latitude, longitude } = pos.coords
-          // Zoom 18 ≈ street-level where individual houses are clearly
-          // distinguishable.
-          mapRef.current.setView([latitude, longitude], 18)
+          // No territories yet → frame ~25 miles around the rep so they see
+          // their whole prospective working area rather than a single street.
+          // toBounds() takes a DIAMETER in meters: a 25-mile radius = 50-mile
+          // diameter ≈ 80,467 m. fitBounds then picks the tightest zoom that
+          // still shows that radius on whatever screen size we're on.
+          mapRef.current.fitBounds(
+            L.latLng(latitude, longitude).toBounds(80467),
+            { padding: [10, 10] }
+          )
           autoFitDoneRef.current = true
         },
         () => { /* permission denied or timeout — leave the door open

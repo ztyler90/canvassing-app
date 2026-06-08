@@ -140,14 +140,19 @@ export default function PipelineTab() {
   async function load({ background = false } = {}) {
     if (background) setRefreshing(true)
     else            setLoading(true)
-    const [o, l, q, a, h, c] = await Promise.all([
+    // Action queue is derived from the same active-pipeline rows as
+    // the kanban, so we fetch leads ONCE and pass them into
+    // getActionQueue() instead of letting it re-fetch. Cuts a 500-row
+    // 3-join query out of every Pipeline tab open — the biggest
+    // single win for time-to-paint on this screen.
+    const [o, l, a, h, c] = await Promise.all([
       getMyOrganization(),
       getPipelineLeads(),
-      getActionQueue(),
       getUpcomingAppointments(10),
       getPipelineHealth(30),
       getClosedSummary(30),
     ])
+    const q = await getActionQueue(l)
     setOrg(o); setLeads(l); setQueue(q); setAppts(a); setHealth(h); setClosed(c)
     // After a background refresh, also patch openLead so the modal
     // picks up server-fresh join data (closer name, setter name, etc.).

@@ -2420,7 +2420,10 @@ export async function getOrgTerritoriesForRep(repId) {
       .select(`*, territory_assignments ( rep_id, users!rep_id ( id, full_name ) )`)
       .eq('organization_id', orgId)
       .order('created_at', { ascending: true }),
-    getAllDoorHistory(),
+    // Slimmer query: only lat/lng/created_at, last 90 days, capped at
+    // 1000 rows. Cuts wire payload and parse time roughly 5–10×
+    // compared with the legacy getAllDoorHistory().
+    getDoorHistoryForTerritories({ windowDays: 90, limit: 1000 }),
     // Per-rep completion state. RLS already limits the rows to this
     // rep's completions, but we still scope by rep_id explicitly so a
     // future policy change (e.g. exposing manager completions to reps)
@@ -2459,13 +2462,28 @@ export async function getOrgTerritoriesForRep(repId) {
     let lastKnockAt = null
     let interactionCount = 0
     if (poly && poly.length >= 3) {
+      // Bounding-box pre-filter. A neighborhood polygon covers a tiny
+      // fraction of the city — for every door outside the bbox we can
+      // skip the (cheap but not free) ray-cast loop. For a 10-zone
+      // org this turns ~10,000 polygon tests into ~10×(zone-area
+      // fraction × N), typically 50–200 tests instead of thousands.
+      let minLat =  Infinity, maxLat = -Infinity
+      let minLng =  Infinity, maxLng = -Infinity
+      for (const p of poly) {
+        if (p[0] < minLat) minLat = p[0]
+        if (p[0] > maxLat) maxLat = p[0]
+        if (p[1] < minLng) minLng = p[1]
+        if (p[1] > maxLng) maxLng = p[1]
+      }
       for (const h of history) {
         if (h.lat == null || h.lng == null) continue
+        if (h.lat < minLat || h.lat > maxLat || h.lng < minLng || h.lng > maxLng) continue
         if (!pip(h.lat, h.lng, poly)) continue
         interactionCount += 1
-        if (!lastKnockAt || new Date(h.created_at) > new Date(lastKnockAt)) {
-          lastKnockAt = h.created_at
-        }
+        // history is already ordered DESC by created_at, so the first
+        // match is the latest. Skip the Date constructions and just
+        // remember the first hit.
+        if (!lastKnockAt) lastKnockAt = h.created_at
       }
     }
     return {
@@ -2609,6 +2627,34 @@ export async function getAllDoorHistory() {
     .not('lat', 'is', null)
     .order('created_at', { ascending: false })
     .limit(2000)
+  return data || []
+}
+
+/**
+ * Slim door-history pull for the Territories screens: only the three
+ * fields the per-zone rollup actually reads (lat, lng, created_at),
+ * scoped to a recent time window, no joins. The previous
+ * getAllDoorHistory query pulled 2000 rows × 7+ joined columns just
+ * to compute "how many knocks landed in this polygon and when was
+ * the most recent one" — a lot of payload to throw away.
+ *
+ *   windowDays — how far back to look. 90 days covers the recency
+ *                signal the UI sorts on; older knocks barely affect
+ *                "stalest first" because they're already buried.
+ *   limit      — hard cap. 1000 recent rows is plenty for the rep
+ *                inbox UX; if an org overflows it we still get a
+ *                correct (just truncated-at-the-tail) signal.
+ */
+export async function getDoorHistoryForTerritories({ windowDays = 90, limit = 1000 } = {}) {
+  const since = new Date()
+  since.setDate(since.getDate() - windowDays)
+  const { data } = await supabase
+    .from('interactions')
+    .select('lat, lng, created_at')
+    .not('lat', 'is', null)
+    .gte('created_at', since.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(limit)
   return data || []
 }
 
@@ -3278,8 +3324,16 @@ export async function getPipelineLeadById(id) {
  *   • Follow-up flag set + no activity 3d in active stage → amber
  *   • High-$ lead aging > 5d (top 3 by estimated_value)  → amber
  */
-export async function getActionQueue() {
-  const leads = await getPipelineLeads({})
+/**
+ * Compute the action queue. Accepts an already-loaded leads array so
+ * the Pipeline tab can pass the leads it already fetched for the
+ * kanban — historically this helper re-fetched the same 500-row,
+ * 3-join query, doubling Pipeline load time. Callers that don't have
+ * leads in hand (none currently, but kept for safety) still get a
+ * working fetch path.
+ */
+export async function getActionQueue(preloadedLeads = null) {
+  const leads = Array.isArray(preloadedLeads) ? preloadedLeads : await getPipelineLeads({})
   const now = Date.now()
   const queue = []
   const seen  = new Set()
@@ -3916,15 +3970,19 @@ export function subscribeToChatInbox(onChange) {
  * themselves. Sorted by name. Returns minimal columns.
  */
 export async function listOrgTeammates() {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
-  const orgId = await getMyOrgId()
-  if (!orgId) return []
-  const { data } = await supabase
-    .from('users')
-    .select('id, full_name, email, role')
-    .eq('organization_id', orgId)
-    .neq('id', user.id)
-    .order('full_name', { ascending: true, nullsFirst: false })
+  // Routed through a SECURITY DEFINER RPC instead of a direct users read.
+  // Plain reps have no same-org SELECT on `users` (tenant_isolation is a
+  // RESTRICTIVE policy; only select_own + the manager read policy grant
+  // rows), so the old direct query returned [] for reps and the DM picker
+  // was silently manager-only. The RPC returns just the roster columns the
+  // picker needs (id, full_name, email, role, avatar_url) — no
+  // commission_config or phone — so reps can DM teammates by name without
+  // exposing pay or contact details.
+  const { data, error } = await supabase.rpc('chat_list_org_teammates')
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error('[chat] chat_list_org_teammates failed', error)
+    return []
+  }
   return data || []
 }
