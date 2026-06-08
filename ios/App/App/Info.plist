@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+        <string>KnockIQ</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>KnockIQ uses your location to map the route you walk while canvassing, so your manager can see coverage and reps can see their own door history.</string>
+
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>KnockIQ tracks your canvassing route in the background so your session keeps recording when your phone locks or you switch apps. Tracking only runs while a canvassing session is active — it stops automatically when you end the session.</string>
+
+<key>NSLocationAlwaysUsageDescription</key>
+<string>KnockIQ tracks your canvassing route in the background so your session keeps recording when your phone locks or you switch apps. Tracking only runs while a canvassing session is active.</string>
+
+<key>NSCameraUsageDescription</key>
+<string>KnockIQ uses the camera to attach photos to booked jobs and estimate-request documentation.</string>
+
+<key>NSPhotoLibraryUsageDescription</key>
+<string>KnockIQ accesses your photo library so you can attach existing photos to a job booking.</string>
+
+<key>UIBackgroundModes</key>
+<array>
+    <string>location</string>
+    <string>fetch</string>
+</array>
+</dict>
+</plist>
