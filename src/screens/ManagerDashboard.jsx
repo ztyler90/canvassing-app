@@ -212,6 +212,14 @@ export default function ManagerDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Sticky chrome — header + (optional) setup callout + tab bar. The
+          wrapper uses `sticky top-0 z-30` so when the content area scrolls
+          (whether via the inner overflow-y-auto on desktop or page scroll
+          on mobile/native), the brand header and the Overview/Reps/Pipeline
+          tabs stay pinned to the top of the viewport. A solid bg on the
+          wrapper prevents the gradient from showing through any margin
+          gap once we leave the rendering of the header itself. */}
+      <div className="sticky top-0 z-30 bg-gray-50">
       {/* Header */}
       <div className="px-5 pt-12 pb-4 bg-brand-header">
         <div className="max-w-7xl mx-auto w-full">
@@ -360,6 +368,7 @@ export default function ManagerDashboard() {
           Territories) live past the fold. The hint fades away once they
           scroll within ~12px of the end. */}
       <TabBar tabs={TABS} current={tab} onChange={setTab} />
+      </div>{/* /sticky chrome wrapper */}
 
       {/* Content */}
       <div className={`flex-1 overflow-y-auto ${!NO_FILTER_TABS.has(tab) ? 'px-4 py-5 pb-8' : ''}`}>
