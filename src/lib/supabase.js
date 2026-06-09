@@ -2642,10 +2642,17 @@ export async function getGeocodeSpendSummary() {
 
 /** All interactions ever (no date filter) for territory door-history overlay */
 export async function getAllDoorHistory() {
+  // Explicit org scope. Without it, RLS forces a full sequential scan of
+  // every org's geocoded interactions (~32k rows → filter down to ours),
+  // which was the multi-second hang on the manager Territories tab
+  // (~6.4s → ~50ms once the org index can be used).
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
   const { data } = await supabase
     .from('interactions')
     // Same FK-ambiguity fix as getManagerMapData — pin to rep_id.
     .select('id, lat, lng, outcome, address, created_at, rep_id, users!rep_id ( full_name )')
+    .eq('organization_id', orgId)
     .not('lat', 'is', null)
     .order('created_at', { ascending: false })
     .limit(2000)
@@ -2668,11 +2675,17 @@ export async function getAllDoorHistory() {
  *                correct (just truncated-at-the-tail) signal.
  */
 export async function getDoorHistoryForTerritories({ windowDays = 90, limit = 1000 } = {}) {
+  // Org-scoped so the planner uses idx_interactions_organization instead
+  // of seq-scanning the whole table behind RLS (same fix as
+  // getAllDoorHistory above).
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
   const since = new Date()
   since.setDate(since.getDate() - windowDays)
   const { data } = await supabase
     .from('interactions')
     .select('lat, lng, created_at')
+    .eq('organization_id', orgId)
     .not('lat', 'is', null)
     .gte('created_at', since.toISOString())
     .order('created_at', { ascending: false })
@@ -3280,6 +3293,14 @@ export const CLOSED_PIPELINE_STAGES = [
  *   filters.dateFrom / dateTo — restrict by created_at
  */
 export async function getPipelineLeads(filters = {}) {
+  // Explicit org scope. RLS already isolates by org, but the interactions
+  // table has several OR'd permissive policies (incl. a correlated
+  // subquery), so without an org predicate the planner can't use
+  // idx_interactions_organization and falls back to scanning every org's
+  // active-stage rows before RLS-filtering down to ours. Passing
+  // organization_id lets it index-scan straight to our rows (~440ms → ~10ms).
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
   let query = supabase
     .from('interactions')
     .select(`
@@ -3291,6 +3312,7 @@ export async function getPipelineLeads(filters = {}) {
       closer:closer_id               ( id, full_name ),
       closer_contact:closer_contact_id ( id, full_name )
     `)
+    .eq('organization_id', orgId)
     .in('stage', ACTIVE_PIPELINE_STAGES)
     .order('created_at', { ascending: false })
     .limit(500)
@@ -3316,6 +3338,11 @@ export async function getPipelineLeads(filters = {}) {
  */
 export async function getPipelineLeadById(id) {
   if (!id) return null
+  // Org-scoped like getPipelineLeads. RLS still gates cross-org ids to
+  // null; the explicit filter keeps the single-row lookup on the org
+  // index path and consistent with the list query above.
+  const orgId = await getMyOrgId()
+  if (!orgId) return null
   const { data } = await supabase
     .from('interactions')
     .select(`
@@ -3327,6 +3354,7 @@ export async function getPipelineLeadById(id) {
       closer:closer_id               ( id, full_name ),
       closer_contact:closer_contact_id ( id, full_name )
     `)
+    .eq('organization_id', orgId)
     .eq('id', id)
     .maybeSingle()
   return data || null
@@ -3445,6 +3473,8 @@ export async function getActionQueue(preloadedLeads = null) {
  * of { date (Date), appts ([{id, time, customer, value, ...}]), totalValue }.
  */
 export async function getUpcomingAppointments(daysAhead = 10) {
+  const orgId = await getMyOrgId()
+  if (!orgId) return []
   const start = new Date(); start.setHours(0, 0, 0, 0)
   const end   = new Date(start); end.setDate(end.getDate() + daysAhead)
   const { data } = await supabase
@@ -3456,6 +3486,7 @@ export async function getUpcomingAppointments(daysAhead = 10) {
       closer:closer_id               ( id, full_name ),
       closer_contact:closer_contact_id ( id, full_name )
     `)
+    .eq('organization_id', orgId)
     .gte('appointment_at', start.toISOString())
     .lt('appointment_at',  end.toISOString())
     .in('stage', ['appt_scheduled', 'estimate_sent', 'booked'])
@@ -3488,10 +3519,13 @@ export async function getUpcomingAppointments(daysAhead = 10) {
  * Cheap for orgs <10k active leads; would warrant a DB view at scale.
  */
 export async function getPipelineHealth(windowDays = 30) {
+  const orgId = await getMyOrgId()
+  if (!orgId) return { avgTimeToBookDays: null, estimateToBookRate: null, pipelineAtRisk: 0, forecast14d: 0, sampleSize: 0 }
   const windowStart = new Date(); windowStart.setDate(windowStart.getDate() - windowDays)
   const { data } = await supabase
     .from('interactions')
     .select('id, stage, estimated_value, hot_lead_started_at, estimate_sent_at, created_at, appointment_at')
+    .eq('organization_id', orgId)
     .gte('created_at', windowStart.toISOString())
     .not('stage', 'is', null)
 
@@ -3544,10 +3578,13 @@ export async function getPipelineHealth(windowDays = 30) {
  * when the data justifies it).
  */
 export async function getClosedSummary(windowDays = 30) {
+  const orgId = await getMyOrgId()
+  if (!orgId) return { notInterested: 0, lost: 0, stale: 0, topReasons: [], total: 0 }
   const windowStart = new Date(); windowStart.setDate(windowStart.getDate() - windowDays)
   const { data } = await supabase
     .from('interactions')
     .select('stage, lost_reason')
+    .eq('organization_id', orgId)
     .in('stage', CLOSED_PIPELINE_STAGES)
     .gte('created_at', windowStart.toISOString())
 
