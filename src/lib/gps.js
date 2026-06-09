@@ -31,7 +31,30 @@
  */
 
 import { insertGpsPoints } from './supabase.js'
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, registerPlugin } from '@capacitor/core'
+
+// Register the BackgroundGeolocation native plugin by name. This is the
+// official Capacitor pattern for accessing native plugins — at runtime,
+// the Capacitor bridge looks up "BackgroundGeolocation" in the plugin
+// registry and routes calls to the Swift (iOS) / Kotlin (Android)
+// implementation that was wired in during `npx cap sync`. On web,
+// method calls reject with "not implemented", which is fine because
+// our `Capacitor.isNativePlatform()` checks below ensure we only ever
+// call into this on native.
+//
+// Why this instead of `import { BackgroundGeolocation } from
+// '@capacitor-community/background-geolocation'`:
+//   - The package's index file imports native-only Swift bridge code
+//     that breaks Vite's web build (the original "Failed to resolve
+//     entry for package" error). The dynamic-import workaround we tried
+//     before was too clever — Capacitor's plugin registration didn't
+//     see it, so `addWatcher` never reached CoreLocation and iOS never
+//     even added the Location row to the app's Settings panel.
+//   - `registerPlugin` lives in `@capacitor/core` (which builds fine on
+//     both web and native), takes only a string name, and produces the
+//     same proxy object the package's own index file would have given
+//     us. Clean separation with no build-time gymnastics.
+const BackgroundGeolocation = registerPlugin('BackgroundGeolocation')
 
 // Discard any reading with accuracy worse than this (meters).
 // 50 m is intentionally generous — it filters GPS "jumps" (e.g. sudden 200 m
@@ -71,30 +94,9 @@ const GPS_MODES = {
   },
 }
 
-// Lazy native-plugin loader. Web builds never hit this path so the
-// import never resolves, which keeps the manager desktop bundle from
-// trying to pull in a native-only module.
-let _bgGeoPromise = null
-function loadBgGeo() {
-  if (!Capacitor.isNativePlatform()) return Promise.resolve(null)
-  if (!_bgGeoPromise) {
-    // We hide the module path behind a variable so neither Vite's nor
-    // vite-plugin-pwa's Rollup pass can statically analyze it at build time.
-    // The web bundle can't resolve the native-only Capacitor plugin —
-    // without this indirection, vite-plugin-pwa's worker-build pass fails
-    // with "Failed to resolve entry for package". The runtime check above
-    // ensures this code path only executes on iOS/Android.
-    const bgGeoModule = ['@capacitor-community', 'background-geolocation'].join('/')
-    _bgGeoPromise = import(/* @vite-ignore */ bgGeoModule)
-      .then((mod) => mod.BackgroundGeolocation || mod.default || mod)
-      .catch((err) => {
-        console.warn('[GPS] background-geolocation plugin failed to load:', err)
-        _bgGeoPromise = null
-        return null
-      })
-  }
-  return _bgGeoPromise
-}
+// (loadBgGeo() previously did a dynamic import of the plugin package.
+// Replaced by the module-level `registerPlugin('BackgroundGeolocation')`
+// above — see comment there for the rationale.)
 
 class GPSTracker {
   constructor() {
@@ -187,18 +189,13 @@ class GPSTracker {
   }
 
   async _installNativeWatch() {
-    const BgGeo = await loadBgGeo()
-    if (!BgGeo) {
-      this._handleError(new Error('Background geolocation plugin unavailable'))
-      return
-    }
     // If a mode change raced and another watcher was installed in the
     // meantime, drop this one so we don't end up with two watchers.
     if (this.watchId && typeof this.watchId === 'string') return
 
     const opts = GPS_MODES[this.mode] || GPS_MODES.moving
     try {
-      this.watchId = await BgGeo.addWatcher(
+      this.watchId = await BackgroundGeolocation.addWatcher(
         {
           // The text iOS/Android display in the rep's status bar / lock-
           // screen notification when the app is tracking in the
@@ -235,13 +232,10 @@ class GPSTracker {
   async _clearWatch() {
     if (this.watchId === null || this.watchId === undefined) return
     if (Capacitor.isNativePlatform()) {
-      const BgGeo = await loadBgGeo()
-      if (BgGeo) {
-        try {
-          await BgGeo.removeWatcher({ id: this.watchId })
-        } catch (err) {
-          console.warn('[GPS] removeWatcher failed:', err)
-        }
+      try {
+        await BackgroundGeolocation.removeWatcher({ id: this.watchId })
+      } catch (err) {
+        console.warn('[GPS] removeWatcher failed:', err)
       }
     } else if (typeof this.watchId === 'number') {
       navigator.geolocation.clearWatch(this.watchId)
@@ -327,26 +321,24 @@ export const gpsTracker = new GPSTracker()
 // we keep the existing one-shot getCurrentPosition.
 export async function requestGPSPermission() {
   if (Capacitor.isNativePlatform()) {
-    const BgGeo = await loadBgGeo()
-    if (!BgGeo) throw new Error('Background geolocation plugin unavailable')
     return new Promise((resolve, reject) => {
       // Install a one-shot watcher just long enough to trigger the
       // permission prompt and receive the first fix, then remove it.
       let resolved = false
       let oneShotId = null
-      const startPromise = BgGeo.addWatcher(
+      const startPromise = BackgroundGeolocation.addWatcher(
         { requestPermissions: true, stale: false, distanceFilter: 0 },
         (location, error) => {
           if (resolved) return
           if (error) {
             resolved = true
-            if (oneShotId) BgGeo.removeWatcher({ id: oneShotId }).catch(() => {})
+            if (oneShotId) BackgroundGeolocation.removeWatcher({ id: oneShotId }).catch(() => {})
             reject(new Error(error.message || error.code || String(error)))
             return
           }
           if (!location) return
           resolved = true
-          if (oneShotId) BgGeo.removeWatcher({ id: oneShotId }).catch(() => {})
+          if (oneShotId) BackgroundGeolocation.removeWatcher({ id: oneShotId }).catch(() => {})
           resolve({ lat: location.latitude, lng: location.longitude })
         }
       )
