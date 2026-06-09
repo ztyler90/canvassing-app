@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>KnockIQ</string>
+	<string>KnockIQ</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -22,6 +22,21 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>KnockIQ uses the camera to attach photos to booked jobs and estimate-request documentation.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>KnockIQ tracks your canvassing route in the background so your session keeps recording when your phone locks or you switch apps. Tracking only runs while a canvassing session is active — it stops automatically when you end the session.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>KnockIQ tracks your canvassing route in the background so your session keeps recording when your phone locks or you switch apps. Tracking only runs while a canvassing session is active.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>KnockIQ uses your location to map the route you walk while canvassing, so your manager can see coverage and reps can see their own door history.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>KnockIQ accesses your photo library so you can attach existing photos to a job booking.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -45,25 +60,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-<key>NSLocationWhenInUseUsageDescription</key>
-<string>KnockIQ uses your location to map the route you walk while canvassing, so your manager can see coverage and reps can see their own door history.</string>
-
-<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-<string>KnockIQ tracks your canvassing route in the background so your session keeps recording when your phone locks or you switch apps. Tracking only runs while a canvassing session is active — it stops automatically when you end the session.</string>
-
-<key>NSLocationAlwaysUsageDescription</key>
-<string>KnockIQ tracks your canvassing route in the background so your session keeps recording when your phone locks or you switch apps. Tracking only runs while a canvassing session is active.</string>
-
-<key>NSCameraUsageDescription</key>
-<string>KnockIQ uses the camera to attach photos to booked jobs and estimate-request documentation.</string>
-
-<key>NSPhotoLibraryUsageDescription</key>
-<string>KnockIQ accesses your photo library so you can attach existing photos to a job booking.</string>
-
-<key>UIBackgroundModes</key>
-<array>
-    <string>location</string>
-    <string>fetch</string>
-</array>
 </dict>
 </plist>
