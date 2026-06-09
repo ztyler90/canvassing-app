@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { Capacitor } from '@capacitor/core'
 
 const supabaseUrl  = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey  = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -62,13 +63,22 @@ export async function signOut() {
     console.warn('[Auth] signOut failed (continuing):', err?.message || err)
   }
   if (typeof window !== 'undefined') {
-    // Use replace() so the back button can't bounce the user back into
-    // an authenticated route after they've signed out. Send signed-out
-    // users to the public marketing welcome page rather than the bare
-    // login screen. We point at the site root (not /welcome.html) so the
-    // address bar shows a clean "www.getknockiq.com" — the vercel.json
-    // rewrite { "src": "/", "dest": "/welcome.html" } serves the welcome
-    // content there.
+    // On native iOS/Android, redirecting to the marketing site would
+    // either fail (no http origin) or kick the user out of the app into
+    // mobile Safari. Instead, hop to the in-app /login route — the
+    // AuthProvider has already cleared the session above, so the React
+    // tree re-renders into the unauthenticated routes branch.
+    if (Capacitor.isNativePlatform()) {
+      window.location.replace('/login')
+      return
+    }
+    // Web: use replace() so the back button can't bounce the user back
+    // into an authenticated route after they've signed out. Send signed-
+    // out users to the public marketing welcome page rather than the
+    // bare login screen. We point at the site root (not /welcome.html)
+    // so the address bar shows a clean "www.getknockiq.com" — the
+    // vercel.json rewrite { "src": "/", "dest": "/welcome.html" } serves
+    // the welcome content there.
     window.location.replace('https://www.getknockiq.com/')
   }
 }

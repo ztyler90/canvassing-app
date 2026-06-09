@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Component, useEffect, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'
 import { SessionProvider } from './contexts/SessionContext.jsx'
 import { ViewModeProvider, useViewMode } from './contexts/ViewModeContext.jsx'
@@ -46,9 +47,20 @@ class ErrorBoundary extends Component {
 }
 
 function WelcomeRedirect() {
-  // Send unknown / unauthenticated routes to "/". Vercel rewrites "/" to
-  // serve public/welcome.html silently, so the URL bar stays clean instead
-  // of flashing "/welcome.html".
+  // On native iOS/Android (Capacitor), users have already installed the
+  // app — they're not prospects who need the marketing page. Skip
+  // welcome.html entirely and route them to the in-app login. Using
+  // React Router's <Navigate> keeps the navigation inside the SPA so
+  // the WKWebView doesn't try to follow file:// or fall through to
+  // mobile Safari (which is what was happening before this guard).
+  if (Capacitor.isNativePlatform()) {
+    return <Navigate to="/login" replace />
+  }
+
+  // Web fallback (managers on desktop, marketing visitors): send
+  // unknown / unauthenticated routes to "/". Vercel rewrites "/" to
+  // serve public/welcome.html silently, so the URL bar stays clean
+  // instead of flashing "/welcome.html".
   //
   // Guard against an infinite-redirect loop: if we somehow rendered the
   // React app at "/" itself (stale service worker that hasn't picked up
