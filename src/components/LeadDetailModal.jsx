@@ -26,8 +26,8 @@ import {
 import { PhotoThumb } from '../lib/photos.jsx'
 import RoofInsights from './RoofInsights.jsx'
 import {
-  getAllClosersUnified, updateLeadStage, updateLeadPrice, updateLeadAppointment,
-  updateLeadContact, setLeadCloser, notifyAssignedCloser,
+  getAllClosersUnified, updateLeadStage, updateLeadPrice, updateLeadLineItems,
+  updateLeadAppointment, updateLeadContact, setLeadCloser, notifyAssignedCloser,
 } from '../lib/supabase.js'
 
 const BRAND_BLUE = '#1B4FCC'
@@ -93,10 +93,43 @@ export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false
     lead.appointment_at ? isoToLocalInput(lead.appointment_at) : ''
   )
   const [savingAppt,  setSavingAppt]  = useState(false)
+  // Itemized-breakdown editor. Managers can revise each service's price in
+  // place; on save we recompute estimated_value = sum(prices) and write both
+  // columns together (updateLeadLineItems) so the headline total every other
+  // page reads stays in lock-step with the breakdown. itemDraft holds price
+  // strings keyed by row index so the inputs stay controlled + empty-friendly.
+  const [editingItems, setEditingItems] = useState(false)
+  const [itemDraft,    setItemDraft]    = useState([])
+  const [savingItems,  setSavingItems]  = useState(false)
 
   useEffect(() => {
     getAllClosersUnified().then(setClosers).catch(() => setClosers([]))
   }, [])
+
+  function startEditItems() {
+    const items = Array.isArray(lead.service_line_items) ? lead.service_line_items : []
+    setItemDraft(items.map((li) => ({
+      service: li.service,
+      price:   li.price != null ? String(li.price) : '',
+    })))
+    setEditingItems(true)
+  }
+
+  async function commitItems() {
+    setSavingItems(true); setError('')
+    const { data, error } = await updateLeadLineItems(
+      lead.id,
+      itemDraft.map((li) => ({ service: li.service, price: li.price })),
+    )
+    setSavingItems(false)
+    if (error) { setError(error.message || 'Could not save the breakdown'); return }
+    setEditingItems(false)
+    onUpdate?.(data)
+  }
+
+  // Live total of the in-progress edit, so the manager sees the new headline
+  // number before saving (mirrors the door-side itemized total).
+  const itemDraftTotal = itemDraft.reduce((s, li) => s + (parseFloat(li.price) || 0), 0)
 
   async function advance(toStage, extras = {}) {
     setSaving(true); setError('')
@@ -206,6 +239,12 @@ export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false
   // lead is somehow already sitting on a skipped stage (e.g. its org was
   // switched to quick-quote after the appt was set) so "next" still moves
   // forward instead of stalling.
+  // Quick-quote orgs price at the door — they don't schedule appointments
+  // or dispatch closers, so those controls are hidden entirely. A lead just
+  // moves Hot Lead → Estimate Sent → Booked by hand. (Existing rows that
+  // already carry an appointment/closer are left untouched; we only stop
+  // surfacing the editors.)
+  const isQuickQuote = salesCycle === 'quick_quote'
   const advanceOrder = advanceOrderFor(salesCycle)
   const advIdx       = advanceOrder.findIndex((s) => s.id === lead.stage)
   const nextStage    = advIdx === -1
@@ -318,12 +357,25 @@ export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false
                 {savingPrice && <Loader2 className="w-4 h-4 animate-spin text-green-700" />}
               </div>
             )}
+            {/* When the lead has an itemized per-service breakdown, overriding
+                the lump-sum total here replaces that breakdown (we can't know
+                how to re-split the new number across services). Warn the
+                manager so the cleared breakdown isn't a surprise. */}
+            {editingPrice
+              && Array.isArray(lead.service_line_items)
+              && lead.service_line_items.length > 0 && (
+              <p className="w-full text-[11px] text-amber-700 -mt-1">
+                Saving a single total replaces the itemized breakdown. To keep it,
+                use “Edit prices” under Itemized estimate below instead.
+              </p>
+            )}
             {/* Click-to-edit appointment time. Mirrors the price edit
                 pattern. If no appointment is set, the pill becomes a
                 "Set appointment time…" button — same surface for both
                 rescheduling and first-time scheduling. Saving from a
-                Hot Lead also promotes the stage (helper handles that). */}
-            {!editingAppt ? (
+                Hot Lead also promotes the stage (helper handles that).
+                Hidden for quick-quote orgs, which don't schedule. */}
+            {!isQuickQuote && (!editingAppt ? (
               <button
                 type="button"
                 onClick={() => {
@@ -378,7 +430,7 @@ export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false
                 )}
                 {savingAppt && <Loader2 className="w-4 h-4 animate-spin text-purple-700" />}
               </div>
-            )}
+            ))}
             {lead.follow_up && (
               <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-bold">
                 🏴 Follow-up flagged
@@ -435,30 +487,105 @@ export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false
           </Section>
 
           {/* Itemized estimate — per-service prices the rep quoted at the
-              door. Surfaced so a manager can lift the breakdown straight into
-              their CRM when building the formal proposal. */}
+              door. Editable in place: a manager can revise any service's
+              price and Save; we recompute estimated_value = sum and write
+              both together so the headline total every other page reads stays
+              in lock-step with the breakdown. */}
           {Array.isArray(lead.service_line_items) && lead.service_line_items.length > 0 && (
             <Section title="Itemized estimate">
               <div className="rounded-xl border border-gray-200 overflow-hidden">
-                {lead.service_line_items.map((li, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between px-4 py-2 text-sm border-b border-gray-100 last:border-b-0"
+                {!editingItems ? (
+                  <>
+                    {lead.service_line_items.map((li, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between px-4 py-2 text-sm border-b border-gray-100 last:border-b-0"
+                      >
+                        <span className="text-gray-700">{li.service}</span>
+                        <span className="font-semibold text-gray-900 tabular-nums">
+                          ${Number(li.price || 0).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between px-4 py-2 bg-gray-50 text-sm">
+                      <span className="font-semibold text-gray-700">Total</span>
+                      <span className="font-bold text-gray-900 tabular-nums">
+                        ${lead.service_line_items
+                          .reduce((s, li) => s + Number(li.price || 0), 0)
+                          .toLocaleString()}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {itemDraft.map((li, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between gap-2 px-4 py-2 text-sm border-b border-gray-100 last:border-b-0"
+                      >
+                        <span className="text-gray-700 truncate flex-1 min-w-0">{li.service}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-gray-400">$</span>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step="100"
+                            value={li.price}
+                            onChange={(e) => setItemDraft((prev) =>
+                              prev.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitItems()
+                              if (e.key === 'Escape') setEditingItems(false)
+                            }}
+                            className="w-24 text-right font-semibold text-gray-900 tabular-nums bg-white border border-gray-300 rounded px-2 py-1 outline-none focus:border-green-400"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between px-4 py-2 bg-green-50 text-sm">
+                      <span className="font-semibold text-gray-700">New total</span>
+                      <span className="font-bold text-gray-900 tabular-nums">
+                        ${itemDraftTotal.toLocaleString()}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Edit / Save / Cancel controls */}
+              <div className="flex items-center justify-end gap-2 mt-2">
+                {!editingItems ? (
+                  <button
+                    type="button"
+                    onClick={startEditItems}
+                    className="text-xs font-bold text-blue-700 hover:text-blue-900 px-2 py-1 rounded hover:bg-blue-50"
                   >
-                    <span className="text-gray-700">{li.service}</span>
-                    <span className="font-semibold text-gray-900 tabular-nums">
-                      ${Number(li.price || 0).toLocaleString()}
-                    </span>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between px-4 py-2 bg-gray-50 text-sm">
-                  <span className="font-semibold text-gray-700">Total</span>
-                  <span className="font-bold text-gray-900 tabular-nums">
-                    ${lead.service_line_items
-                      .reduce((s, li) => s + Number(li.price || 0), 0)
-                      .toLocaleString()}
-                  </span>
-                </div>
+                    Edit prices
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setEditingItems(false)}
+                      disabled={savingItems}
+                      className="text-xs font-semibold text-gray-500 hover:text-gray-700 px-2 py-1 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={commitItems}
+                      disabled={savingItems}
+                      className="text-xs font-bold text-white px-3 py-1.5 rounded-lg flex items-center gap-1 disabled:opacity-60"
+                      style={{ background: BRAND_BLUE }}
+                    >
+                      {savingItems && <Loader2 className="w-3 h-3 animate-spin" />}
+                      Save
+                    </button>
+                  </>
+                )}
               </div>
             </Section>
           )}
@@ -494,33 +621,36 @@ export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false
             <div className="space-y-3">
               <Field icon={<User className="w-4 h-4" />} label="Setter (rep)"
                      value={setterName} />
-              <div>
-                <div className="flex items-center gap-2 text-[11px] uppercase font-bold tracking-wide text-gray-400 mb-1.5">
-                  <UserCheck className="w-3.5 h-3.5" /> Closer
+              {/* Closer dropdown — value is the composite "tier:id" so
+                  reassign() knows which FK column to write. Email-only
+                  contacts get an "(email)" suffix so it's obvious which
+                  closers will be notified vs. logging in. Hidden for
+                  quick-quote orgs, which don't dispatch closers. */}
+              {!isQuickQuote && (
+                <div>
+                  <div className="flex items-center gap-2 text-[11px] uppercase font-bold tracking-wide text-gray-400 mb-1.5">
+                    <UserCheck className="w-3.5 h-3.5" /> Closer
+                  </div>
+                  <select
+                    value={currentCloserKey}
+                    onChange={(e) => reassign(e.target.value)}
+                    disabled={reassigning}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none bg-white disabled:opacity-50"
+                  >
+                    <option value="">— Unassigned —</option>
+                    {closers.map((c) => (
+                      <option key={`${c.tier}:${c.id}`} value={`${c.tier}:${c.id}`}>
+                        {c.full_name || c.email}{c.tier === 'contact' ? ' (email)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {reassigning && (
+                    <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Reassigning…
+                    </p>
+                  )}
                 </div>
-                {/* Closer dropdown — value is the composite "tier:id" so
-                    reassign() knows which FK column to write. Email-only
-                    contacts get an "(email)" suffix so it's obvious which
-                    closers will be notified vs. logging in. */}
-                <select
-                  value={currentCloserKey}
-                  onChange={(e) => reassign(e.target.value)}
-                  disabled={reassigning}
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:border-blue-400 focus:outline-none bg-white disabled:opacity-50"
-                >
-                  <option value="">— Unassigned —</option>
-                  {closers.map((c) => (
-                    <option key={`${c.tier}:${c.id}`} value={`${c.tier}:${c.id}`}>
-                      {c.full_name || c.email}{c.tier === 'contact' ? ' (email)' : ''}
-                    </option>
-                  ))}
-                </select>
-                {reassigning && (
-                  <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
-                    <Loader2 className="w-3 h-3 animate-spin" /> Reassigning…
-                  </p>
-                )}
-              </div>
+              )}
             </div>
           </Section>
 
@@ -530,8 +660,10 @@ export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false
               <TimelineRow label="Logged at door"   when={lead.created_at} age={fmtAge(lead.created_at)} done />
               <TimelineRow label="Hot Lead started" when={lead.hot_lead_started_at} age={fmtAge(lead.hot_lead_started_at)}
                            done={!!lead.hot_lead_started_at} />
-              <TimelineRow label="Appointment set"  when={lead.appointment_at}     age={lead.appointment_at ? format(new Date(lead.appointment_at), 'MMM d · h:mma') : '—'}
-                           done={['appt_scheduled','estimate_sent','booked'].includes(lead.stage)} />
+              {!isQuickQuote && (
+                <TimelineRow label="Appointment set"  when={lead.appointment_at}     age={lead.appointment_at ? format(new Date(lead.appointment_at), 'MMM d · h:mma') : '—'}
+                             done={['appt_scheduled','estimate_sent','booked'].includes(lead.stage)} />
+              )}
               <TimelineRow label="Estimate sent"    when={lead.estimate_sent_at}   age={fmtAge(lead.estimate_sent_at)}
                            done={['estimate_sent','booked'].includes(lead.stage)} />
               <TimelineRow label="Booked"           when={lead.stage === 'booked' ? lead.created_at : null}

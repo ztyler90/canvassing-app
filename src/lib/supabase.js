@@ -1834,6 +1834,19 @@ export async function setLeadCloser(leadId, pick) {
  * after a closer's actual quote comes back. Manager RLS allows this in
  * their own org; closers can only update via updateLeadStage above.
  *
+ * estimated_value is the single source of truth for "the price" — the
+ * Pipeline kanban, calendar, KPIs, forecast, Overview, and Bookings list
+ * all read it. A lead may ALSO carry an itemized per-service breakdown
+ * (service_line_items) that is supposed to sum to estimated_value. When a
+ * manager overrides the lump-sum total here, that breakdown no longer
+ * matches the new number, so leaving it in place makes the itemized "Total"
+ * shown in the lead pop-up, the closer inbox, and the Bookings list keep
+ * adding up to the OLD price — the "edited price didn't carry over to other
+ * pages" bug. We therefore clear service_line_items on a lump-sum override
+ * so every surface falls back to the one authoritative total. (Callers that
+ * want to keep a breakdown should edit it via the interaction modal, which
+ * writes estimated_value and service_line_items together.)
+ *
  *   leadId : interactions.id
  *   value  : numeric dollar amount, or null to clear
  */
@@ -1844,7 +1857,49 @@ export async function updateLeadPrice(leadId, value) {
   }
   const { data, error } = await supabase
     .from('interactions')
-    .update({ estimated_value: v })
+    .update({ estimated_value: v, service_line_items: null })
+    .eq('id', leadId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+/**
+ * Update a lead's ITEMIZED per-service breakdown and re-derive the headline
+ * total from it in the same write — the keep-the-breakdown counterpart to
+ * updateLeadPrice's lump-sum override.
+ *
+ * Managers edit per-service prices in the Pipeline drill-down; we recompute
+ * estimated_value = sum(line item prices) so the authoritative total that
+ * every other surface reads (kanban, KPIs, forecast, Overview, Bookings)
+ * stays in lock-step with the breakdown. Writing both columns together is
+ * what guarantees the edited price carries over to all pages.
+ *
+ *   leadId    : interactions.id
+ *   lineItems : array of { service, price } — non-numeric prices coerce to 0,
+ *               negatives are rejected. An empty array clears the breakdown
+ *               and nulls the total (same shape as "no estimate yet").
+ */
+export async function updateLeadLineItems(leadId, lineItems) {
+  if (!Array.isArray(lineItems)) {
+    return { data: null, error: new Error('Invalid line items') }
+  }
+  const items = []
+  for (const li of lineItems) {
+    if (!li || li.service == null || String(li.service).trim() === '') continue
+    const price = Number(li.price)
+    if (Number.isNaN(price) || price < 0) {
+      return { data: null, error: new Error(`Invalid price for "${li.service}"`) }
+    }
+    items.push({ service: String(li.service).trim(), price })
+  }
+  const total = items.reduce((sum, li) => sum + li.price, 0)
+  const { data, error } = await supabase
+    .from('interactions')
+    .update({
+      service_line_items: items.length ? items : null,
+      estimated_value:    items.length ? total : null,
+    })
     .eq('id', leadId)
     .select()
     .single()
@@ -3382,11 +3437,17 @@ export async function getPipelineLeadById(id) {
  * leads in hand (none currently, but kept for safety) still get a
  * working fetch path.
  */
-export async function getActionQueue(preloadedLeads = null) {
+export async function getActionQueue(preloadedLeads = null, salesCycle = 'mixed') {
   const leads = Array.isArray(preloadedLeads) ? preloadedLeads : await getPipelineLeads({})
   const now = Date.now()
   const queue = []
   const seen  = new Set()
+  // Quick-quote orgs price at the door — they don't schedule appointments or
+  // dispatch closers, so the appointment-timing (Rule 1) and unassigned-
+  // closer (Rule 2) rules don't apply. Skipping them also keeps any legacy
+  // appt_scheduled rows (logged before those controls were removed) out of
+  // the queue instead of flagging them "needs closer" forever.
+  const isQuickQuote = salesCycle === 'quick_quote'
 
   function add(reason, urgency, lead) {
     if (seen.has(lead.id)) return
@@ -3395,7 +3456,7 @@ export async function getActionQueue(preloadedLeads = null) {
   }
 
   // Rule 1: appt in next 4 hours
-  for (const l of leads) {
+  if (!isQuickQuote) for (const l of leads) {
     if (l.stage !== 'appt_scheduled' || !l.appointment_at) continue
     const t = new Date(l.appointment_at).getTime()
     const hoursAway = (t - now) / 3_600_000
@@ -3407,10 +3468,13 @@ export async function getActionQueue(preloadedLeads = null) {
   // Rule 2: unassigned appt from previous day or older.
   // Per design conversation: this is the deadline trigger for manager-
   // dispatch routing — if a manager hasn't assigned a closer by end-of-
-  // day for an appt logged previously, it's at risk.
+  // day for an appt logged previously, it's at risk. A lead counts as
+  // assigned if EITHER a platform closer (closer_id) OR an email-only
+  // closer contact (closer_contact_id) is set — checking only closer_id
+  // previously flagged contact-assigned leads as "needs closer" forever.
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-  for (const l of leads) {
-    if (l.closer_id) continue
+  if (!isQuickQuote) for (const l of leads) {
+    if (l.closer_id || l.closer_contact_id) continue
     if (l.stage !== 'appt_scheduled') continue
     const created = new Date(l.created_at).getTime()
     if (created < todayStart.getTime()) {

@@ -152,7 +152,7 @@ export default function PipelineTab() {
       getPipelineHealth(30),
       getClosedSummary(30),
     ])
-    const q = await getActionQueue(l)
+    const q = await getActionQueue(l, o?.sales_cycle || 'mixed')
     setOrg(o); setLeads(l); setQueue(q); setAppts(a); setHealth(h); setClosed(c)
     // After a background refresh, also patch openLead so the modal
     // picks up server-fresh join data (closer name, setter name, etc.).
@@ -229,8 +229,20 @@ export default function PipelineTab() {
           <EmptyTile icon={<Sparkles className="w-8 h-8 text-gray-300" />}
             text="Nothing urgent right now. Nice work." />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-            {queue.slice(0, 5).map((q, i) => <ActionCard key={q.lead.id + i} item={q} onClick={() => setOpenLead(q.lead)} />)}
+          // Horizontal scroll strip so the full queue is reachable, however
+          // long it gets. Previously this was a grid capped at 5 cards, which
+          // silently hid items 6+ — the badge could read "12" while only 5
+          // were on screen with no way to reach the rest. Each card is given
+          // a fixed width and the row scrolls; a thin edge fade + count hint
+          // signals there's more to the right.
+          <div className="-mx-1 px-1 overflow-x-auto">
+            <div className="flex gap-3 min-w-max pb-1">
+              {queue.map((q, i) => (
+                <div key={q.lead.id + i} className="w-[260px] shrink-0">
+                  <ActionCard item={q} onClick={() => setOpenLead(q.lead)} />
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </ProSection>
@@ -626,7 +638,17 @@ function DayDetailModal({ day, onClose, onLeadClick }) {
   )
 }
 
+const KANBAN_COLLAPSED_COUNT = 8
+
 function KanbanColumn({ col, leads, total, onCardClick }) {
+  // Collapsed by default to keep all columns the same scannable height; the
+  // "+ N more" affordance is a real button that expands this column in place
+  // to reveal every lead, then collapses back. Previously "+ N more" was
+  // static text, so columns like Booked with 33 leads stranded 25 of them
+  // with no way to view them.
+  const [expanded, setExpanded] = useState(false)
+  const hasMore = leads.length > KANBAN_COLLAPSED_COUNT
+  const visible = expanded ? leads : leads.slice(0, KANBAN_COLLAPSED_COUNT)
   return (
     <div className={`${col.bg} rounded-2xl p-3 min-h-[400px]`}>
       <div className="flex items-center gap-1.5 mb-1 px-1">
@@ -642,12 +664,16 @@ function KanbanColumn({ col, leads, total, onCardClick }) {
         {leads.length === 0 ? (
           <div className="text-center py-6 text-[11px] text-gray-400">Empty</div>
         ) : (
-          leads.slice(0, 8).map((l) => <LeadCard key={l.id} lead={l} stage={col.id} onClick={() => onCardClick?.(l)} />)
+          visible.map((l) => <LeadCard key={l.id} lead={l} stage={col.id} onClick={() => onCardClick?.(l)} />)
         )}
-        {leads.length > 8 && (
-          <p className="text-center text-[11px] font-semibold text-gray-500 py-1">
-            + {leads.length - 8} more
-          </p>
+        {hasMore && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="w-full text-center text-[11px] font-semibold text-blue-700 hover:text-blue-900 py-1.5 rounded-lg hover:bg-white/60 transition-colors"
+          >
+            {expanded ? 'Show less' : `+ ${leads.length - KANBAN_COLLAPSED_COUNT} more`}
+          </button>
         )}
       </div>
     </div>
@@ -664,7 +690,7 @@ function LeadCard({ lead, stage, onClick }) {
   const dotClass = aging.color === 'red'   ? 'bg-red-500'
                  : aging.color === 'amber' ? 'bg-amber-500'
                  :                           'bg-green-500'
-  const isUnassignedAppt = stage === 'appt_scheduled' && !lead.closer_id
+  const isUnassignedAppt = stage === 'appt_scheduled' && !lead.closer_id && !lead.closer_contact_id
     && new Date(lead.created_at) < startOfTodayLocal()
   const borderClass = isUnassignedAppt ? 'border-2 border-red-300' : 'border border-gray-200'
 
