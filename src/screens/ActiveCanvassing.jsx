@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
+import { Capacitor } from '@capacitor/core'
 import { Square, MapPin, Clock, Home, Pin, Signal } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
@@ -176,6 +177,14 @@ export default function ActiveCanvassing() {
   // True phone-in-pocket tracking needs a native wrapper (Capacitor).
   useEffect(() => {
     if (!state.isRunning) return
+    // Native iOS/Android short-circuit: the background-geolocation plugin
+    // keeps tracking when the screen locks or the rep switches apps, so
+    // the wake-lock acquisition and visibility-change warning are both
+    // irrelevant — and showing the "Keep this screen open / install the
+    // native app" banner inside the native app is just confusing. Skip
+    // the entire effect's body on native.
+    if (Capacitor.isNativePlatform()) return
+
     let cancelled = false
     acquireWakeLock().then((ok) => {
       if (cancelled) return

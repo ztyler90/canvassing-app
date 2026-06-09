@@ -50,9 +50,29 @@
 }
 
 /* App header surface — blue → indigo → violet sweep. Use on the top hero/nav
-   strips that previously used solid BRAND_BLUE backgrounds. */
+   strips that previously used solid BRAND_BLUE backgrounds.
+
+   The `padding-top` line below extends the gradient under iOS's safe-area
+   (status bar / notch / Dynamic Island) on the native app. On web, where
+   env(safe-area-inset-top) resolves to 0, the rule has no effect — the
+   header still respects whatever pt-* Tailwind class the JSX applies.
+   On native iOS, the WebView is configured to overlay the status bar
+   (see capacitor.config.json + StatusBar.setOverlaysWebView on app init),
+   so we additionally pad the header by the safe-area inset to keep the
+   logo from sliding under the time/signal text up top. The !important is
+   needed to win against Tailwind's pt-12 utility that several headers
+   currently apply via JSX. */
 .bg-brand-header {
   background: linear-gradient(135deg, #1B4FCC 0%, #4338CA 55%, #6D28D9 100%);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 3rem) !important;
+}
+
+/* Same treatment for non-gradient headers (RepHome, ActiveCanvassing) that
+   set their own background via inline style rather than .bg-brand-header.
+   They add this class to their wrapping div so the inline-style gradient
+   extends under the status bar the same way. */
+.safe-area-top {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 3rem) !important;
 }
 
 /* Prevent overscroll bounce on iOS */

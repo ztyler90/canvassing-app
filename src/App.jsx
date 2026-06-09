@@ -302,7 +302,31 @@ function LoadingScreen() {
   )
 }
 
+// Apply native iOS/Android status-bar config on app boot. capacitor.config.json
+// declares the same settings as static config, but a couple of Capacitor 6+
+// versions don't honor the `overlaysWebView` flag from JSON until you also
+// call setOverlaysWebView() at runtime — so we do both (cheap belt-and-suspenders).
+// Wrapped in a runtime native check + dynamic import so the call never fires
+// (and the plugin package never has to resolve) on the web build that ships
+// to Vercel for managers on desktop.
+function useNativeStatusBar() {
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    // Dynamic import keeps the @capacitor/status-bar package out of the
+    // web bundle entirely. Capacitor's plugin registry resolves it at
+    // runtime on native via the registerPlugin call inside the package's
+    // own index.
+    import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+      StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {})
+      StatusBar.setStyle({ style: Style.Light }).catch(() => {})
+    }).catch((err) => {
+      console.warn('[StatusBar] init failed:', err)
+    })
+  }, [])
+}
+
 export default function App() {
+  useNativeStatusBar()
   return (
     <ErrorBoundary>
       <BrowserRouter>

@@ -556,8 +556,11 @@ export default function RepHome() {
       )}
 
       {/* ── Slim Header (no stats, just identity) ──────────────────────────── */}
+      {/* .safe-area-top extends the gradient under iOS's status bar on the
+          native app while keeping content padded down to clear it. No-op on
+          web (env() is 0 there), so manager desktop view is unaffected. */}
       <div
-        className="px-5 pt-12 pb-5"
+        className="px-5 pt-12 pb-5 safe-area-top"
         style={{ background: 'linear-gradient(135deg, #1B4FCC 0%, #4338CA 55%, #6D28D9 100%)' }}
       >
         <div className="max-w-xl mx-auto w-full flex items-center gap-3">
