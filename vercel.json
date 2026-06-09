@@ -17,7 +17,7 @@
       "continue": true
     },
     {
-      "src": "/(login|signup|set-password|pending-approval|manager|rep|closer|admin)(/.*)?",
+      "src": "/(login|signup|set-password|activate|pending-approval|manager|rep|closer|admin)(/.*)?",
       "headers": { "X-Robots-Tag": "noindex, nofollow, noarchive, nosnippet" },
       "continue": true
     },

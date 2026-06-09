@@ -10,6 +10,7 @@ import PendingApproval   from './screens/PendingApproval.jsx'
 import AccountInactive   from './screens/AccountInactive.jsx'
 import CompleteCheckout  from './screens/CompleteCheckout.jsx'
 import SetPassword       from './screens/SetPassword.jsx'
+import Activate          from './screens/Activate.jsx'
 import RepHome           from './screens/RepHome.jsx'
 import ActiveCanvassing  from './screens/ActiveCanvassing.jsx'
 import SessionSummary    from './screens/SessionSummary.jsx'
@@ -104,6 +105,11 @@ function AppRoutes() {
           the session has landed and the rep needs to pick a password),
           so it needs to be reachable in both trees. */}
       <Route path="/set-password"  element={<SetPassword />} />
+      {/* /activate?h=<handoff_token> — landing page for the two-step
+          invite flow. Email scanners can prefetch this all day; the
+          Supabase magic link only gets minted when the rep taps the
+          Activate button (see supabase/functions/invite-handoff). */}
+      <Route path="/activate"      element={<Activate />} />
       <Route path="*"              element={<WelcomeRedirect />} />
     </Routes>
   )

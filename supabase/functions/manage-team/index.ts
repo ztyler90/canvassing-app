@@ -17,6 +17,55 @@ const corsHeaders = {
 // to the /set-password screen where they pick their password.
 const APP_BASE_URL = (Deno.env.get('APP_BASE_URL') || 'https://app.knockiq.com').replace(/\/$/, '')
 
+// Build the prefetch-proof activate URL. Email-client link scanners
+// (Gmail iOS, Apple Mail Privacy Protection, corporate gateways) used
+// to consume Supabase one-time tokens by pre-fetching invite emails.
+// We now point them at this URL instead — a static React page that
+// only mints a Supabase token when the rep taps "Activate." See
+// supabase/functions/invite-handoff/index.ts for the back half.
+function buildActivateUrl(handoffToken: string, firstName: string | null): string {
+  const url = new URL(`${APP_BASE_URL}/activate`)
+  url.searchParams.set('h', handoffToken)
+  if (firstName) url.searchParams.set('n', firstName)
+  return url.toString()
+}
+
+// Create an invite_handoffs row for this rep. Used by both the
+// initial-invite and resend-invite paths. The row carries the
+// presentational fields (name, org, inviter) so the activate page
+// can render a personalized greeting without exposing anything that
+// isn't in the email already.
+async function createInviteHandoff(
+  adminClient: ReturnType<typeof createClient>,
+  args: {
+    userId:        string
+    orgId:         string
+    email:         string
+    fullName:      string | null
+    inviterName:   string | null
+    orgName:       string | null
+    purpose:       'invite' | 'resend'
+  },
+): Promise<{ handoff_token: string | null; error: string | null }> {
+  const { data, error } = await adminClient
+    .from('invite_handoffs')
+    .insert({
+      user_id:         args.userId,
+      organization_id: args.orgId,
+      email:           args.email,
+      full_name:       args.fullName,
+      inviter_name:    args.inviterName,
+      org_name:        args.orgName,
+      purpose:         args.purpose,
+    })
+    .select('handoff_token')
+    .single()
+  if (error || !data?.handoff_token) {
+    return { handoff_token: null, error: error?.message || 'Could not create handoff' }
+  }
+  return { handoff_token: data.handoff_token, error: null }
+}
+
 // ── Stripe (org lifecycle billing) ───────────────────────────────────────────
 // Mode-aware so you can exercise the pause/cancel flow against TEST Stripe
 // before flipping to LIVE. STRIPE_MODE picks which key + keep-warm price the
@@ -297,19 +346,37 @@ serve(async (req) => {
         })
       }
 
-      // Email delivery only runs for the magic-link path. Failures here
-      // are reported to the caller (UI will show "created but email
-      // failed — resend?") but don't roll back the user — the rep exists
-      // and can be invited again from the team list.
+      // Email delivery only runs for the magic-link path. We DON'T
+      // email the Supabase action_link directly anymore — email
+      // scanners pre-fetch links and were consuming the one-time
+      // token before reps could tap. Instead we mint a handoff row
+      // and email an /activate URL that only mints a Supabase token
+      // when the rep clicks. See supabase/migrations/20260608_*.
       let emailResult: { ok: boolean; error?: string } = { ok: false }
-      if (mode === 'invite' && actionLink) {
-        emailResult = await sendInviteEmail({
-          toEmail:     email,
-          toName:      fullName,
+      if (mode === 'invite') {
+        const { handoff_token, error: handoffErr } = await createInviteHandoff(adminClient, {
+          userId:      newUserId,
+          orgId:       callerProfile.organization_id,
+          email,
+          fullName,
           inviterName: callerProfile.full_name || 'Your manager',
           orgName,
-          actionLink,
+          purpose:     'invite',
         })
+        if (handoff_token) {
+          const firstName  = fullName ? fullName.split(' ')[0] : ''
+          const activateUrl = buildActivateUrl(handoff_token, firstName)
+          emailResult = await sendInviteEmail({
+            toEmail:     email,
+            toName:      fullName,
+            inviterName: callerProfile.full_name || 'Your manager',
+            orgName,
+            actionLink:  activateUrl,
+          })
+        } else {
+          console.warn('[manage-team create] handoff creation failed:', handoffErr)
+          emailResult = { ok: false, error: handoffErr || 'Could not create activation link' }
+        }
       }
 
       // Seat count just changed — push the new quantity to Stripe (no-op until
@@ -446,40 +513,49 @@ serve(async (req) => {
         })
       }
 
-      // Use 'magiclink' so the link works whether or not the rep has
-      // already confirmed their email. 'invite' errors on already-
-      // registered users, which is most reps once they've been created.
-      const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
-        type: 'magiclink',
-        email: repProfile.email,
-        options: { redirectTo: `${APP_BASE_URL}/set-password` },
+      // Create a new handoff row instead of generating a Supabase
+      // magic link upfront. The Supabase token only gets minted when
+      // the rep taps "Activate" on the /activate page, which dodges
+      // the email-scanner prefetch problem that consumed the older
+      // tokens. Each resend rotates the handoff_token, invalidating
+      // the previous handoff for this rep.
+      const { handoff_token, error: handoffErr } = await createInviteHandoff(adminClient, {
+        userId:      repId,
+        orgId:       repProfile.organization_id,
+        email:       repProfile.email,
+        fullName:    repProfile.full_name || null,
+        inviterName: callerProfile.full_name || 'Your manager',
+        orgName,
+        purpose:     'resend',
       })
-      if (linkError || !linkData?.properties?.action_link) {
+      if (!handoff_token) {
         return new Response(JSON.stringify({
-          error: linkError?.message || 'Failed to generate invite link',
+          error: handoffErr || 'Failed to create activation link',
         }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
+      const firstName   = (repProfile.full_name || '').split(' ')[0] || ''
+      const activateUrl = buildActivateUrl(handoff_token, firstName)
 
       const emailResult = await sendInviteEmail({
         toEmail:     repProfile.email,
         toName:      repProfile.full_name || '',
         inviterName: callerProfile.full_name || 'Your manager',
         orgName,
-        actionLink:  linkData.properties.action_link,
+        actionLink:  activateUrl,
         isResend:    true,
       })
 
       return new Response(JSON.stringify({
         email_sent:  emailResult.ok,
         email_error: emailResult.ok ? null : emailResult.error,
-        // Surfaced so a manager can copy/paste the invite link manually
-        // if the email bounces (e.g. Resend still in test-domain mode or
-        // the rep's inbox is eating the mail). The link is a single-use
-        // magic link that the rep would have received anyway, so there
-        // is no information leak beyond what the email contained.
-        action_link: linkData.properties.action_link,
+        // Surfaced so a manager can copy/paste the activation link
+        // manually if the email bounces. This is the /activate URL,
+        // not a Supabase token — safe to log/share without prefetch
+        // risk, and the handoff_token in it has 7-day validity with
+        // a 5-redeem cap.
+        action_link: activateUrl,
       }), {
         status: emailResult.ok ? 200 : 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -846,7 +922,7 @@ function buildInviteHtml(args: {
   const { toName, inviterName, orgName, actionLink, isResend } = args
   const greeting = toName ? `Hey ${escapeHtml(toName.split(' ')[0])},` : 'Hey there,'
   const intro = isResend
-    ? `Here's a fresh invite link for KnockIQ. The previous one may have expired — this one is good for the next 24 hours.`
+    ? `Here's a fresh activation link for KnockIQ. The previous one may have been used already — this one is good for the next 7 days.`
     : `${escapeHtml(inviterName)} just added you to <strong>${escapeHtml(orgName)}</strong> on KnockIQ. KnockIQ is the canvassing app we use to track knocks, log interactions, and keep the leaderboard honest.`
 
   return `<!doctype html>
@@ -872,14 +948,14 @@ function buildInviteHtml(args: {
                 <p style="margin:0 0 16px 0; font-size:16px; line-height:1.55;">${greeting}</p>
                 <p style="margin:0 0 20px 0; font-size:15px; line-height:1.6; color:#374151;">${intro}</p>
                 <p style="margin:0 0 24px 0; font-size:15px; line-height:1.6; color:#374151;">
-                  Click the button below to set your password and log in. The link is one-time use and will expire in 24&nbsp;hours.
+                  Tap the button below to activate your account and set your password. Your activation link is good for 7&nbsp;days.
                 </p>
                 <table role="presentation" cellpadding="0" cellspacing="0">
                   <tr>
                     <td style="border-radius:12px; background-color:#1B4FCC;">
                       <a href="${escapeAttr(actionLink)}"
                          style="display:inline-block; padding:14px 28px; font-size:15px; font-weight:700; color:#FFFFFF; text-decoration:none; border-radius:12px;">
-                        Set Up My Account →
+                        Activate My Account →
                       </a>
                     </td>
                   </tr>
@@ -926,13 +1002,13 @@ function buildInviteText(args: {
   const { toName, inviterName, orgName, actionLink, isResend } = args
   const greeting = toName ? `Hey ${toName.split(' ')[0]},` : 'Hey there,'
   const intro = isResend
-    ? `Here's a fresh invite link for KnockIQ. The previous one may have expired — this one is good for the next 24 hours.`
+    ? `Here's a fresh activation link for KnockIQ. The previous one may have been used already — this one is good for the next 7 days.`
     : `${inviterName} just added you to ${orgName} on KnockIQ, our canvassing app.`
   return `${greeting}
 
 ${intro}
 
-Set your password and log in here (link expires in 24 hours):
+Tap the link below to activate your account and set your password (good for 7 days):
 ${actionLink}
 
 If you weren't expecting this email, you can ignore it — the invite will expire on its own.
