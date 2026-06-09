@@ -42,6 +42,17 @@ export default function SetPassword() {
   const [errorMsg, setErrorMsg]   = useState('')
   const [userEmail, setUserEmail] = useState('')
 
+  // Recovery path for the "invite link expired/consumed" case. The
+  // most common cause we see in production is email-client link
+  // prefetch (Gmail iOS, Apple Mail Privacy Protection, corp spam
+  // filters) GETting the verify URL before the human can click,
+  // which consumes the one-time token. Giving the rep a self-service
+  // "send me a fresh link" path here means the manager doesn't have
+  // to re-trigger from Settings.
+  const [recoverEmail,    setRecoverEmail]    = useState('')
+  const [recoverSending,  setRecoverSending]  = useState(false)
+  const [recoverResult,   setRecoverResult]   = useState(null) // { ok: true | string, message: string }
+
   // ── Wait for GoTrue to land the session from the URL hash ──────────────
   useEffect(() => {
     let cancelled = false
@@ -97,6 +108,50 @@ export default function SetPassword() {
       subscription.unsubscribe()
     }
   }, [])
+
+  // Re-trigger a magic link to the address the rep enters. Uses
+  // signInWithOtp with shouldCreateUser:false so a typo doesn't
+  // accidentally provision a new auth account — we want this to
+  // succeed quietly only for emails that already exist (i.e. the rep
+  // their manager already added). Supabase returns no error in
+  // either case (intentional, anti-enumeration), so we always show
+  // the "check your inbox" confirmation regardless.
+  const handleResendLink = async (e) => {
+    e?.preventDefault?.()
+    setRecoverResult(null)
+    const email = recoverEmail.trim().toLowerCase()
+    if (!email || !email.includes('@')) {
+      setRecoverResult({ ok: false, message: 'Enter the email your manager invited.' })
+      return
+    }
+    setRecoverSending(true)
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+          // Land back on this same screen so the rep's experience is
+          // continuous: tap link → set password → into app.
+          emailRedirectTo: `${window.location.origin}/set-password`,
+        },
+      })
+      // Supabase deliberately returns no error for "user not found" to
+      // prevent email-enumeration. The only way this errors is rate
+      // limiting or a transport failure — both safe to surface.
+      if (error) {
+        setRecoverResult({ ok: false, message: error.message || 'Could not send the link. Try again in a moment.' })
+      } else {
+        setRecoverResult({
+          ok: true,
+          message: `Sent. Check ${email} (and the spam folder) for a fresh sign-in link.`,
+        })
+      }
+    } catch (err) {
+      setRecoverResult({ ok: false, message: err?.message || 'Network error. Try again.' })
+    } finally {
+      setRecoverSending(false)
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -167,12 +222,56 @@ export default function SetPassword() {
               <p className="font-semibold mb-1">Invite link problem</p>
               <p>{errorMsg}</p>
             </div>
+
+            {/* Self-service recovery. Most "expired" errors here are
+                caused by email-client link prefetch consuming the
+                one-time token before the rep's tap — a fresh link
+                generally clears it. We keep the form right on the
+                error screen so the rep doesn't have to navigate
+                anywhere or contact their manager. */}
+            <form onSubmit={handleResendLink} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Send me a fresh sign-in link</p>
+                <p className="text-xs text-gray-500 mt-0.5">We'll email a new one-time link to your inbox.</p>
+              </div>
+              <input
+                type="email"
+                inputMode="email"
+                autoCapitalize="none"
+                autoComplete="email"
+                placeholder="your@email.com"
+                value={recoverEmail}
+                onChange={(e) => setRecoverEmail(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-700 focus:outline-none text-base"
+              />
+              {recoverResult && (
+                <div className={`text-xs rounded-lg px-3 py-2 ${
+                  recoverResult.ok
+                    ? 'bg-green-50 border border-green-200 text-green-800'
+                    : 'bg-red-50 border border-red-200 text-red-700'
+                }`}>
+                  {recoverResult.message}
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={recoverSending || !recoverEmail.trim()}
+                className="w-full py-3 rounded-xl font-semibold text-white text-sm disabled:opacity-50"
+                style={{ backgroundColor: BRAND_BLUE }}
+              >
+                {recoverSending ? 'Sending…' : 'Email me a link'}
+              </button>
+              <p className="text-[11px] text-gray-400 leading-snug">
+                Tip: open this email in a browser instead of tapping inside a mail app. Some inboxes pre-scan links and consume them before you can.
+              </p>
+            </form>
+
             <button
               type="button"
               onClick={() => navigate('/login', { replace: true })}
-              className="btn-brand w-full py-4 rounded-xl font-semibold text-lg"
+              className="w-full py-3 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700 bg-white"
             >
-              Go to Sign In
+              Already have a password? Sign in
             </button>
           </div>
         )}
