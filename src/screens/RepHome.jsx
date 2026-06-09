@@ -17,6 +17,7 @@ import {
 } from '../lib/supabase.js'
 import { requestGPSPermission } from '../lib/gps.js'
 import { gpsTracker } from '../lib/gps.js'
+import { Capacitor } from '@capacitor/core'
 import { DoorKnockDetector } from '../lib/doorKnock.js'
 import { motionClassifier } from '../lib/motion.js'
 import { dnkZones, pointInAnyZone, loadDnkZones } from '../lib/dnk.js'
@@ -94,6 +95,18 @@ export default function RepHome() {
   const [allSessions,   setAllSessions]   = useState([])
   const [loadingStart,  setLoadingStart]  = useState(false)
   const [gpsError,      setGpsError]      = useState('')
+  // Native-only: when the rep hits Start Canvassing on iOS/Android for
+  // the first time, show a primer modal that explains iOS will pop *two*
+  // prompts in a row and the second one ("Always Allow") is the one that
+  // makes background tracking actually work. Apple lets you ask for the
+  // system permission exactly once — if a rep reflexively taps "Don't
+  // Allow" because they haven't been told what's about to happen, they
+  // have to dig into Settings to recover. The primer prevents that.
+  //
+  // `gpsPrimerVisible` controls the modal; the localStorage flag below
+  // remembers that we've shown it so subsequent sessions skip the
+  // primer once the rep has been through it.
+  const [gpsPrimerVisible, setGpsPrimerVisible] = useState(false)
   const [commissionCfg, setCommissionCfg] = useState(null)
   const [org,           setOrg]           = useState(null)
   const [goalCfg,       setGoalCfg]       = useState(DEFAULT_GOAL)
@@ -228,11 +241,45 @@ export default function RepHome() {
 
   const handleStartCanvassing = async () => {
     setGpsError('')
+
+    // Native-only primer step. On iOS/Android, surface the explainer
+    // modal the first time the rep starts a session. We check a
+    // localStorage flag so reps who've already been through it (and
+    // already granted permission) don't hit the primer every day.
+    //
+    // Falls through immediately on web (managers on desktop), and on
+    // native after the rep has acknowledged the primer once.
+    if (Capacitor.isNativePlatform()) {
+      let seenPrimer = false
+      try { seenPrimer = localStorage.getItem('knockiq:gpsPrimerSeen') === '1' } catch {}
+      if (!seenPrimer) {
+        setGpsPrimerVisible(true)
+        return
+      }
+    }
+
+    await proceedWithGpsRequest()
+  }
+
+  // Split out from handleStartCanvassing so the primer modal's
+  // "Continue" button can trigger the exact same flow without us
+  // duplicating the post-permission logic.
+  const proceedWithGpsRequest = async () => {
+    setGpsError('')
     setLoadingStart(true)
     try {
       await requestGPSPermission()
     } catch (err) {
-      setGpsError('GPS access is required to canvass. Please enable location permissions and try again.')
+      // Distinct error copy per platform. On iOS/Android, once the user
+      // has denied the system prompt we cannot re-trigger it from JS —
+      // they must change it in Settings. Tell them exactly where to go.
+      if (Capacitor.isNativePlatform()) {
+        setGpsError(
+          'Location access is off for KnockIQ. To turn it on: open the Settings app → scroll down to KnockIQ → tap Location → choose "Always". Then come back and tap Start Canvassing again.'
+        )
+      } else {
+        setGpsError('GPS access is required to canvass. Please enable location permissions in your browser and try again.')
+      }
       setLoadingStart(false)
       return
     }
@@ -413,6 +460,100 @@ export default function RepHome() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col pb-10">
+
+      {/* ── Location Permission Primer (native iOS/Android only) ────────────
+          Shown the first time a rep taps Start Canvassing on the mobile
+          app. iOS gives you exactly one shot at the system permission
+          prompt — this primer makes sure the rep understands what's
+          coming so they hit "Allow While Using App" + "Change to Always
+          Allow" instead of reflexively declining. After they tap Continue
+          we set the localStorage flag and trigger the actual iOS prompt.
+          Tapping anywhere outside the card (or the Cancel button) closes
+          the primer without burning the permission attempt — they can
+          retry whenever they're ready. */}
+      {gpsPrimerVisible && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0"
+          style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)' }}
+          onClick={() => setGpsPrimerVisible(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gps-primer-title"
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+                style={{ backgroundColor: BRAND_BLUE + '15' }}
+              >
+                <MapPin className="w-6 h-6" style={{ color: BRAND_BLUE }} />
+              </div>
+              <h2 id="gps-primer-title" className="text-lg font-bold text-gray-900">
+                Before we start tracking
+              </h2>
+            </div>
+
+            <p className="text-sm text-gray-700 leading-relaxed">
+              KnockIQ uses your location to map your canvassing route and
+              keep recording when your phone locks. In a moment you'll see
+              <span className="font-semibold"> two prompts from iOS</span>:
+            </p>
+
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5"
+                  style={{ backgroundColor: BRAND_BLUE, color: 'white' }}>1</div>
+                <p className="text-sm text-gray-700">
+                  First prompt — tap <span className="font-semibold">"Allow While Using App"</span>.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5"
+                  style={{ backgroundColor: BRAND_BLUE, color: 'white' }}>2</div>
+                <p className="text-sm text-gray-700">
+                  Second prompt — tap <span className="font-semibold">"Change to Always Allow"</span>. This is what keeps tracking running when your phone locks between doors.
+                </p>
+              </div>
+            </div>
+
+            <div
+              className="rounded-xl p-3 text-xs leading-relaxed"
+              style={{ backgroundColor: BRAND_LIME + '20', color: '#1E3A10' }}
+            >
+              <span className="font-semibold">Privacy:</span> location is
+              only recorded during an active canvassing session. It stops
+              the moment you end the session.
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setGpsPrimerVisible(false)}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold text-gray-700 bg-gray-100 active:bg-gray-200"
+              >
+                Not now
+              </button>
+              <button
+                onClick={() => {
+                  try { localStorage.setItem('knockiq:gpsPrimerSeen', '1') } catch {}
+                  setGpsPrimerVisible(false)
+                  // Trigger the actual iOS permission sequence now. We
+                  // await it inside an IIFE so the click handler can
+                  // stay sync — proceedWithGpsRequest handles its own
+                  // error display via setGpsError.
+                  ;(async () => { await proceedWithGpsRequest() })()
+                }}
+                className="flex-1 py-3 rounded-xl text-sm font-bold text-white active:opacity-90"
+                style={{ backgroundColor: BRAND_BLUE }}
+              >
+                Got it, continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Slim Header (no stats, just identity) ──────────────────────────── */}
       <div
