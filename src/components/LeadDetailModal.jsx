@@ -18,6 +18,7 @@
  * its in-memory list after a stage/closer change without a full reload.
  */
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
 import {
   X, MapPin, Phone, Mail, Calendar, User, DollarSign, Loader2, Check,
@@ -271,9 +272,9 @@ export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false
     return `${Math.round(d)}d ago`
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4"
+      className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4"
       onClick={onClose}
     >
       <div
@@ -753,7 +754,8 @@ export default function LeadDetailModal({ lead, onClose, onUpdate, isPro = false
 
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
