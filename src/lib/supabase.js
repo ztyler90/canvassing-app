@@ -2835,6 +2835,7 @@ const DEMO_ORG_IDS = new Set([
   'd0d0d0d0-0000-4000-a000-000000000001', // Sunburst Solar
   'e1e1e1e1-0000-4000-a000-000000000001', // Apex Pest Defense
   'd2d2d2d2-0000-4000-a000-000000000001', // Summit Exteriors (demo)
+  'd3d3d3d3-0000-4000-a000-000000000001', // Saguaro Pest Defense (demo)
 ])
 
 /**
