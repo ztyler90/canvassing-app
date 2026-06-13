@@ -278,7 +278,20 @@ export default function RepHome() {
           'Location access is off for KnockIQ. To turn it on: open the Settings app → scroll down to KnockIQ → tap Location → choose "Always". Then come back and tap Start Canvassing again.'
         )
       } else {
-        setGpsError('GPS access is required to canvass. Please enable location permissions in your browser and try again.')
+        // Web: tailor the guidance to the actual failure (see
+        // requestGPSPermission, which tags errors with `reason`).
+        const reason = err?.reason
+        setGpsError(
+          reason === 'insecure'
+            ? 'Location needs a secure connection. Open KnockIQ at its https:// address (not http) and try again. (If you are testing over a local IP like http://192.168…, that is why location is blocked.)'
+          : reason === 'unsupported'
+            ? "This browser can't access location. Try Chrome or Safari, or use the KnockIQ mobile app."
+          : reason === 'denied'
+            ? 'Location permission is blocked. Click the location/lock icon in your browser address bar, allow location for KnockIQ, then tap Start Canvassing again.'
+          : reason === 'timeout'
+            ? "Couldn't get a location fix in time. Make sure your device's Location Services are on, then try again."
+            : "Couldn't read your location. Check that Location Services are enabled for your browser/OS, then try again."
+        )
       }
       setLoadingStart(false)
       return

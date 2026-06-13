@@ -345,13 +345,57 @@ export async function requestGPSPermission() {
       startPromise.then((id) => { oneShotId = id }).catch(reject)
     })
   }
-  return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => reject(err),
-      { timeout: 10000, enableHighAccuracy: true }
-    )
-  })
+  // ── Web (manager desktop / mobile browser) ──────────────────────────
+  // Browser geolocation only exists in a *secure context* (https: or
+  // localhost). If the app is opened over plain http — e.g. a LAN IP from
+  // a Capacitor/Vite dev server (http://192.168.x.x:5173) — then
+  // navigator.geolocation is unavailable. Surface that precisely instead
+  // of blaming the user's permissions. We tag every rejection with a
+  // `reason` so the UI can give accurate, actionable guidance.
+  if (typeof window !== 'undefined' && window.isSecureContext === false) {
+    const e = new Error('Geolocation requires a secure (https) connection.')
+    e.reason = 'insecure'
+    return Promise.reject(e)
+  }
+  if (!('geolocation' in navigator) || !navigator.geolocation) {
+    const e = new Error('This browser does not support geolocation.')
+    e.reason = 'unsupported'
+    return Promise.reject(e)
+  }
+
+  const getPos = (opts) =>
+    new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => reject(err),
+        opts,
+      )
+    })
+
+  try {
+    // Fast, high-accuracy fix first — ideal on phones with real GPS.
+    return await getPos({ timeout: 10000, enableHighAccuracy: true, maximumAge: 0 })
+  } catch (err1) {
+    // PERMISSION_DENIED (code 1) is terminal — re-asking won't help.
+    if (err1 && err1.code === 1) {
+      const e = new Error('Location permission denied.')
+      e.reason = 'denied'
+      throw e
+    }
+    // POSITION_UNAVAILABLE (2) / TIMEOUT (3): desktops usually have no GPS
+    // and need the slower network (WiFi/IP) lookup. Retry once with low
+    // accuracy + a longer timeout before giving up, so web actually works.
+    try {
+      return await getPos({ timeout: 20000, enableHighAccuracy: false, maximumAge: 60000 })
+    } catch (err2) {
+      const e = new Error('Could not obtain a location fix.')
+      e.reason =
+        err2 && err2.code === 1 ? 'denied'
+        : err2 && err2.code === 3 ? 'timeout'
+        : 'unavailable'
+      throw e
+    }
+  }
 }
 
 // Haversine distance in meters between two {lat, lng} points
