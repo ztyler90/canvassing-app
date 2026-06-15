@@ -11,6 +11,7 @@ import PendingApproval   from './screens/PendingApproval.jsx'
 import AccountInactive   from './screens/AccountInactive.jsx'
 import CompleteCheckout  from './screens/CompleteCheckout.jsx'
 import SetPassword       from './screens/SetPassword.jsx'
+import ResetPassword     from './screens/ResetPassword.jsx'
 import Activate          from './screens/Activate.jsx'
 import RepHome           from './screens/RepHome.jsx'
 import ActiveCanvassing  from './screens/ActiveCanvassing.jsx'
@@ -101,6 +102,20 @@ function AppRoutes() {
   const { viewMode } = useViewMode()
 
   if (loading) return <LoadingScreen />
+
+  // Password-recovery deep link. A "forgot password" email lands the user
+  // on /reset-password with a recovery session in the URL hash — which makes
+  // them authenticated, so without this intercept they'd fall through to the
+  // role/billing/pending gates below (or get bounced to /manager, /closer,
+  // or / by the catch-all routes) and never see the "choose a new password"
+  // screen. Rendering ResetPassword here, ABOVE every gate and in both the
+  // authenticated and unauthenticated states, guarantees the reset flow
+  // always completes. After a successful reset the screen navigates to "/",
+  // which re-renders this component with a normal pathname and falls through
+  // to the usual routing. Guarded on `window` so SSR-style callers don't crash.
+  if (typeof window !== 'undefined' && window.location.pathname === '/reset-password') {
+    return <ResetPassword />
+  }
 
   if (!user) return (
     <Routes>

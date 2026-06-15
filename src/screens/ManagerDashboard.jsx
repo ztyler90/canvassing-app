@@ -232,9 +232,8 @@ export default function ManagerDashboard() {
               />
               <div>
                 <div className="flex items-center gap-1.5">
-                  <p className="text-blue-200 text-sm">Owner View</p>
                   {user?.organization?.name && (
-                    <span className="text-blue-200/80 text-xs">· {user.organization.name}</span>
+                    <span className="text-blue-200 text-sm">{user.organization.name}</span>
                   )}
                 </div>
               </div>

@@ -164,10 +164,24 @@ export async function uploadAvatar(file) {
   }
 }
 
-/** Send a password-reset email to the given address */
+/**
+ * Send a password-reset email to the given address.
+ *
+ * redirectTo points at the dedicated /reset-password screen (NOT "/").
+ * GoTrue mints a one-time recovery link; after the user taps it, GoTrue
+ * verifies and lands them on `/reset-password#access_token=…&type=recovery`,
+ * where detectSessionInUrl establishes a (recovery) session and the
+ * ResetPassword screen prompts them to choose a new password. Redirecting
+ * to "/" instead would silently sign them in and never let them set one —
+ * defeating the whole point of the reset.
+ *
+ * Supabase deliberately returns no error for unknown emails (anti-
+ * enumeration), so callers should always show the same "check your inbox"
+ * confirmation regardless of the result.
+ */
 export async function sendPasswordReset(email) {
   return supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/`,
+    redirectTo: `${window.location.origin}/reset-password`,
   })
 }
 
