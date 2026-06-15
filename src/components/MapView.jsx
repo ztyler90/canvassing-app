@@ -405,6 +405,14 @@ const MapView = forwardRef(function MapView({ trail = [], repTrails = [], intera
   const exploreAnchorRef   = useRef(null)  // rep's GPS pos when exploration began
   const lastUserPosRef     = useRef(null)  // most recent GPS pos we've seen
   const programmaticMoveRef = useRef(false) // guards our own pan/zoom from tripping explore
+  // True only while a real finger/pointer is pressed on the map. This is the
+  // reliable "the rep is actually touching the map" signal. We need it because
+  // on iOS WKWebView, Leaflet's OWN programmatic panTo/flyTo (the auto-follow
+  // pans) emit a spurious `dragstart` — and without a real-touch gate that
+  // misreads every follow-pan as the rep exploring, which freezes auto-follow
+  // and is exactly the "Recenter then it stops tracking" bug. `programmaticMoveRef`
+  // alone didn't cover this because follow-pans clear it on moveend between fixes.
+  const userTouchingRef    = useRef(false)
 
   const setExploreState = (v) => { exploringRef.current = v; setExploring(v) }
 
@@ -930,13 +938,38 @@ const MapView = forwardRef(function MapView({ trail = [], repTrails = [], intera
   useEffect(() => {
     const map = mapRef.current
     if (!map || !followUser) return
-    const onDragStart = () => beginExplore()
-    const onZoomStart = () => { if (!programmaticMoveRef.current) beginExplore() }
+
+    // Track whether a real finger/pointer is currently down on the map. A
+    // genuine drag is always preceded by pointerdown/touchstart and dragstart
+    // fires while the press is still active, so this is true for user drags and
+    // false for our programmatic pans. We clear shortly after release so the
+    // dragstart that fires during the gesture still sees `true`.
+    const el = map.getContainer()
+    const onDown = () => { userTouchingRef.current = true }
+    const onUp   = () => { setTimeout(() => { userTouchingRef.current = false }, 60) }
+    el.addEventListener('pointerdown', onDown, { passive: true })
+    el.addEventListener('pointerup',   onUp,   { passive: true })
+    el.addEventListener('pointercancel', onUp, { passive: true })
+    el.addEventListener('touchstart',  onDown, { passive: true })
+    el.addEventListener('touchend',    onUp,   { passive: true })
+    el.addEventListener('touchcancel', onUp,   { passive: true })
+
+    // Only treat a drag as "exploring" when the rep is actually touching the
+    // map — this is the fix for iOS, where a programmatic follow-pan otherwise
+    // emits a phantom dragstart and freezes auto-follow.
+    const onDragStart = () => { if (userTouchingRef.current) beginExplore() }
+    const onZoomStart = () => { if (!programmaticMoveRef.current && userTouchingRef.current) beginExplore() }
     const onMoveEnd   = () => { programmaticMoveRef.current = false }
     map.on('dragstart', onDragStart)
     map.on('zoomstart', onZoomStart)
     map.on('moveend',   onMoveEnd)
     return () => {
+      el.removeEventListener('pointerdown', onDown)
+      el.removeEventListener('pointerup',   onUp)
+      el.removeEventListener('pointercancel', onUp)
+      el.removeEventListener('touchstart',  onDown)
+      el.removeEventListener('touchend',    onUp)
+      el.removeEventListener('touchcancel', onUp)
       map.off('dragstart', onDragStart)
       map.off('zoomstart', onZoomStart)
       map.off('moveend',   onMoveEnd)

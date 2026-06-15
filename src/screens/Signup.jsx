@@ -54,6 +54,7 @@ export default function Signup() {
   const [error,        setError]        = useState('')
   const [loading,      setLoading]      = useState(false)
   const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaFailed, setCaptchaFailed] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -65,7 +66,12 @@ export default function Signup() {
 
     if (!bn || !fn || !em || !password) { setError('Please fill in all fields.'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
-    if (captchaEnabled && !captchaToken) { setError('Please complete the verification challenge.'); return }
+    if (captchaEnabled && !captchaToken) {
+      setError(captchaFailed
+        ? 'Verification could not load. Tap "Retry verification" above, then try again.'
+        : 'Please complete the verification challenge.')
+      return
+    }
 
     setLoading(true)
 
@@ -206,7 +212,11 @@ export default function Signup() {
           )}
 
           {/* No-op unless VITE_TURNSTILE_SITE_KEY is configured. */}
-          <Turnstile onVerify={setCaptchaToken} onExpire={() => setCaptchaToken('')} />
+          <Turnstile
+            onVerify={(t) => { setCaptchaToken(t); setCaptchaFailed(false) }}
+            onExpire={() => setCaptchaToken('')}
+            onError={() => { setCaptchaToken(''); setCaptchaFailed(true) }}
+          />
 
           <button type="submit" disabled={loading}
             className="btn-brand w-full py-4 rounded-xl font-semibold text-lg">

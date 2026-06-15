@@ -77,14 +77,26 @@ const GPS_MODES = {
     timeout:            15000,
     maximumAge:         3000,
     // Native (BackgroundGeolocation) — distance filter in meters between
-    // emitted points. Lower = more points, more battery, more detail.
-    distanceFilter:     10,
+    // emitted points.
+    //
+    // MUST be 0 during active canvassing. A non-zero distanceFilter tells
+    // iOS CoreLocation to suppress updates until the device physically moves
+    // that far — so a rep standing still at a door emits NO points, the
+    // DoorKnockDetector is never fed while stationary, its dwell timer never
+    // advances, and auto door-detection never fires (it worked on web only,
+    // where watchPosition streams ~1 Hz regardless of movement). 0 =
+    // kCLDistanceFilterNone → continuous time-based fixes, which is exactly
+    // what dwell detection needs. The battery cost is the price of the
+    // feature; high-accuracy GPS is already running for the route trail.
+    distanceFilter:     0,
   },
   stopped: {
     enableHighAccuracy: true,
     timeout:            10000,
     maximumAge:         1000,   // insist on fresh fixes for address accuracy
-    distanceFilter:     5,
+    // 0 for the same reason as 'moving' — this is the at-a-door mode where
+    // continuous stationary fixes matter most for the dwell timer + geocode.
+    distanceFilter:     0,
   },
   idle: {
     enableHighAccuracy: false,  // coarse location is fine; saves battery
@@ -110,6 +122,7 @@ class GPSTracker {
     this.onError       = null   // callback(error)
     this.isTracking    = false
     this.mode          = 'moving'
+    this._lifecycleHandler = null
   }
 
   start({ sessionId, repId, onPosition, onError }) {
@@ -134,6 +147,7 @@ class GPSTracker {
 
     this._installWatch()
     this.flushTimer = setInterval(() => this._flush(), FLUSH_INTERVAL_MS)
+    this._installLifecycleFlush()
     return true
   }
 
@@ -143,8 +157,45 @@ class GPSTracker {
       clearInterval(this.flushTimer)
       this.flushTimer = null
     }
+    this._removeLifecycleFlush()
     this._flush()   // final flush
     this.isTracking = false
+  }
+
+  /**
+   * Public flush — persist any buffered points to the DB now. Exposed so
+   * callers (and our own lifecycle listeners) can force a save at moments
+   * the 30s timer would miss.
+   */
+  flush() {
+    return this._flush()
+  }
+
+  /**
+   * Flush the buffer the moment the app is about to lose foreground. On iOS,
+   * when the rep locks the phone or switches apps, the WebView's JS timers
+   * (including our 30s flush) are suspended and the app can be killed without
+   * warning — taking any unflushed points with it. WKWebView fires
+   * `visibilitychange`→hidden and `pagehide` at that transition, so we use them
+   * as a "save now" signal. The native background-geolocation plugin keeps
+   * COLLECTING in the background regardless; this just makes sure what we've
+   * already collected reaches the DB before a suspend/terminate.
+   */
+  _installLifecycleFlush() {
+    if (typeof document === 'undefined') return
+    if (this._lifecycleHandler) return
+    this._lifecycleHandler = () => {
+      if (document.visibilityState === 'hidden') this._flush()
+    }
+    document.addEventListener('visibilitychange', this._lifecycleHandler)
+    window.addEventListener('pagehide', this._lifecycleHandler)
+  }
+
+  _removeLifecycleFlush() {
+    if (!this._lifecycleHandler) return
+    document.removeEventListener('visibilitychange', this._lifecycleHandler)
+    window.removeEventListener('pagehide', this._lifecycleHandler)
+    this._lifecycleHandler = null
   }
 
   /**
@@ -157,7 +208,16 @@ class GPSTracker {
     if (!GPS_MODES[mode]) return
     if (!this.isTracking) { this.mode = mode; return }
     if (this.mode === mode) return
+    const prevFilter = GPS_MODES[this.mode]?.distanceFilter
+    const nextFilter = GPS_MODES[mode]?.distanceFilter
     this.mode = mode
+    // On native, distanceFilter is the ONLY watcher option that takes effect
+    // (the maximumAge/timeout keys are browser-only). If it's unchanged between
+    // modes — e.g. moving↔stopped, now both 0 — re-installing the watcher just
+    // creates a needless GPS gap, and would drop the continuous stream at the
+    // exact moment the rep stops at a door (when onModeChange fires 'stopped').
+    // Skip the churn in that case.
+    if (Capacitor.isNativePlatform() && prevFilter === nextFilter) return
     this._clearWatch()
     this._installWatch()
   }

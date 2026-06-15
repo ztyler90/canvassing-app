@@ -38,12 +38,18 @@ function SignInForm({ onForgot }) {
   const [loading, setLoading]   = useState(false)
   const [showPass, setShowPass] = useState(false)
   const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaFailed, setCaptchaFailed] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     if (!email || !password) { setError('Please enter your email and password.'); return }
-    if (captchaEnabled && !captchaToken) { setError('Please complete the verification challenge.'); return }
+    if (captchaEnabled && !captchaToken) {
+      setError(captchaFailed
+        ? 'Verification could not load. Tap "Retry verification" above, then sign in.'
+        : 'Please complete the verification challenge.')
+      return
+    }
     setLoading(true)
     const { error: err } = await signInWithEmail(email.trim().toLowerCase(), password, { captchaToken })
     if (err) {
@@ -96,8 +102,14 @@ function SignInForm({ onForgot }) {
 
       {error && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm">{error}</div>}
 
-      {/* No-op unless VITE_TURNSTILE_SITE_KEY is configured. */}
-      <Turnstile onVerify={setCaptchaToken} onExpire={() => setCaptchaToken('')} />
+      {/* No-op unless VITE_TURNSTILE_SITE_KEY is configured. onError surfaces a
+          retry path so a widget that fails to load in the iOS WebView doesn't
+          strand the user with an invisible challenge. */}
+      <Turnstile
+        onVerify={(t) => { setCaptchaToken(t); setCaptchaFailed(false) }}
+        onExpire={() => setCaptchaToken('')}
+        onError={() => { setCaptchaToken(''); setCaptchaFailed(true) }}
+      />
 
       <button type="submit" disabled={loading}
         className="btn-brand w-full py-4 rounded-xl font-semibold text-lg">

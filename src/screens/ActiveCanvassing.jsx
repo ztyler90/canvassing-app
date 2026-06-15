@@ -70,6 +70,12 @@ export default function ActiveCanvassing() {
   const timerRef                    = useRef(null)
   const locationBroadcastRef        = useRef(null)
   const currentPosRef               = useRef(null)
+  // Background-safe live-location broadcast. `broadcastFnRef` always holds the
+  // freshest broadcast closure (user/session-aware); `liveBcastRef` is the last
+  // time we pushed, so the GPS-arrival path and the 15s timer share one
+  // throttle instead of double-writing.
+  const broadcastFnRef              = useRef(null)
+  const liveBcastRef                = useRef(0)
 
   // Inactivity auto-end state. See IDLE_WARN_MS / IDLE_STOP_MS above.
   // lastActivityRef holds the last time a gps point or interaction landed;
@@ -218,6 +224,9 @@ export default function ActiveCanvassing() {
     const broadcast = async (retries = 3, delay = 2000) => {
       const pos = currentPosRef.current
       if (!pos) return
+      // Stamp BEFORE awaiting so the GPS-arrival path (which shares this ref)
+      // doesn't fire a second write while this one is in flight.
+      liveBcastRef.current = Date.now()
       try {
         await upsertRepLocation(user.id, state.session.id, pos.lat, pos.lng)
       } catch (_e) {
@@ -226,6 +235,9 @@ export default function ActiveCanvassing() {
         }
       }
     }
+    // Expose the freshest closure so the background-safe GPS-arrival path can
+    // call it (the 15s interval below is suspended by iOS in the background).
+    broadcastFnRef.current = broadcast
 
     broadcast() // immediate first push
     intervalId = setInterval(broadcast, 15000)
@@ -285,6 +297,13 @@ export default function ActiveCanvassing() {
       if (Number.isFinite(point.accuracy)) {
         setGpsAccuracy(point.accuracy)
         setGpsStamp(Date.now())
+      }
+      // Background-safe live pin: this callback keeps firing from the native
+      // plugin while the app is backgrounded (when the 15s setInterval is
+      // suspended), so push the rep's live location from here too — throttled
+      // to ~12s via the shared liveBcastRef so we don't write on every fix.
+      if (Date.now() - liveBcastRef.current > 12000) {
+        broadcastFnRef.current?.()
       }
     }
 
@@ -474,7 +493,7 @@ export default function ActiveCanvassing() {
           lets us stack the scoreboard row above a compact level/XP bar
           without disturbing existing spacing. Yellow XP fill pops nicely
           against the BRAND_GREEN header. */}
-      <div className="px-4 pt-3 pb-3 shadow-sm z-10"
+      <div className="px-4 pt-3 pb-3 shadow-sm z-10 safe-area-top"
         style={{ backgroundColor: BRAND_GREEN }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1 text-white">
