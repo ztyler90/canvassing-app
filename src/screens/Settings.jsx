@@ -694,13 +694,18 @@ export default function Settings() {
   // manager never sees a button that would 403.
   const isOwner = user?.role === 'manager' && !!org?.owner_user_id && org.owner_user_id === user?.id
 
-  // Self-serve plan switching is owner-only and needs a real Stripe
-  // subscription to act on (grandfathered/demo orgs without one keep the
-  // read-only cards). pendingDowngrade = on Pro today but selected_plan flipped
-  // to Standard, i.e. a downgrade is scheduled for the next renewal. Declared
-  // AFTER isOwner — it reads isOwner, so it must not run before isOwner inits.
-  const canSwitchPlans   = isOwner && !!org?.stripe_subscription_id
-  const pendingDowngrade = canSwitchPlans && !inTrial && isPro && org?.selected_plan === 'standard'
+  // Self-serve plan switching is owner-only. Declared AFTER isOwner — it reads
+  // isOwner, so it must not run before isOwner initializes.
+  //   hasSubscription : the org has a real paid Stripe subscription. When true,
+  //     switching drives Stripe (proration / period-end). When false (most orgs
+  //     today — billing isn't enforced yet), change-plan does a no-charge,
+  //     immediate tier flip in the DB. Either way the owner can switch.
+  //   pendingDowngrade : a downgrade scheduled for the next renewal — only
+  //     meaningful WITH a subscription. Without one, selected_plan='standard'
+  //     on a Pro org is just the default and must NOT read as "pending".
+  const hasSubscription  = !!org?.stripe_subscription_id
+  const canSwitchPlans   = isOwner
+  const pendingDowngrade = isOwner && hasSubscription && !inTrial && isPro && org?.selected_plan === 'standard'
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -2114,12 +2119,16 @@ export default function Settings() {
         const COPY = {
           'upgrade': {
             title: 'Upgrade to Pro?',
-            body: "Pro features unlock right away. You'll be charged the prorated difference for the rest of this billing period, then $50/seat/mo going forward.",
+            body: hasSubscription
+              ? "Pro features unlock right away. You'll be charged the prorated difference for the rest of this billing period, then $50/seat/mo going forward."
+              : 'Pro features turn on right away. No charge — this account isn’t on a paid subscription yet.',
             cta: 'Upgrade to Pro', danger: false,
           },
           'downgrade': {
             title: 'Switch to Standard?',
-            body: 'You keep your Pro features until your current billing period ends, then move to Standard at $25/seat/mo. No partial refund.',
+            body: hasSubscription
+              ? 'You keep your Pro features until your current billing period ends, then move to Standard at $25/seat/mo. No partial refund.'
+              : 'This account moves to Standard right away and Pro-only features turn off. No billing change — it isn’t on a paid subscription yet.',
             cta: 'Switch to Standard', danger: false,
           },
           'undo': {
