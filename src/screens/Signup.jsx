@@ -99,9 +99,16 @@ export default function Signup() {
       return
     }
 
-    // 3. Explicit sign-in to force a fresh session + profile rebuild with the
-    //    new organization_id attached. onAuthStateChange will then route us.
-    await signInWithEmail(em, password)
+    // 3. Rebuild the session/profile with the new organization_id attached.
+    //    We normally do an explicit re-sign-in for a clean fresh session, but
+    //    when Turnstile is enabled the captcha token is single-use (already
+    //    spent on signUp above), so a second signInWithEmail would fail the
+    //    captcha check. In that case we keep the session signUp already
+    //    returned and rely on refreshUser() below to rebuild the profile (it
+    //    re-reads the org with no auth-endpoint call, so no token is needed).
+    if (!captchaEnabled) {
+      await signInWithEmail(em, password)
+    }
 
     // 3a. Credit the growth referral + apply any offer. Server-validated and
     //     best-effort. Awaited (it's quick) so the org's trial_days_override is
