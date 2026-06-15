@@ -55,8 +55,10 @@ export default function SessionSummary() {
     ? (stats.revenue / (duration / 60)).toFixed(0)
     : '0'
 
-  const closeRate = stats.doors > 0
-    ? ((stats.bookings / stats.doors) * 100).toFixed(1)
+  // Close rate = conversation → booked job (bookings ÷ conversations), matching
+  // the org-wide definition used across the manager dashboard.
+  const closeRate = stats.conversations > 0
+    ? ((stats.bookings / stats.conversations) * 100).toFixed(1)
     : '0'
 
   const isRevenueGoal = goalCfg.daily_goal_type === 'revenue'

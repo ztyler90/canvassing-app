@@ -183,7 +183,10 @@ export default function ManagerDashboard() {
   const totalEstimates     = sessions.reduce(
     (s, x) => s + Math.max(x.estimates || 0, x.bookings || 0), 0)
   const totalConversations = sessions.reduce((s, x) => s + (x.conversations || 0), 0)
-  const closeRate          = totalDoors > 0 ? ((totalBookings / totalDoors) * 100).toFixed(1) : '0'
+  // Close rate = conversation → booked job (bookings ÷ conversations). A "close"
+  // only happens once a rep has actually spoken with a homeowner, so measuring
+  // it against conversations — not raw doors — is the honest denominator.
+  const closeRate          = totalConversations > 0 ? ((totalBookings / totalConversations) * 100).toFixed(1) : '0'
   const revenuePerDoor     = totalDoors > 0 ? (totalRevenue / totalDoors).toFixed(2) : '0'
 
   // Org-configured terminology flows into the funnel so the Estimates row
@@ -194,11 +197,12 @@ export default function ManagerDashboard() {
   sessions.forEach((s) => {
     const repName = s.users?.full_name || s.rep_id
     if (!repMap[s.rep_id]) {
-      repMap[s.rep_id] = { id: s.rep_id, name: repName, sessions: 0, doors: 0, bookings: 0, revenue: 0, estimates: 0 }
+      repMap[s.rep_id] = { id: s.rep_id, name: repName, sessions: 0, doors: 0, bookings: 0, revenue: 0, estimates: 0, conversations: 0 }
     }
     const r = repMap[s.rep_id]
     r.sessions++; r.doors += s.doors_knocked || 0; r.bookings += s.bookings || 0
     r.revenue += s.revenue_booked || 0; r.estimates += s.estimates || 0
+    r.conversations += s.conversations || 0
   })
   const repStats = Object.values(repMap).sort((a, b) => b.revenue - a.revenue)
 
@@ -467,8 +471,10 @@ function OverviewTab({
   const doorsTrend    = computeTrend(series, 'doors')
   const bookingsTrend = computeTrend(series, 'bookings')
 
-  // Close Rate goal: hard-coded at 5% for now. Future: pull from org settings.
-  const goalCloseRate = 5.0
+  // Close Rate goal: manager-declared via Settings → Close Rate Goal, stored on
+  // organizations.close_rate_goal. Falls back to 5.0% when the manager hasn't
+  // set one. Measured as conversation → booked job (bookings ÷ conversations).
+  const goalCloseRate = Number(org?.close_rate_goal) > 0 ? Number(org.close_rate_goal) : 5.0
   const closeNum      = parseFloat(closeRate) || 0
   const gaugePct      = Math.min(closeNum / goalCloseRate, 1) * 100
 
@@ -507,21 +513,22 @@ function OverviewTab({
     const repMap = {}
     sessions.forEach((s) => {
       const key = s.rep_id
-      if (!repMap[key]) repMap[key] = { name: s.users?.full_name || s.rep_id, sessions: 0, doors: 0, bookings: 0, estimates: 0, revenue: 0, hours: 0 }
+      if (!repMap[key]) repMap[key] = { name: s.users?.full_name || s.rep_id, sessions: 0, doors: 0, conversations: 0, bookings: 0, estimates: 0, revenue: 0, hours: 0 }
       const r = repMap[key]
       r.sessions++
-      r.doors     += s.doors_knocked  || 0
-      r.bookings  += s.bookings       || 0
-      r.estimates += s.estimates      || 0
-      r.revenue   += s.revenue_booked || 0
+      r.doors         += s.doors_knocked  || 0
+      r.conversations += s.conversations  || 0
+      r.bookings      += s.bookings       || 0
+      r.estimates     += s.estimates      || 0
+      r.revenue       += s.revenue_booked || 0
       if (s.started_at && s.ended_at)
         r.hours += (new Date(s.ended_at) - new Date(s.started_at)) / 3600000
     })
     const repRows = [
       ['REP BREAKDOWN'],
-      ['Name', 'Sessions', 'Doors', 'Bookings', 'Estimates', 'Close %', 'Revenue', 'Hours'],
+      ['Name', 'Sessions', 'Doors', 'Bookings', 'Estimates', 'Close % (conv→booked)', 'Revenue', 'Hours'],
       ...Object.values(repMap).sort((a, b) => b.revenue - a.revenue).map((r) => {
-        const cr = r.doors > 0 ? ((r.bookings / r.doors) * 100).toFixed(1) : '0'
+        const cr = r.conversations > 0 ? ((r.bookings / r.conversations) * 100).toFixed(1) : '0'
         return [esc(r.name), r.sessions, r.doors, r.bookings, r.estimates, `${cr}%`, `$${r.revenue.toFixed(2)}`, r.hours.toFixed(1)]
       }),
       [],
@@ -659,6 +666,7 @@ function OverviewTab({
             <RadialGauge pct={gaugePct} />
             <div>
               <p className="text-[10px] text-gray-500">Goal {goalCloseRate.toFixed(1)}%</p>
+              <p className="text-[10px] text-gray-400 leading-tight mt-0.5">Conversation → booked job</p>
             </div>
           </div>
         </RichStatCard>
@@ -976,7 +984,7 @@ function RepsTab({ repStats, allReps = [], sessions = [], dateRange = 'month' })
     return {
       ...r,
       hours,
-      closeRate:      r.doors > 0 ? (r.bookings / r.doors) * 100 : 0,
+      closeRate:      r.conversations > 0 ? (r.bookings / r.conversations) * 100 : 0,
       revenuePerDoor: r.doors > 0 ? r.revenue / r.doors          : 0,
       revenuePerHour: hours    > 0 ? r.revenue / hours           : 0,
       doorsPerHour:   hours    > 0 ? r.doors   / hours           : 0,
@@ -1001,7 +1009,7 @@ function RepsTab({ repStats, allReps = [], sessions = [], dateRange = 'month' })
          dateRange window — same series math the overview hero cards use,
          so this is a per-rep miniature of that view. */}
       {repStats.map((rep, i) => {
-        const cr = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0'
+        const cr = rep.conversations > 0 ? ((rep.bookings / rep.conversations) * 100).toFixed(1) : '0'
         const repSessions = sessionsByRep[rep.id] || []
         const daily       = groupSessionsByDay(repSessions, chartDays)
         const dates       = daily.map((d) => d.date)
@@ -1775,7 +1783,9 @@ function computeZoneMetrics(territory, doorHistory) {
       lastAt = i.created_at
     }
   }
-  const closeRate = estimates > 0 ? Math.round((bookings / estimates) * 100) : null
+  // Close rate = conversation → booked job (bookings ÷ conversations), matching
+  // the org-wide definition used on the Overview and Leaderboard.
+  const closeRate = conversations > 0 ? Math.round((bookings / conversations) * 100) : null
   return { doors: inside.length, conversations, estimates, bookings, closeRate, lastAt }
 }
 
@@ -2478,7 +2488,7 @@ function buildSortOptions(countLabel) {
 }
 function projectSortValue(rep, key) {
   if (!rep) return 0
-  if (key === 'closeRate')  return rep.doors > 0 ? (rep.bookings / rep.doors) : 0
+  if (key === 'closeRate')  return rep.conversations > 0 ? (rep.bookings / rep.conversations) : 0
   if (key === 'revPerDoor') return rep.doors > 0 ? (rep.revenue  / rep.doors) : 0
   return rep[key] || 0
 }
@@ -2543,7 +2553,7 @@ function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
     estimates:     acc.estimates     + Math.max(r.estimates || 0, r.bookings || 0),
     conversations: acc.conversations + (r.conversations || 0),
   }), { revenue: 0, doors: 0, bookings: 0, estimates: 0, conversations: 0 })
-  const teamCloseRate = team.doors > 0 ? ((team.bookings / team.doors) * 100).toFixed(1) : '0.0'
+  const teamCloseRate = team.conversations > 0 ? ((team.bookings / team.conversations) * 100).toFixed(1) : '0.0'
 
   const periodLabel = PERIOD_OPTIONS.find((p) => p.value === period)?.label || 'Today'
 
@@ -2556,7 +2566,7 @@ function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
     lines.push('')
     sorted.slice(0, 10).forEach((r, i) => {
       const medal = ['🥇', '🥈', '🥉'][i] || `${i + 1}.`
-      const cr    = r.doors > 0 ? ((r.bookings / r.doors) * 100).toFixed(0) : '0'
+      const cr    = r.conversations > 0 ? ((r.bookings / r.conversations) * 100).toFixed(0) : '0'
       const $$    = redact ? '' : ` · $${formatCompact(r.revenue)}`
       const streak = r.streakDays > 1 ? ` 🔥${r.streakDays}` : ''
       const pr     = r.isPR ? ' ⭐PR' : ''
@@ -2714,7 +2724,7 @@ function LeaderboardTab({ territories = [], countLabel = 'Estimates' }) {
               the layout itself is identical to every other row. */}
           {sorted.map((rep, idx) => {
             const rank = idx + 1
-            const closeRate  = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(1) : '0.0'
+            const closeRate  = rep.conversations > 0 ? ((rep.bookings / rep.conversations) * 100).toFixed(1) : '0.0'
             const revPerDoor = rep.doors > 0 ? (rep.revenue / rep.doors) : 0
             // For setter teams a booking is always an appointment too — mirror
             // the funnel math used elsewhere so a historical session with raw
@@ -2852,7 +2862,7 @@ function buildLeaderboardShareSvg({ sorted, periodLabel, team, teamCloseRate, re
 
   const rowsSvg = top.map((rep, i) => {
     const y = HEAD_H + i * ROW_H
-    const cr = rep.doors > 0 ? ((rep.bookings / rep.doors) * 100).toFixed(0) : '0'
+    const cr = rep.conversations > 0 ? ((rep.bookings / rep.conversations) * 100).toFixed(0) : '0'
     const fill = colorForName(rep.name)
     const medal = medals[i]
     // Right-side headline is the count metric (appointments / estimates);
@@ -3107,7 +3117,7 @@ const RANK_METRICS = [
   { id: 'doors',          label: 'Doors',       hint: 'Doors knocked',   format: (v) => v.toLocaleString(),     precision: 0 },
   { id: 'bookings',       label: 'Jobs',        hint: 'Jobs booked',     format: (v) => v.toLocaleString(),     precision: 0 },
   { id: 'estimates',      label: 'Estimates',   hint: 'Estimates req\'d',format: (v) => v.toLocaleString(),     precision: 0 },
-  { id: 'closeRate',      label: 'Close %',     hint: 'Bookings / doors',format: (v) => `${v.toFixed(1)}%`,     precision: 1 },
+  { id: 'closeRate',      label: 'Close %',     hint: 'Bookings / conversations',format: (v) => `${v.toFixed(1)}%`,     precision: 1 },
   { id: 'revenuePerDoor', label: 'Rev / Door',  hint: 'Revenue per door',format: (v) => `$${v.toFixed(2)}`,     precision: 2 },
   { id: 'revenuePerHour', label: 'Rev / Hour',  hint: 'Revenue per hour',format: (v) => `$${v.toFixed(0)}`,     precision: 0 },
   { id: 'doorsPerHour',   label: 'Doors / Hour',hint: 'Canvassing pace — doors knocked per hour',format: (v) => `${v.toFixed(1)}/h`, precision: 1 },
@@ -3258,7 +3268,7 @@ function RepLeaderboard({ repStats = [] }) {
       <ul className="space-y-1">
         {top.map((r, i) => {
           const pct = (r.revenue / max) * 100
-          const close = r.doors > 0 ? ((r.bookings / r.doors) * 100).toFixed(1) : '0'
+          const close = r.conversations > 0 ? ((r.bookings / r.conversations) * 100).toFixed(1) : '0'
           return (
             <li key={r.id}>
               {/* Whole row is the hit-target — rank chip, avatar, name,
@@ -3983,7 +3993,7 @@ function recentTrendDip(sessions, metricFn) {
 
 // Top Areas — groups sessions by their `neighborhood` text field and ranks
 // by revenue. Neighborhoods are user-entered at session start, so we treat
-// blanks as "Untagged" rather than dropping them (better to show "you have
+// blanks as "Open Territory" rather than dropping them (better to show "you have
 // $14k from sessions with no area tagged" than to silently hide it).
 //
 // We show three stats per row — revenue, doors, and revenue-per-door —
@@ -3993,7 +4003,7 @@ function recentTrendDip(sessions, metricFn) {
 function TopAreasCard({ sessions = [], onJumpToTerritories }) {
   const buckets = {}
   for (const s of sessions) {
-    const key = (s.neighborhood || '').trim() || 'Untagged'
+    const key = (s.neighborhood || '').trim() || 'Open Territory'
     if (!buckets[key]) buckets[key] = { name: key, revenue: 0, doors: 0, bookings: 0, sessions: 0 }
     buckets[key].revenue  += s.revenue_booked || 0
     buckets[key].doors    += s.doors_knocked  || 0

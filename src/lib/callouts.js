@@ -141,15 +141,16 @@ function weekKey(d) {
 }
 
 /**
- * Find the rep's best single-week close rate (bookings / estimates),
- * comparing their current week's pace. A close rate is only considered
- * if the week had enough estimates to be meaningful (≥ 5).
+ * Find the rep's best single-week close rate, comparing their current week's
+ * pace. Close rate = conversation → booked job (bookings / conversations),
+ * matching the org-wide definition. A week is only considered if it had enough
+ * conversations to be meaningful (≥ 5).
  *
  * @returns null | {
  *   bestRate:       0..1
  *   bestWeek:       'yyyy-Www'
  *   currentRate:    0..1 | null
- *   isBeating:      boolean   // current > best (with ≥ 2 estimates this week)
+ *   isBeating:      boolean   // current > best (with ≥ 2 conversations this week)
  * }
  */
 export function computePersonalBestCloseRate(sessions) {
@@ -159,10 +160,9 @@ export function computePersonalBestCloseRate(sessions) {
   for (const s of sessions) {
     if (!s.started_at) continue
     const wk = weekKey(new Date(s.started_at))
-    const w  = byWeek.get(wk) || { est: 0, bk: 0 }
-    // Mirror computePeriodStats normalization: a booking always counts as an estimate.
-    w.est += Math.max(s.estimates || 0, s.bookings || 0)
-    w.bk  += s.bookings || 0
+    const w  = byWeek.get(wk) || { conv: 0, bk: 0 }
+    w.conv += s.conversations || 0
+    w.bk   += s.bookings || 0
     byWeek.set(wk, w)
   }
 
@@ -171,8 +171,8 @@ export function computePersonalBestCloseRate(sessions) {
   let bestWeek = null
   for (const [wk, v] of byWeek) {
     if (wk === thisWk) continue  // don't compete against an in-progress week
-    if (v.est < 5) continue
-    const rate = v.bk / v.est
+    if (v.conv < 5) continue
+    const rate = v.bk / v.conv
     if (bestRate == null || rate > bestRate) {
       bestRate = rate
       bestWeek = wk
@@ -181,7 +181,7 @@ export function computePersonalBestCloseRate(sessions) {
   if (bestRate == null) return null
 
   const cur = byWeek.get(thisWk)
-  const currentRate = cur && cur.est >= 2 ? cur.bk / cur.est : null
+  const currentRate = cur && cur.conv >= 2 ? cur.bk / cur.conv : null
 
   return {
     bestRate,
@@ -195,8 +195,9 @@ export function computePersonalBestCloseRate(sessions) {
 
 /**
  * Compare the rep's last-7-days close rate to their trailing 30-day rate.
- * Only fires when there's enough sample and the drop is materially bad
- * — otherwise this would nag on healthy weeks.
+ * Close rate = conversation → booked job (bookings / conversations). Only
+ * fires when there's enough sample and the drop is materially bad — otherwise
+ * this would nag on healthy weeks.
  *
  * @param {object} periodStats   output of computePeriodStats(sessions)
  * @returns null | {
@@ -208,11 +209,11 @@ export function computeCloseRateDiagnostic(periodStats) {
   const w = periodStats.week  || {}
   const m = periodStats.month || {}
 
-  if ((w.estimates || 0) < 5)  return null   // too few estimates this week
-  if ((m.estimates || 0) < 15) return null   // not enough baseline yet
+  if ((w.conversations || 0) < 5)  return null   // too few conversations this week
+  if ((m.conversations || 0) < 15) return null   // not enough baseline yet
 
-  const weekRate  = w.estimates > 0 ? (w.bookings || 0) / w.estimates : 0
-  const monthRate = m.estimates > 0 ? (m.bookings || 0) / m.estimates : 0
+  const weekRate  = w.conversations > 0 ? (w.bookings || 0) / w.conversations : 0
+  const monthRate = m.conversations > 0 ? (m.bookings || 0) / m.conversations : 0
   if (monthRate <= 0) return null
 
   const relativeDrop = (monthRate - weekRate) / monthRate

@@ -119,19 +119,22 @@ export default function ManagerMap({ interactions = [], allReps = [] }) {
   const viewportSummary = useMemo(() => {
     if (!viewport) return null
     const [[s, w], [n, e]] = viewport.bounds
-    let knocks = 0, booked = 0, revenue = 0
+    let knocks = 0, convos = 0, booked = 0, revenue = 0
     const repCounts = {}
     for (const it of filtered) {
       if (it.lat == null || it.lng == null) continue
       if (it.lat < s || it.lat > n || it.lng < w || it.lng > e) continue
       knocks++
+      if (it.outcome !== 'no_answer') convos++
       if (it.outcome === 'booked') booked++
       revenue += Number(it.estimated_value) || 0
       if (it.users?.full_name) {
         repCounts[it.users.full_name] = (repCounts[it.users.full_name] || 0) + 1
       }
     }
-    const closeRate = knocks > 0 ? ((booked / knocks) * 100).toFixed(1) : '0.0'
+    // Close rate = conversation → booked job (booked ÷ conversations), matching
+    // the org-wide definition. A conversation is any knock that wasn't a no-answer.
+    const closeRate = convos > 0 ? ((booked / convos) * 100).toFixed(1) : '0.0'
     // Top rep: highest knock count within the bounds. Ties broken by name
     // sort so the display is stable across re-renders.
     const topRep = Object.entries(repCounts)

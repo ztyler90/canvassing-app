@@ -680,11 +680,18 @@ export async function updateOrganizationName(orgId, name) {
  *
  * RLS: only the org owner or a super-admin can update this row.
  */
-export async function updateOrganizationGoal(orgId, { type, value, countLabel, monthlyGoal }) {
+export async function updateOrganizationGoal(orgId, { type, value, countLabel, monthlyGoal, closeRateGoal }) {
   const patch = {}
   if (type        !== undefined) patch.daily_goal_type    = type
   if (value       !== undefined) patch.daily_goal_value   = value
   if (countLabel  !== undefined) patch.count_goal_label   = countLabel
+  // Manager-declared Close Rate target (percent). Close rate is measured as
+  // conversation → booked job (bookings ÷ conversations). Pass null to clear
+  // and fall back to the 5.0% client default on the Close Rate gauge.
+  if (closeRateGoal !== undefined) {
+    patch.close_rate_goal =
+      closeRateGoal === null || closeRateGoal === '' ? null : Number(closeRateGoal)
+  }
   // Optional manager-set monthly team target. Independent of the daily
   // goal — the daily goal is a per-rep yardstick, while monthly_goal_value
   // is the team-wide number to hit. Pass null to clear and fall back to

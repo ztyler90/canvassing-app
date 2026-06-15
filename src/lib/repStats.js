@@ -137,17 +137,22 @@ export function computePeriodStats(sessions) {
  * Funnel conversion rates as % (doors → conversations → estimates → bookings).
  * Returns 0 if denominator is 0 rather than NaN.
  *
- * Note on `overallClose`: close rate is bookings ÷ estimates (not ÷ doors).
- * Reps only "close" a deal once a homeowner has gotten a quote; measuring it
- * against total doors punishes a rep for a long prospecting day.
+ * Two distinct rates live here, on purpose:
+ *   - `closeRate` is the funnel STAGE rate (estimate → booked). It belongs to
+ *     the staged ConversionFunnel viz where each row is one transition.
+ *   - `overallClose` is the headline "close rate" KPI = conversation → booked
+ *     job (bookings ÷ conversations). A "close" only counts once a rep has
+ *     actually spoken with a homeowner, so conversations is the honest
+ *     denominator — this matches the org-wide definition used on the manager
+ *     dashboard (Close Rate gauge, Leaderboard, Rankings, territories).
  */
 export function computeConversion(stats) {
   const pct = (num, den) => (den > 0 ? (num / den) * 100 : 0)
   return {
     contactRate:   pct(stats.conversations, stats.doors),         // doors → conv
     estimateRate:  pct(stats.estimates,     stats.conversations), // conv  → est
-    closeRate:     pct(stats.bookings,      stats.estimates),     // est   → book
-    overallClose:  pct(stats.bookings,      stats.estimates),     // book  ÷ est
+    closeRate:     pct(stats.bookings,      stats.estimates),     // est   → book (funnel stage)
+    overallClose:  pct(stats.bookings,      stats.conversations), // conv  → book (headline KPI)
   }
 }
 

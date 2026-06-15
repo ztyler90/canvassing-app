@@ -201,7 +201,7 @@ function PersonalBestCard({ info }) {
       <p className="text-[11px] text-white/80 mt-0.5">
         {currentPct != null
           ? `You're at ${currentPct}% this week. ${info.isBeating ? 'Keep the streak going.' : 'A few strong conversations pulls you ahead.'}`
-          : 'Log 2+ estimates this week to start tracking against it.'}
+          : 'Log 2+ conversations this week to start tracking against it.'}
       </p>
     </CalloutShell>
   )

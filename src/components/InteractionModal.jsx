@@ -6,7 +6,7 @@
  * Extras: editable address, photo attachments, booking celebration animation
  */
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { X, User, Phone, Mail, DollarSign, MapPin, Camera, MessageSquare, Calendar, AlertCircle, UserCheck } from 'lucide-react'
+import { X, User, Phone, Mail, DollarSign, MapPin, Camera, MessageSquare, Calendar, AlertCircle, UserCheck, Eye, Check } from 'lucide-react'
 import {
   logInteraction,
   updateInteraction,
@@ -143,6 +143,10 @@ export default function InteractionModal({
   // roofEnabled is the manager's per-org opt-in (off by default).
   const [isPro,           setIsPro]           = useState(false)
   const [roofEnabled,     setRoofEnabled]     = useState(false)
+  // Company name — used as the header on the homeowner-facing "Present to
+  // Homeowner" pricing card so the estimate looks like it came from the
+  // company, not a generic app screen.
+  const [orgName,         setOrgName]         = useState('')
   useEffect(() => {
     let alive = true
     Promise.all([getMyOrganization(), getAllClosersUnified()]).then(([org, cl]) => {
@@ -150,12 +154,20 @@ export default function InteractionModal({
       if (org?.sales_cycle)       setSalesCycle(org.sales_cycle)
       if (org?.lead_routing_mode) setRoutingMode(org.lead_routing_mode)
       if (org?.count_goal_label)  setCountLabel(org.count_goal_label)
+      if (org?.name)              setOrgName(org.name)
       setIsPro(org?.tier === 'pro')
       setRoofEnabled(!!org?.roof_insights_enabled)
       setClosers(cl || [])
     }).catch(() => {})
     return () => { alive = false }
   }, [])
+
+  // ── Homeowner presentation mode ──────────────────────────────────────────
+  // The rep prices the job, then taps "Present to Homeowner" to flip the
+  // screen into a clean, branded, view-only pricing card they can physically
+  // turn around and hand to the customer. Renders purely from local state —
+  // no network/API calls — so it works instantly and offline at the door.
+  const [presenting, setPresenting] = useState(false)
 
   // Build the outcome button list against the current org terminology.
   // Memoized so changing countLabel re-renders without rebuilding on
@@ -365,6 +377,19 @@ export default function InteractionModal({
   const effectiveValue = estimateMode === 'itemized'
     ? (itemizedTotal > 0 ? itemizedTotal : null)
     : (estimatedValue ? Number(estimatedValue) : null)
+
+  // ── Derived: homeowner presentation ──────────────────────────────────────
+  // The line items shown on the customer-facing card. In itemized mode each
+  // selected service carries its own price; in quick (single) mode there are
+  // no per-service prices, so we list the selected services as scope (no $)
+  // under one headline total. `canPresent` gates the button so it only lights
+  // up once there's an actual number to show the homeowner.
+  const presentItems = estimateMode === 'itemized'
+    ? lineItems
+    : selectedServices.map((svc) => ({ service: svc, price: null }))
+  const canPresent = effectiveValue != null && effectiveValue > 0
+  const fmtMoney = (n) =>
+    `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -733,6 +758,97 @@ export default function InteractionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+
+      {/* ── Homeowner-facing pricing card ──────────────────────────────────
+          A full-screen, view-only, branded estimate the rep turns around to
+          show the customer. Sits above the modal (z-[60]). Built entirely
+          from local state — no API calls — so it opens instantly at the door.
+          The homeowner only views it; the rep taps Done to return. */}
+      {presenting && (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-white">
+          {/* Top bar — company brand + a discreet close for the rep */}
+          <div className="shrink-0 px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-4 bg-brand-700 text-white">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-100">
+                Your Estimate
+              </span>
+              <button
+                type="button"
+                onClick={() => setPresenting(false)}
+                aria-label="Close estimate view"
+                className="-mr-1.5 -mt-1 p-1.5 rounded-full text-brand-100 hover:bg-white/10 active:bg-white/20"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <h2 className="mt-1 text-2xl font-extrabold leading-tight">
+              {orgName || 'Your Estimate'}
+            </h2>
+            {address && (
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-brand-100">
+                <MapPin className="w-4 h-4 shrink-0" />
+                <span className="truncate">{address}</span>
+              </p>
+            )}
+          </div>
+
+          {/* Line items + total — large, readable, trustworthy */}
+          <div className="flex-1 overflow-y-auto px-5 py-6">
+            <div className="max-w-md mx-auto">
+              {presentItems.length > 0 && (
+                <div className="rounded-2xl border border-gray-200 overflow-hidden">
+                  {presentItems.map((li, i) => (
+                    <div
+                      key={`${li.service}-${i}`}
+                      className={`flex items-center justify-between gap-3 px-4 py-4 ${
+                        i > 0 ? 'border-t border-gray-100' : ''
+                      }`}
+                    >
+                      <span className="text-base text-gray-800 font-medium">{li.service}</span>
+                      {li.price != null ? (
+                        <span className="text-base font-bold text-gray-900 tabular-nums shrink-0">
+                          {fmtMoney(li.price)}
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-sm font-semibold text-brand-600 shrink-0">
+                          <Check className="w-4 h-4" />
+                          Included
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Headline total */}
+              <div className="mt-6 rounded-2xl bg-brand-50 border border-brand-100 px-5 py-6 text-center">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-700">
+                  {selectedOutcome === 'booked' ? 'Job Total' : 'Estimated Total'}
+                </p>
+                <p className="mt-1 text-5xl font-extrabold text-brand-800 tabular-nums">
+                  {effectiveValue != null ? fmtMoney(effectiveValue) : '—'}
+                </p>
+              </div>
+
+              <p className="mt-5 text-center text-xs text-gray-400 leading-relaxed">
+                This is an estimate for your reference. Your final quote will be
+                confirmed by our office.
+              </p>
+            </div>
+          </div>
+
+          {/* Footer — rep taps Done to return to logging the interaction */}
+          <div className="shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-gray-100 bg-white">
+            <button
+              type="button"
+              onClick={() => setPresenting(false)}
+              className="w-full py-3.5 rounded-xl bg-gray-900 text-white text-sm font-bold active:bg-gray-800"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Keyframe definitions */}
       <style>{`
@@ -1182,6 +1298,26 @@ export default function InteractionModal({
                     </span>
                   </div>
                 </div>
+              )}
+
+              {/* Present to Homeowner — flips the screen into a clean, branded,
+                  view-only pricing card the rep turns around to the customer.
+                  Only shown once there's a price entered. The office can still
+                  build the formal quote separately; this just gives the
+                  homeowner a trustworthy visual on the spot. */}
+              <button
+                type="button"
+                onClick={() => setPresenting(true)}
+                disabled={!canPresent}
+                className="mt-3 flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-brand-700 text-white text-sm font-bold shadow-sm transition-colors hover:bg-brand-800 active:bg-brand-900 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Eye className="w-4 h-4" />
+                Present to Homeowner
+              </button>
+              {!canPresent && (
+                <p className="mt-1.5 text-[11px] text-gray-400 text-center">
+                  Enter a price above to show the homeowner.
+                </p>
               )}
             </div>
 

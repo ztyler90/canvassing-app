@@ -76,6 +76,10 @@ export default function Settings() {
   // per-rep daily goal × period days (which over-counted for solo orgs
   // and teams that don't canvass every day).
   const [monthlyGoal,  setMonthlyGoal]  = useState('')
+  // Manager-declared Close Rate target (percent). Empty string means "no
+  // override — the Close Rate gauge falls back to 5.0%". Close rate is
+  // measured as conversation → booked job (bookings ÷ conversations).
+  const [closeRateGoal, setCloseRateGoal] = useState('')
   const [savingGoal,   setSavingGoal]   = useState(false)
 
   // Shareable invite link — owner generates one URL their reps can sign
@@ -152,6 +156,7 @@ export default function Settings() {
       setGoalValue(String(myOrg.daily_goal_value ?? 1000))
       setCountLabel(myOrg.count_goal_label || 'estimates')
       setMonthlyGoal(myOrg.monthly_goal_value != null ? String(myOrg.monthly_goal_value) : '')
+      setCloseRateGoal(myOrg.close_rate_goal != null ? String(myOrg.close_rate_goal) : '')
     }
     const cfg = await getOrgWebhookConfig()
     if (cfg?.url) {
@@ -355,12 +360,25 @@ export default function Settings() {
       }
       monthlyPatch = m
     }
+    // Close Rate goal: empty → null (use the 5% default). Otherwise must parse
+    // as a percentage in the 0–100 range.
+    let closeRatePatch
+    if (closeRateGoal === '' || closeRateGoal == null) {
+      closeRatePatch = null
+    } else {
+      const c = Number(closeRateGoal)
+      if (!Number.isFinite(c) || c <= 0 || c > 100) {
+        showToast('Enter a close rate goal between 0 and 100, or leave it blank for the default', 'error'); return
+      }
+      closeRatePatch = c
+    }
     setSavingGoal(true)
     const { data, error } = await updateOrganizationGoal(org.id, {
-      type:        goalType,
-      value:       num,
-      countLabel:  countLabel,
-      monthlyGoal: monthlyPatch,
+      type:          goalType,
+      value:         num,
+      countLabel:    countLabel,
+      monthlyGoal:   monthlyPatch,
+      closeRateGoal: closeRatePatch,
     })
     setSavingGoal(false)
     if (error) {
@@ -1395,6 +1413,35 @@ export default function Settings() {
                 Drives the Overview's Goal Tracker. Leave blank to auto-calculate
                 from your daily target. Setting it directly is the better
                 fit when team size or working cadence varies.
+              </p>
+            </div>
+
+            {/* Close Rate goal — target for the Overview's Close Rate gauge.
+                Close rate here means conversation → booked job (bookings ÷
+                conversations), so the goal is the % of conversations the team
+                aims to turn into booked jobs. Blank falls back to 5%. */}
+            <div>
+              <p className="text-[11px] uppercase font-semibold tracking-wide text-gray-500 mb-1.5">
+                Close Rate Goal <span className="text-gray-400 normal-case font-medium">(optional)</span>
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={closeRateGoal}
+                  onChange={(e) => setCloseRateGoal(e.target.value)}
+                  className="flex-1 px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-semibold focus:border-blue-400 focus:outline-none"
+                  placeholder="e.g. 5"
+                />
+                <span className="text-gray-500 text-sm font-medium whitespace-nowrap">% target</span>
+              </div>
+              <p className="text-gray-400 text-[11px] mt-1.5">
+                Sets the target on the Overview's Close Rate gauge. Close rate is
+                measured as <span className="font-semibold text-gray-500">conversation → booked job</span>{' '}
+                (booked jobs ÷ conversations) — not per door knocked. Leave blank
+                to use the default 5%.
               </p>
             </div>
 
