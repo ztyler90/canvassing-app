@@ -18,16 +18,26 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
-export async function signInWithEmail(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+export async function signInWithEmail(email, password, { captchaToken } = {}) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+    // Only sent when Turnstile is configured (VITE_TURNSTILE_SITE_KEY). Supabase
+    // verifies it server-side via the secret key set under Auth → Attack
+    // Protection; harmless to omit when captcha isn't enabled.
+    ...(captchaToken ? { options: { captchaToken } } : {}),
+  })
   return { data, error }
 }
 
-export async function signUpWithEmail(email, password, fullName) {
+export async function signUpWithEmail(email, password, fullName, { captchaToken } = {}) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName } },
+    options: {
+      data: { full_name: fullName },
+      ...(captchaToken ? { captchaToken } : {}),
+    },
   })
   return { data, error }
 }

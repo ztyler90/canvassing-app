@@ -1,0 +1,26 @@
+version: 2
+updates:
+  # JavaScript / npm dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    # Batch low-risk bumps into one PR so the queue stays manageable;
+    # majors come through individually so they get a proper review.
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions workflow versions (no-op until you add workflows, but keeps
+  # any CI actions you adopt pinned and patched).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"

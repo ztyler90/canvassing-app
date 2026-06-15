@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { identify, resetAnalytics } from '../lib/analytics.js'
 
 const AuthContext = createContext(null)
 
@@ -129,8 +130,10 @@ export function AuthProvider({ children }) {
               const profile = await buildProfile(session.user)
               if (!mounted) return
               setUser(profile)
+              identify(profile)              // tie analytics to this user (non-PII)
               resolveLoading()
             } else {
+              resetAnalytics()               // clear analytics identity on sign-out
               resolveLoading(null)
             }
           } catch (err) {

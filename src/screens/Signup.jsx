@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { signUpWithEmail, signInWithEmail, provisionNewOrganization, sendWelcomeEmail, applyGrowthReferral } from '../lib/supabase.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
+import Turnstile, { captchaEnabled } from '../components/Turnstile.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
@@ -52,6 +53,7 @@ export default function Signup() {
   const [showPass,     setShowPass]     = useState(false)
   const [error,        setError]        = useState('')
   const [loading,      setLoading]      = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -63,15 +65,18 @@ export default function Signup() {
 
     if (!bn || !fn || !em || !password) { setError('Please fill in all fields.'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
+    if (captchaEnabled && !captchaToken) { setError('Please complete the verification challenge.'); return }
 
     setLoading(true)
 
     // 1. Create the auth user (this also inserts a public.users row via the
-    //    handle_new_user trigger).
-    const { data: signUpData, error: signUpError } = await signUpWithEmail(em, password, fn)
+    //    handle_new_user trigger). The captcha token is single-use; we spend it
+    //    on this public signup call (the abuse-prone one) and reset on error.
+    const { data: signUpData, error: signUpError } = await signUpWithEmail(em, password, fn, { captchaToken })
     if (signUpError) {
       setLoading(false)
       setError(signUpError.message || 'Signup failed.')
+      setCaptchaToken('')
       return
     }
 
@@ -192,6 +197,9 @@ export default function Signup() {
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm">{error}</div>
           )}
+
+          {/* No-op unless VITE_TURNSTILE_SITE_KEY is configured. */}
+          <Turnstile onVerify={setCaptchaToken} onExpire={() => setCaptchaToken('')} />
 
           <button type="submit" disabled={loading}
             className="btn-brand w-full py-4 rounded-xl font-semibold text-lg">

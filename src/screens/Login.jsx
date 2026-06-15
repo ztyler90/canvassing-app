@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { signInWithEmail, sendPasswordReset } from '../lib/supabase.js'
+import Turnstile, { captchaEnabled } from '../components/Turnstile.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
@@ -36,14 +37,20 @@ function SignInForm({ onForgot }) {
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
   const [showPass, setShowPass] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     if (!email || !password) { setError('Please enter your email and password.'); return }
+    if (captchaEnabled && !captchaToken) { setError('Please complete the verification challenge.'); return }
     setLoading(true)
-    const { error: err } = await signInWithEmail(email.trim().toLowerCase(), password)
-    if (err) { setLoading(false); setError(err.message) }
+    const { error: err } = await signInWithEmail(email.trim().toLowerCase(), password, { captchaToken })
+    if (err) {
+      setLoading(false)
+      setError(err.message)
+      setCaptchaToken('')   // Turnstile tokens are single-use — force a re-solve on retry
+    }
     // onAuthStateChange in AuthContext fires SIGNED_IN → navigates automatically
   }
 
@@ -88,6 +95,9 @@ function SignInForm({ onForgot }) {
       </div>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm">{error}</div>}
+
+      {/* No-op unless VITE_TURNSTILE_SITE_KEY is configured. */}
+      <Turnstile onVerify={setCaptchaToken} onExpire={() => setCaptchaToken('')} />
 
       <button type="submit" disabled={loading}
         className="btn-brand w-full py-4 rounded-xl font-semibold text-lg">

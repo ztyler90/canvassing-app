@@ -22,6 +22,7 @@ import {
   fireWebhookEvent,
 } from '../lib/supabase.js'
 import { reverseGeocodeCandidates } from '../lib/geocoding.js'
+import { track } from '../lib/analytics.js'
 import RoofInsights from './RoofInsights.jsx'
 
 // Outcome buttons. The 3rd button's label is org-configurable — managers
@@ -1307,7 +1308,16 @@ export default function InteractionModal({
                   homeowner a trustworthy visual on the spot. */}
               <button
                 type="button"
-                onClick={() => setPresenting(true)}
+                onClick={() => {
+                  track('presented_to_homeowner', {
+                    estimate_mode: estimateMode,
+                    item_count:    presentItems.length,
+                    value:         effectiveValue,
+                    outcome:       selectedOutcome,
+                    is_editing:    isEditing,
+                  })
+                  setPresenting(true)
+                }}
                 disabled={!canPresent}
                 className="mt-3 flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-brand-700 text-white text-sm font-bold shadow-sm transition-colors hover:bg-brand-800 active:bg-brand-900 disabled:opacity-40 disabled:cursor-not-allowed"
               >
