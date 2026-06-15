@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2, Workflow, HelpCircle, PauseCircle, AlertTriangle, Calendar, ShieldAlert, Sun } from 'lucide-react'
-import { getOrgWebhookConfig, saveOrgWebhookConfig, DEFAULT_WEBHOOK_EVENTS, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled, setOrgRoofInsightsEnabled, pauseOrganization, cancelOrganization, deleteOrganization, signOut, createPortalSession, syncSeats } from '../lib/supabase.js'
+import { getOrgWebhookConfig, saveOrgWebhookConfig, DEFAULT_WEBHOOK_EVENTS, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled, setOrgRoofInsightsEnabled, pauseOrganization, cancelOrganization, deleteOrganization, signOut, createPortalSession, changePlan, syncSeats } from '../lib/supabase.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { describeCommission } from '../lib/repStats.js'
 import { isProTier, isCommissionEnabled, isRoofInsightsEnabled } from '../lib/tier.js'
@@ -29,6 +29,10 @@ export default function Settings() {
   // (Hard delete lives inside the cancel modal's danger step.)
   const [lifecycleModal, setLifecycleModal] = useState(null)
   const [portalBusy, setPortalBusy] = useState(false)
+  // Plan-switch confirmation modal: null, or { target:'pro'|'standard', kind }
+  // where kind ∈ 'upgrade'|'downgrade'|'undo'|'trial-pro'|'trial-standard'.
+  const [planModal, setPlanModal]   = useState(null)
+  const [planBusy, setPlanBusy]     = useState(false)
   const [user, setUser]               = useState(null)
   const [org, setOrg]                 = useState(null)
   const [webhookUrl, setWebhookUrl]   = useState('')
@@ -525,6 +529,50 @@ export default function Settings() {
     window.location.href = url
   }
 
+  // Open the plan-switch confirmation. `kind` decides the copy + what the
+  // server will do; see the change-plan edge function for the billing rules.
+  function openPlanModal(target) {
+    const inTrialNow = org?.status === 'trial' || org?.status === 'trialing'
+    let kind
+    if (inTrialNow)            kind = target === 'pro' ? 'trial-pro' : 'trial-standard'
+    else if (target === 'pro') kind = isPro ? 'undo' : 'upgrade'   // isPro+target pro = cancel a pending downgrade
+    else                       kind = 'downgrade'
+    setPlanModal({ target, kind })
+  }
+
+  async function confirmPlanChange() {
+    if (!planModal) return
+    setPlanBusy(true)
+    const { data, error } = await changePlan(planModal.target)
+    if (error) {
+      setPlanBusy(false)
+      setPlanModal(null)
+      showToast(error.message || 'Could not change your plan. Please try again.', 'error')
+      return
+    }
+    // Re-pull the org row (tier/selected_plan may have changed) and re-sync the
+    // auth profile so tier gating across the app reflects the new plan.
+    try {
+      const fresh = await getMyOrganization()
+      if (fresh) setOrg(fresh)
+      await refreshUser?.()
+    } catch { /* non-fatal — webhook will reconcile */ }
+    setPlanBusy(false)
+    setPlanModal(null)
+
+    const applied = data?.applied
+    if (applied === 'upgrade_immediate')        showToast('Upgraded to Pro — features unlocked.')
+    else if (applied === 'downgrade_scheduled') {
+      const when = data?.effective_at
+        ? new Date(data.effective_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+        : 'your next renewal'
+      showToast(`Switching to Standard on ${when}. You keep Pro until then.`)
+    }
+    else if (applied === 'downgrade_cancelled') showToast('Kept on Pro — the switch to Standard was cancelled.')
+    else if (applied === 'trial')               showToast(`Post-trial plan set to ${planModal.target === 'pro' ? 'Pro' : 'Standard'}.`)
+    else                                        showToast('Plan updated.')
+  }
+
   async function handleSaveCommission(repId, config) {
     const { data, error } = await updateRepCommissionConfig(repId, config)
     if (error) {
@@ -608,6 +656,12 @@ export default function Settings() {
     : null
   // Will the org lose features at conversion? (on Pro trial, reverting to Standard)
   const willDowngrade  = inTrial && postTrialPlan === 'standard'
+  // Self-serve plan switching is owner-only and needs a real Stripe
+  // subscription to act on (grandfathered/demo orgs without one keep the
+  // read-only cards). pendingDowngrade = on Pro today but selected_plan flipped
+  // to Standard, i.e. a downgrade is scheduled for the next renewal.
+  const canSwitchPlans  = isOwner && !!org?.stripe_subscription_id
+  const pendingDowngrade = canSwitchPlans && !inTrial && isPro && org?.selected_plan === 'standard'
   // Flat off-season pause "keep-warm" fee (dollars). Defaults to $15.
   const keepWarm    = org?.pause_fee_cents != null ? (org.pause_fee_cents / 100) : 15
   // Commission tracking is part of Standard — a manager opt-in toggle.
@@ -1726,13 +1780,34 @@ export default function Settings() {
                   </li>
                 ))}
               </ul>
-              {(!isPro || willDowngrade) && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <span className="inline-flex items-center gap-1.5 text-blue-600 text-xs font-semibold bg-blue-50 px-3 py-1 rounded-full">
-                    <CheckCircle className="w-3.5 h-3.5" /> {willDowngrade ? 'Your plan after trial' : 'Current Plan'}
-                  </span>
-                </div>
-              )}
+              {(() => {
+                // A downgrade is scheduled — surface it on the Standard card.
+                if (pendingDowngrade) return (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <span className="inline-flex items-center gap-1.5 text-amber-700 text-xs font-semibold bg-amber-50 px-3 py-1 rounded-full">
+                      <Clock className="w-3.5 h-3.5" /> Starts at next renewal
+                    </span>
+                  </div>
+                )
+                // Standard is the current (or post-trial) plan → badge only.
+                if ((!isPro && !inTrial) || willDowngrade) return (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <span className="inline-flex items-center gap-1.5 text-blue-600 text-xs font-semibold bg-blue-50 px-3 py-1 rounded-full">
+                      <CheckCircle className="w-3.5 h-3.5" /> {willDowngrade ? 'Your plan after trial' : 'Current Plan'}
+                    </span>
+                  </div>
+                )
+                // Owner on Pro (or a Pro trial) can move down to Standard.
+                if (canSwitchPlans && (isPro || inTrial)) return (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <button type="button" onClick={() => openPlanModal('standard')}
+                      className="block w-full py-2.5 rounded-xl text-center text-sm font-bold border-2 border-gray-200 text-gray-700 hover:border-gray-300 transition-colors">
+                      {inTrial ? 'Switch to Standard after trial' : 'Switch to Standard'}
+                    </button>
+                  </div>
+                )
+                return null
+              })()}
             </div>
 
             {/* Pro Plan */}
@@ -1761,21 +1836,48 @@ export default function Settings() {
                   </li>
                 ))}
               </ul>
-              {isPro ? (
+              {!isPro ? (
+                // Currently Standard. Owner gets a one-tap upgrade; everyone
+                // else keeps the email fallback.
                 <div className="mt-3 pt-3 border-t border-gray-100">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full"
-                    style={inTrial ? { backgroundColor: '#FEF3C7', color: '#92400E' } : { backgroundColor: '#EFF6FF', color: '#2563EB' }}>
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    {inTrial ? `Trial access${trialEndsLabel ? ` · until ${trialEndsLabel}` : ''}` : 'Current Plan'}
-                  </span>
+                  {canSwitchPlans ? (
+                    <button type="button" onClick={() => openPlanModal('pro')}
+                      className="btn-brand block w-full py-2.5 rounded-xl text-center text-sm font-bold">
+                      Upgrade to Pro →
+                    </button>
+                  ) : (
+                    <a
+                      href="mailto:hello@knockiq.com?subject=Upgrade to Pro&body=Hi, I'd like to upgrade my account to the Pro plan."
+                      className="btn-brand block w-full py-2.5 rounded-xl text-center text-sm font-bold">
+                      Contact to Upgrade → Pro
+                    </a>
+                  )}
                 </div>
               ) : (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <a
-                    href="mailto:hello@knockiq.com?subject=Upgrade to Pro&body=Hi, I'd like to upgrade my account to the Pro plan."
-                    className="btn-brand block w-full py-2.5 rounded-xl text-center text-sm font-bold">
-                    Contact to Upgrade → Pro
-                  </a>
+                <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full"
+                    style={(inTrial || pendingDowngrade) ? { backgroundColor: '#FEF3C7', color: '#92400E' } : { backgroundColor: '#EFF6FF', color: '#2563EB' }}>
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    {pendingDowngrade
+                      ? 'Current until renewal'
+                      : inTrial
+                        ? `Trial access${trialEndsLabel ? ` · until ${trialEndsLabel}` : ''}`
+                        : 'Current Plan'}
+                  </span>
+                  {/* Cancel a scheduled downgrade. */}
+                  {pendingDowngrade && (
+                    <button type="button" onClick={() => openPlanModal('pro')}
+                      className="btn-brand block w-full py-2.5 rounded-xl text-center text-sm font-bold">
+                      Keep Pro instead
+                    </button>
+                  )}
+                  {/* On a Pro trial that's set to drop to Standard — let the owner stay on Pro. */}
+                  {inTrial && willDowngrade && canSwitchPlans && (
+                    <button type="button" onClick={() => openPlanModal('pro')}
+                      className="btn-brand block w-full py-2.5 rounded-xl text-center text-sm font-bold">
+                      Keep Pro after trial
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -2006,6 +2108,56 @@ export default function Settings() {
       </div>
 
       {/* Account lifecycle modal — pause / cancel / delete flow */}
+      {planModal && (() => {
+        const COPY = {
+          'upgrade': {
+            title: 'Upgrade to Pro?',
+            body: "Pro features unlock right away. You'll be charged the prorated difference for the rest of this billing period, then $50/seat/mo going forward.",
+            cta: 'Upgrade to Pro', danger: false,
+          },
+          'downgrade': {
+            title: 'Switch to Standard?',
+            body: 'You keep your Pro features until your current billing period ends, then move to Standard at $25/seat/mo. No partial refund.',
+            cta: 'Switch to Standard', danger: false,
+          },
+          'undo': {
+            title: 'Keep Pro?',
+            body: 'This cancels the scheduled switch to Standard. You stay on Pro at $50/seat/mo.',
+            cta: 'Keep Pro', danger: false,
+          },
+          'trial-pro': {
+            title: 'Start on Pro after your trial?',
+            body: `When your free trial ends${trialEndsLabel ? ` on ${trialEndsLabel}` : ''}, you'll begin the Pro plan at $50/seat/mo.`,
+            cta: 'Set Pro for after trial', danger: false,
+          },
+          'trial-standard': {
+            title: 'Start on Standard after your trial?',
+            body: `When your free trial ends${trialEndsLabel ? ` on ${trialEndsLabel}` : ''}, you'll begin Standard at $25/seat/mo and Pro-only features (expanded pipeline, 51+ territories, exports, Zapier) will turn off.`,
+            cta: 'Set Standard for after trial', danger: true,
+          },
+        }[planModal.kind] || { title: 'Change plan?', body: '', cta: 'Confirm', danger: false }
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+            onClick={() => !planBusy && setPlanModal(null)}>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-bold text-gray-900">{COPY.title}</h3>
+              <p className="text-sm text-gray-600 mt-2 leading-relaxed">{COPY.body}</p>
+              <div className="mt-5 flex gap-2">
+                <button type="button" disabled={planBusy} onClick={() => setPlanModal(null)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white disabled:opacity-50">
+                  Cancel
+                </button>
+                <button type="button" disabled={planBusy} onClick={confirmPlanChange}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-60 ${COPY.danger ? 'bg-amber-600 hover:bg-amber-700' : 'btn-brand'}`}>
+                  {planBusy ? 'Working…' : COPY.cta}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {lifecycleModal && (
         <AccountLifecycleModal
           mode={lifecycleModal}

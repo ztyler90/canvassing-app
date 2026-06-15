@@ -35,6 +35,24 @@ function stripeEnv(base: string): string {
 const STRIPE_SECRET_KEY  = stripeEnv('STRIPE_SECRET_KEY')
 const WEBHOOK_SECRET     = stripeEnv('STRIPE_WEBHOOK_SECRET')
 
+// Map a Stripe price id back to a plan ('pro' | 'standard'), using the same
+// mode-aware env vars create-checkout-session / change-plan resolve prices
+// from. This is how a deferred downgrade actually lands: when the renewal
+// invoice pays on the now-Standard price, we recognize that price as Standard
+// and flip the org's tier. Returns null if the price doesn't match any known
+// id (e.g. a legacy/custom price) — callers must treat null as "leave tier
+// alone" so we never guess wrong.
+function planFromPriceId(priceId: string | null | undefined): 'pro' | 'standard' | null {
+  if (!priceId) return null
+  const ids = {
+    pro: [stripeEnv('STRIPE_PRICE_PRO_MONTHLY'), stripeEnv('STRIPE_PRICE_PRO_ANNUAL')],
+    standard: [stripeEnv('STRIPE_PRICE_STANDARD_MONTHLY'), stripeEnv('STRIPE_PRICE_STANDARD_ANNUAL')],
+  }
+  if (ids.pro.includes(priceId)) return 'pro'
+  if (ids.standard.includes(priceId)) return 'standard'
+  return null
+}
+
 type Admin = ReturnType<typeof createClient>
 
 serve(async (req) => {
@@ -118,7 +136,31 @@ serve(async (req) => {
         const invoice = event.data.object as Stripe.Invoice
         // Ignore the $0 trial-start invoice; only react to real post-trial payments.
         if (invoice.subscription && invoice.billing_reason !== 'subscription_create') {
-          await updateByCustomer(admin, invoice.customer as string, { subscription_status: 'active' })
+          const updates: Record<string, unknown> = { subscription_status: 'active' }
+
+          // Renewal is where a deferred plan change takes effect. change-plan
+          // swapped the subscription price at downgrade time (no proration), so
+          // by the time this renewal invoice pays, the price reflects the plan
+          // the owner chose. Re-derive tier from that price and sync it. This
+          // is what flips a "downgrade at end of billing cycle" from Pro
+          // features to Standard exactly at renewal — and is a no-op for orgs
+          // whose price already matches their tier.
+          if (invoice.billing_reason === 'subscription_cycle') {
+            try {
+              const sub = await stripe.subscriptions.retrieve(invoice.subscription as string)
+              const plan = planFromPriceId(sub.items.data[0]?.price?.id)
+              if (plan) {
+                updates.tier = plan
+                updates.selected_plan = plan
+              }
+            } catch (err) {
+              // Non-fatal: if we can't resolve the price, leave tier untouched
+              // rather than guess. Status still syncs to 'active'.
+              console.warn('[stripe-webhook] could not derive tier at renewal:', err instanceof Error ? err.message : String(err))
+            }
+          }
+
+          await updateByCustomer(admin, invoice.customer as string, updates)
         }
         break
       }

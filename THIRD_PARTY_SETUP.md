@@ -1,206 +1,178 @@
 # KnockIQ — Third-Party Tooling Setup
 
-Status of the five tools you asked to stand up: PostHog, security hardening, ChartMogul, HubSpot.
-Everything code-side is already wired and **inert until you add keys** — the app builds and runs
-exactly as before with all the env vars blank.
+**Status as of 2026-06-14: deployed and live.** The app code is pushed, `npm install` is done, and
+all the env vars/keys are set. What follows reflects the final state — what's live, and the short
+list of optional items still open.
 
 ---
 
-## 0. One-time: install the new dependency
+## Status at a glance
 
-PostHog needs its SDK installed (already added to `package.json`):
+| Item | State |
+|---|---|
+| PostHog product analytics (US Cloud) | ✅ Live — key set, `presented_to_homeowner` firing |
+| PostHog ↔ Stripe data-warehouse sync | ✅ Connected & syncing |
+| ChartMogul (revenue analytics) | ✅ Stripe connected, backfilling MRR/churn/LTV |
+| Cloudflare Turnstile captcha | ✅ Deployed — widget live, secret + provider set in Supabase |
+| Supabase auth hardening (anon revoke) | ✅ Applied to prod + saved to repo |
+| Dependabot | ✅ Active (opening weekly PRs) |
+| Content-Security-Policy | 🟡 Live in **Report-Only** — promote to enforced later |
+| HubSpot CRM | 🟡 Account created — used standalone, no sync yet (by design) |
+| GitHub secret scanning + push protection | ⬜ Your action (GitHub dashboard) |
+| WAF / rate limiting | ⬜ Optional (Cloudflare DNS or Vercel firewall) |
+| Leaked-password protection | ⬜ Blocked — Supabase Pro-only, project is on Free |
 
-```bash
-npm install
-```
-
-This pulls in `posthog-js`. Commit the updated `package-lock.json`.
+**Still to do (all optional / your pace):** enable GitHub secret scanning, promote CSP to enforced
+after watching the console, add a WAF, upgrade for leaked-password protection, and wire the thin
+Supabase→HubSpot sync once you have sales volume. Details per section below.
 
 ---
 
-## 1. Keys checklist
+## 1. Keys (all set)
 
-Add these to your local `.env` **and** to Vercel (Project → Settings → Environment Variables).
-All are safe to expose in the client bundle (they're public/publishable keys) — the matching
-**secret** keys live only in PostHog/Cloudflare/Supabase dashboards, never in the repo.
+In local `.env` **and** Vercel (Production + Preview). All public/publishable — safe in the client
+bundle. The matching **secret** keys live only in the PostHog/Cloudflare/Supabase dashboards.
 
-| Env var | Where to get it | Blank = |
+| Env var | Value / source | Status |
 |---|---|---|
-| `VITE_POSTHOG_KEY` | PostHog → Project Settings → Project API Key | analytics fully off |
-| `VITE_POSTHOG_HOST` | leave as `https://us.i.posthog.com` (US Cloud) | defaults to US Cloud |
-| `VITE_TURNSTILE_SITE_KEY` | Cloudflare Turnstile dashboard → site key | captcha widget hidden |
-
-`.env.example` already documents these.
+| `VITE_POSTHOG_KEY` | PostHog project `470756` API key | ✅ set |
+| `VITE_POSTHOG_HOST` | `https://us.i.posthog.com` (US Cloud) | ✅ set |
+| `VITE_TURNSTILE_SITE_KEY` | Cloudflare Turnstile "KnockIQ App" site key | ✅ set |
 
 ---
 
-## 2. PostHog (product analytics) — US Cloud
+## 2. PostHog (product analytics) — US Cloud ✅ LIVE
 
-**What's wired:**
+**Wired in code:**
 - `src/lib/analytics.js` — init + `track` / `identify` / `resetAnalytics`. No-ops with no key.
-- `src/main.jsx` — calls `initAnalytics()` on boot.
+- `src/main.jsx` — `initAnalytics()` on boot.
 - `src/contexts/AuthContext.jsx` — `identify()` on sign-in, `resetAnalytics()` on sign-out.
   Identity is **non-PII**: distinct id = Supabase user id, plus `role`, `org_id`, `org_tier`, `plan`.
-  No email or name is ever sent.
+  No email or name is sent.
 - `src/components/InteractionModal.jsx` — fires **`presented_to_homeowner`** when a rep opens the
-  homeowner pricing card, with props: `estimate_mode`, `item_count`, `value`, `outcome`, `is_editing`.
-- `autocapture` is **off** — only explicit named events are sent, which keeps noise and accidental
-  PII capture down.
+  homeowner pricing card (props: `estimate_mode`, `item_count`, `value`, `outcome`, `is_editing`).
+- `autocapture` is **off** — only explicit named events, to keep noise and accidental PII down.
 
-**Setup steps:**
-1. Create a PostHog account, choose **US Cloud**.
-2. Copy the Project API Key → `VITE_POSTHOG_KEY` (local `.env` + Vercel).
-3. Redeploy. Sign in once, open an estimate, tap **Present to Homeowner**.
-4. In PostHog → Activity, confirm the `presented_to_homeowner` event arrives.
+**Stripe data-warehouse sync:** connected via restricted API key, syncing 15 Stripe tables (Customer,
+Invoice, Subscription, Price, etc.) every 6h. `Coupon` is intentionally skipped (missing scope).
 
-**Good first things to build in PostHog:**
-- A funnel: door logged → estimate priced → `presented_to_homeowner` → booked.
-- Session replay (toggle on in Project Settings) to watch where reps drop off.
+**Good next things to build in PostHog:**
+- Funnel: door logged → estimate priced → `presented_to_homeowner` → booked.
+- Session replay (toggle on in Project Settings) to see where reps drop off.
 - A dashboard tile counting `presented_to_homeowner` per week / per org.
 
-**Follow-up (optional):** SPA route-change pageviews aren't tracked yet (only the initial load).
-If you want per-screen analytics, I can add a tiny `usePageviews()` hook to your React Router setup.
+**Optional follow-up:** SPA route-change pageviews aren't tracked yet (only initial load). Ping me
+for a small `usePageviews()` hook on the React Router setup if you want per-screen analytics.
 
 ---
 
 ## 3. Security hardening
 
-### 3a. Dependabot — DONE (auto-activates on push)
-`.github/dependabot.yml` is committed. Once pushed to GitHub it opens weekly PRs for npm + GitHub
-Actions updates (minor/patch grouped, majors individual). Nothing else to do.
+### 3a. Dependabot — ✅ ACTIVE
+`.github/dependabot.yml` is committed and live; it opens weekly PRs for npm + GitHub Actions
+(minor/patch grouped, majors individual). Nothing to do.
 
-### 3b. Secret scanning — your action (GitHub dashboard)
-Repo → Settings → Code security → enable **Secret scanning** + **Push protection**. Free for the
-repo. This directly backs up your pending git-history PII/secret scrub. (GitGuardian is a heavier
-alternative if you want scanning across multiple repos + Slack alerts.)
+### 3b. Secret scanning — ⬜ your action (GitHub dashboard)
+Repo → Settings → Code security → enable **Secret scanning** + **Push protection** (free). Backs up
+your git-history PII/secret scrub. (GitGuardian is a heavier multi-repo alternative.)
 
-### 3c. Auth captcha (Cloudflare Turnstile) — wired, needs keys
-**What's wired:**
+### 3c. Auth captcha (Cloudflare Turnstile) — ✅ DEPLOYED
+**Wired in code:**
 - `src/components/Turnstile.jsx` — renders only when `VITE_TURNSTILE_SITE_KEY` is set; otherwise null.
-- `src/lib/supabase.js` — `signInWithEmail` / `signUpWithEmail` now accept `{ captchaToken }`.
-- Login + Signup forms render the widget and block submit until it's solved.
+- `src/lib/supabase.js` — `signInWithEmail` / `signUpWithEmail` accept `{ captchaToken }`.
+- Login + Signup render the widget and block submit until solved.
+- **Signup single-use-token fix DONE:** when Turnstile is enabled, signup keeps the session from
+  `signUp` and rebuilds the profile via `refreshUser()` instead of a second `signInWithEmail` the
+  spent token would fail. When Turnstile is off, behavior is unchanged.
 
-**Setup steps:**
-1. Cloudflare → Turnstile → create a widget. Copy the **site key** → `VITE_TURNSTILE_SITE_KEY`.
-2. Copy the **secret key** → Supabase → Authentication → Attack Protection → enable CAPTCHA,
-   provider **Turnstile**, paste the secret.
-3. Redeploy.
+**Config (done):** Cloudflare widget "KnockIQ App" (Managed mode; hostnames `app.` / `getknockiq.com`
+/ `www.getknockiq.com`). Site key in Vercel + `.env`. Secret key + **provider = Turnstile** set in
+Supabase → Authentication → Attack Protection.
 
-> ⚠️ **Signup caveat:** when Supabase CAPTCHA enforcement is on, the signup flow's *secondary*
-> `signInWithEmail` call (right after account creation) would need its own token, but a Turnstile
-> token is single-use. The clean fix is to reuse the session from signup instead of re-signing-in.
-> Ping me and I'll make that one-line change when you're ready to enforce captcha.
+**Verify once:** with the app deployed, confirm the Turnstile widget shows on login, the Supabase
+"Enable Captcha protection" toggle is on, and a login + a signup both succeed in a private window.
 
-### 3d. WAF / rate limiting — your action (dashboard)
+### 3d. WAF / rate limiting — ⬜ optional (dashboard)
 Put Cloudflare in front of the app domain (proxied DNS) for bot/rate-limit protection, or enable
-Vercel's WAF/Firewall on the project. Supabase Auth already rate-limits, but a WAF protects your
-edge functions and static origin too.
+Vercel's WAF/Firewall. Supabase Auth already rate-limits; a WAF additionally protects your edge
+functions and static origin. (Note: the DNS route is a bigger, careful change — plan it separately.)
 
-### 3e. Content-Security-Policy — wired in **Report-Only** mode
-`vercel.json` now sends `Content-Security-Policy-Report-Only` scoped to your real dependencies
-(Supabase, Stripe, PostHog, Google Maps, OSM/Leaflet tiles, Turnstile). Report-Only **cannot break
-anything** — it only logs violations to the browser console.
+### 3e. Content-Security-Policy — 🟡 live in Report-Only
+`vercel.json` sends `Content-Security-Policy-Report-Only` scoped to your real dependencies (Supabase,
+Stripe, PostHog, Google Maps, OSM/Leaflet tiles, Turnstile). Report-Only **cannot break anything** —
+it only logs violations to the console.
 
 **To promote to enforced:** browse the app (rep flow, manager dashboard, signup, maps, Stripe
 checkout) with DevTools open, watch for CSP violation logs, add any missing origins, then rename the
 header from `Content-Security-Policy-Report-Only` to `Content-Security-Policy`. I can do this pass
-with you once it's been running a few days.
+with you after it's run a few days.
 
-### 3f. Supabase auth hardening — INSPECTED, proposal below (your approval needed)
+### 3f. Supabase auth hardening — ✅ APPLIED
 See section 6.
 
 ---
 
-## 4. ChartMogul (subscription analytics) — your action, no code
-
-ChartMogul reads your **Stripe** data — no app code needed.
-1. Create a ChartMogul account.
-2. Connect your **Stripe** account as a data source (ChartMogul → Data Sources → Stripe → OAuth).
-3. It backfills history and gives you MRR, churn, LTV, cohorts automatically.
-
-That's it — because billing already lives in Stripe, ChartMogul needs nothing from Supabase.
-(Baremetrics is a near-identical alternative if you prefer its UI.)
+## 4. ChartMogul (subscription analytics) — ✅ CONNECTED
+Stripe connected as a data source via OAuth; ChartMogul is backfilling history and computing MRR,
+churn, LTV, and cohorts. No app code needed — billing lives in Stripe. ChartMogul is your **revenue
+source of truth**; PostHog's Stripe copy is for correlating revenue with product behavior.
 
 ---
 
-## 5. HubSpot (CRM) — your action + light sync
+## 5. HubSpot (CRM) — 🟡 standalone for now (intentional)
 
-HubSpot is your **sales pipeline**, not a mirror of Supabase. Keep the sync thin: push a few
-signals in, don't replicate your schema.
+Account created. **Deliberately not connected to PostHog or other services yet** — at this stage
+HubSpot earns its keep as a standalone place to track the companies you're actively selling to
+(contacts, deals, pipeline). Connecting it everywhere just duplicates data before it adds value.
 
-**Setup:**
-1. Create a HubSpot account (free CRM tier is fine to start).
-2. Decide the few fields worth syncing per company: `lifecycle stage`, `plan/tier`, `MRR`,
-   `signup date`, `last active`. (MRR can come from Stripe via HubSpot's Stripe integration.)
+**When you have real sales volume,** the one connection worth making is a *thin*, one-directional
+**Supabase → HubSpot** sync that pushes a few signals onto each company record — new org, upgraded to
+Pro, went inactive:
+- **Easiest:** Zapier (you have it) → "Create/Update HubSpot Company" on a Supabase event or your
+  existing `fireWebhookEvent` payloads.
+- **More robust:** a Supabase Edge Function calling the HubSpot API on key lifecycle events. Ping me.
 
-**Sync options (Supabase → HubSpot, one direction):**
-- **Easiest:** Zapier (you already have it). Trigger on a Supabase event (e.g. new org row, or your
-  existing `fireWebhookEvent` payloads) → "Create/Update HubSpot Company".
-- **More robust later:** a Supabase Edge Function that calls the HubSpot API on key lifecycle events
-  (org created, upgraded to Pro, churned). I can build this when you want it.
-
-**Avoid double-tooling:** HubSpot (sales pipeline) and Customer.io (lifecycle email) overlap. Let
-HubSpot own *deals/pipeline* and Customer.io own *automated messaging*; only sync the fields each
-genuinely needs so they don't drift.
+**Avoid double-tooling:** HubSpot (pipeline) and Customer.io (lifecycle email) overlap. Let HubSpot
+own *deals/pipeline* and Customer.io own *automated messaging*; sync only the fields each needs.
 
 ---
 
-## 6. Supabase security advisors — findings + proposed fixes (await your OK)
+## 6. Supabase security advisors — ✅ APPLIED + remaining notes
 
-I ran the security advisors against the **Canvassing** prod project (read-only). Nothing was changed.
+Ran against the **Canvassing** prod project (`mcwspvhihekhkytfxggv`).
 
-### Findings
+**A. Leaked-password protection — ⬜ blocked (Pro-only).** Supabase can reject breached passwords
+(HaveIBeenPwned), but it's a **Pro-plan** feature and the org ("Heyday Labs") is on **Free**. Enable
+it only if/when you upgrade — Auth → Providers → Email → "Prevent use of leaked passwords."
 
-**A. Leaked-password protection is OFF (WARN).** Supabase can reject passwords found in
-HaveIBeenPwned breaches. One toggle, no migration, zero breakage risk.
-→ **Action (you):** Auth → Policies → enable "Leaked password protection".
+**B. `anon` could call privileged SECURITY DEFINER functions — ✅ FIXED.** Applied migration
+`20260614_harden_revoke_anon_privileged_rpcs` (in `supabase/migrations/`, applied to prod): revoked
+`anon` EXECUTE on `change_user_role`, `growth_create_offer`, `growth_apply_referral` (+ redundant
+PUBLIC on `auth_is_manager`). All keep `authenticated` + `service_role`, so nothing broke (verified
+via `pg_proc.proacl`).
 
-**B. `anon` can call privileged SECURITY DEFINER functions (WARN).** Several internal helper /
-admin functions are callable by the logged-out `anon` role via REST RPC. Most internally reject
-unauthenticated callers, but they shouldn't be reachable at all. Proposed targeted revoke (keeps the
-genuinely pre-auth ones — `lookup_invite_code`, and `growth_apply_referral` pending your confirmation
-— callable):
+> Deliberately NOT touched: the `auth_*` RLS helpers (`auth_is_owner`, `auth_is_super_admin`,
+> `auth_organization_id`, `is_current_user_super_admin`) keep their `anon` grant — they're evaluated
+> inside RLS policies in anon context during signup/invite, and were intentionally granted to `anon`
+> in the earlier `20260606_harden_revoke_public_execute` migration. The advisor warnings for those
+> are accepted.
 
-```sql
--- PROPOSED — review before applying. Revokes anon EXECUTE on internal/admin
--- functions while leaving them callable by `authenticated` (RLS policies that
--- reference the auth_* helpers run as authenticated and must keep EXECUTE).
-revoke execute on function public.auth_is_manager()            from anon;
-revoke execute on function public.auth_is_owner()              from anon;
-revoke execute on function public.auth_is_super_admin()        from anon;
-revoke execute on function public.auth_organization_id()       from anon;
-revoke execute on function public.is_current_user_super_admin() from anon;
-revoke execute on function public.change_user_role(uuid, text) from anon;
-revoke execute on function public.growth_create_offer(text, text, integer) from anon;
-```
+**C. Many functions callable by `authenticated` (WARN) — by design.** These are RPCs signed-in users
+legitimately call. Optional spot-audit: confirm `approve_rep`, `reject_rep`, `change_user_role`,
+`provision_new_organization`, and the `growth_*` admin functions each verify the caller's role
+internally. No migration unless a gap is found.
 
-> Do **not** blanket-revoke from `authenticated` on the `auth_*` helpers — they're used inside RLS
-> policies and revoking would break row access for signed-in users.
-
-**C. Many functions callable by `authenticated` (WARN).** This is mostly **by design** — these are
-the RPCs your signed-in users legitimately call (chat, approve/reject rep, provisioning, etc.). The
-real safeguard is that each privileged one verifies the caller's role internally. Recommend a quick
-spot-audit of: `approve_rep`, `reject_rep`, `change_user_role`, `provision_new_organization`, and the
-`growth_*` admin functions — confirm each checks the caller is an owner/manager. No migration unless
-the audit finds a gap.
-
-**D. RLS enabled, no policy on `geocode_cache`, `solar_cache`, `growth_attributions`,
-`growth_commission_ledger`, `growth_managers` (INFO).** This is the **safe** state — RLS-on with no
-policy denies all `anon`/`authenticated` access; these are written by edge functions (service role)
-and read via SECURITY DEFINER RPCs. Just confirm nothing in the client reads them directly. No action
-needed.
-
-**If you approve A + B**, I'll enable the toggle note and apply the revoke migration via the Supabase
-tools (it's small and reversible).
+**D. RLS enabled, no policy on caches/growth tables (INFO) — safe.** RLS-on with no policy denies all
+`anon`/`authenticated`; these are written by edge functions (service role) and read via SECURITY
+DEFINER RPCs. No action needed.
 
 ---
 
-## Suggested order
+## Remaining checklist (all optional)
 
-1. `npm install`, add `VITE_POSTHOG_KEY`, ship → analytics live (fastest win).
-2. Enable GitHub secret scanning + push protection (5 min, backs your PII scrub).
-3. Approve the Supabase revoke migration + flip on leaked-password protection.
-4. Connect ChartMogul to Stripe (no code).
-5. Set up Turnstile keys; when ready to enforce, I do the signup one-liner.
-6. HubSpot account + thin Zapier sync.
-7. Watch CSP Report-Only for a few days, then I promote it to enforced.
+1. Verify the captcha end-to-end (widget shows, Supabase toggle on, login + signup succeed).
+2. Enable GitHub secret scanning + push protection.
+3. Promote CSP from Report-Only to enforced after watching the console a few days.
+4. Add a WAF (Cloudflare proxied DNS or Vercel firewall) when you want it.
+5. Upgrade Supabase → enable leaked-password protection (only if you go Pro).
+6. Wire the thin Supabase→HubSpot sync once you're actively working deals.

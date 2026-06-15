@@ -2189,6 +2189,30 @@ export async function createPortalSession() {
 }
 
 /**
+ * Switch the org's plan between 'standard' and 'pro' on its existing Stripe
+ * subscription (owner-only; enforced server-side in the change-plan function).
+ *
+ * Behavior is decided server-side, not here:
+ *   • Upgrade standard→pro: immediate, prorated difference on next invoice.
+ *   • Downgrade pro→standard: keeps Pro features until the next renewal, then
+ *     drops to Standard (no proration/credit).
+ *   • During a trial: only changes the post-trial plan.
+ *   • Orgs without a subscription (demo/grandfathered): DB-only tier flip.
+ *
+ * Returns { data, error } where data.applied describes what happened
+ * ('upgrade_immediate' | 'downgrade_scheduled' | 'downgrade_cancelled' |
+ *  'trial' | 'db_only' | 'noop') and data.effective_at (ISO) is set for a
+ * scheduled downgrade so the UI can tell the owner when it takes effect.
+ */
+export async function changePlan(plan) {
+  const target = plan === 'pro' ? 'pro' : 'standard'
+  const { data, error } = await supabase.functions.invoke('change-plan', { body: { plan: target } })
+  if (error) return { data: null, error }
+  if (data?.error) return { data: null, error: new Error(data.error) }
+  return { data, error: null }
+}
+
+/**
  * Recompute billable seats and push the quantity to the org's Stripe
  * subscription. Call after team changes that don't run through manage-team
  * (invite-link approve / reject). No-op until the org has a subscription.
