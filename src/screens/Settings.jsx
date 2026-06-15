@@ -656,12 +656,6 @@ export default function Settings() {
     : null
   // Will the org lose features at conversion? (on Pro trial, reverting to Standard)
   const willDowngrade  = inTrial && postTrialPlan === 'standard'
-  // Self-serve plan switching is owner-only and needs a real Stripe
-  // subscription to act on (grandfathered/demo orgs without one keep the
-  // read-only cards). pendingDowngrade = on Pro today but selected_plan flipped
-  // to Standard, i.e. a downgrade is scheduled for the next renewal.
-  const canSwitchPlans  = isOwner && !!org?.stripe_subscription_id
-  const pendingDowngrade = canSwitchPlans && !inTrial && isPro && org?.selected_plan === 'standard'
   // Flat off-season pause "keep-warm" fee (dollars). Defaults to $15.
   const keepWarm    = org?.pause_fee_cents != null ? (org.pause_fee_cents / 100) : 15
   // Commission tracking is part of Standard — a manager opt-in toggle.
@@ -699,6 +693,14 @@ export default function Settings() {
   // owner-only enforcement in the manage-team edge function, so a non-owner
   // manager never sees a button that would 403.
   const isOwner = user?.role === 'manager' && !!org?.owner_user_id && org.owner_user_id === user?.id
+
+  // Self-serve plan switching is owner-only and needs a real Stripe
+  // subscription to act on (grandfathered/demo orgs without one keep the
+  // read-only cards). pendingDowngrade = on Pro today but selected_plan flipped
+  // to Standard, i.e. a downgrade is scheduled for the next renewal. Declared
+  // AFTER isOwner — it reads isOwner, so it must not run before isOwner inits.
+  const canSwitchPlans   = isOwner && !!org?.stripe_subscription_id
+  const pendingDowngrade = canSwitchPlans && !inTrial && isPro && org?.selected_plan === 'standard'
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
