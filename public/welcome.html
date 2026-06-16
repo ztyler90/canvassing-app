@@ -237,11 +237,45 @@
       position: relative;
       padding: 72px 0 80px;
       background:
+        repeating-radial-gradient(circle at 50% -6%, transparent 0 39px, rgba(27,79,204,.10) 39px 40px),
         radial-gradient(1200px 540px at 50% -10%, rgba(27,79,204,.11), transparent 60%),
         radial-gradient(900px 420px at 110% 40%, rgba(125,195,30,.10), transparent 60%),
         linear-gradient(180deg, var(--white) 0%, var(--white) 55%, var(--bg) 100%);
       overflow: hidden;
     }
+    /* Effect 1 · slow radar sweep radiating from the top, behind content */
+    .hero::before, .hero::after {
+      content: ""; position: absolute;
+      top: -60px; left: 50%; margin-left: -60px;
+      width: 120px; height: 120px; border-radius: 50%;
+      border: 1.5px solid rgba(46,107,255,.40);
+      pointer-events: none; z-index: 0;
+      animation: heroSweep 8s ease-out infinite;
+    }
+    .hero::after { animation-delay: 4s; }
+    @keyframes heroSweep {
+      0%   { transform: scale(1);  opacity: .5; }
+      100% { transform: scale(13); opacity: 0;  }
+    }
+    .hero > * { position: relative; z-index: 1; }
+
+    /* Effect 2 · gentle "live" halo on the eyebrow status dot */
+    .hero .pill .dot { position: relative; }
+    .hero .pill .dot::after {
+      content: ""; position: absolute; inset: 0;
+      border-radius: 50%; background: var(--lime);
+      animation: liveHalo 1.9s ease-out infinite;
+      pointer-events: none;
+    }
+    @keyframes liveHalo {
+      0%   { transform: scale(1);   opacity: .55; }
+      100% { transform: scale(3.2); opacity: 0;   }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .hero::before, .hero::after, .hero .pill .dot::after { display: none; }
+    }
+
     .hero-head { text-align: center; max-width: 900px; margin: 0 auto; }
     .pill {
       display: inline-flex; align-items: center; gap: 8px;
