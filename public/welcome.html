@@ -2123,6 +2123,14 @@
 ═══════════════════════════════════════════════════════════════════════════ -->
 <section id="top" class="hero">
   <svg class="hero-map" viewBox="0 0 1440 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <g id="ih">
+        <path d="M0 0 L20 -10 L20 12 L0 22 Z" fill="rgba(46,107,255,.08)" stroke="rgba(46,107,255,.22)" stroke-width="1"/>
+        <path d="M0 0 L-20 -10 L-20 12 L0 22 Z" fill="rgba(46,107,255,.12)" stroke="rgba(46,107,255,.22)" stroke-width="1"/>
+        <path d="M0 0 L20 -10 L0 -26 Z" fill="rgba(46,107,255,.17)" stroke="rgba(46,107,255,.30)" stroke-width="1"/>
+        <path d="M0 0 L-20 -10 L0 -26 Z" fill="rgba(27,79,204,.24)" stroke="rgba(46,107,255,.30)" stroke-width="1"/>
+      </g>
+    </defs>
     <g class="hm-blocks">
       <rect class="hm-block" x="278" y="128" width="124" height="114" rx="4"/>
       <rect class="hm-block" x="418" y="258" width="134" height="94" rx="4"/>
@@ -2150,6 +2158,18 @@
     <line class="hm-road" x1="0" y1="360" x2="1440" y2="360"/>
     <line class="hm-lane" x1="560" y1="0" x2="560" y2="700"/>
     <line class="hm-lane" x1="0" y1="360" x2="1440" y2="360"/>
+
+    <g class="hm-houses" opacity="0.78">
+      <use href="#ih" transform="translate(340,232) scale(1.1)"/>
+      <use href="#ih" transform="translate(485,330) scale(1.0)"/>
+      <use href="#ih" transform="translate(645,452) scale(1.2)"/>
+      <use href="#ih" transform="translate(792,228) scale(0.95)"/>
+      <use href="#ih" transform="translate(935,338) scale(1.1)"/>
+      <use href="#ih" transform="translate(1085,452) scale(1.15)"/>
+      <use href="#ih" transform="translate(200,452) scale(1.0)"/>
+      <use href="#ih" transform="translate(1235,232) scale(0.9)"/>
+      <use href="#ih" transform="translate(560,150) scale(0.85)"/>
+    </g>
 
     <path class="hm-route" d="M270 640 V490 H410 V360 H560 V250 H860 V360 H1010 V120 H1310"/>
     <path class="hm-trail" d="M270 640 V490 H410 V360 H560 V250 H860 V360 H1010 V120 H1310"/>
