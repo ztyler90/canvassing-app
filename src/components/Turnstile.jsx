@@ -18,6 +18,7 @@
  * worst case: the script/widget that never calls back at all.
  */
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { Capacitor } from '@capacitor/core'
 
 const SITE_KEY   = import.meta.env.VITE_TURNSTILE_SITE_KEY
 const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
@@ -27,7 +28,22 @@ const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render
 // to trip on a slow field connection, short enough not to feel hung.
 const LOAD_TIMEOUT_MS = 12000
 
-export const captchaEnabled = !!SITE_KEY
+// Cloudflare Turnstile renders an iframe from challenges.cloudflare.com. Inside
+// a native Capacitor WebView the page origin is a custom app scheme
+// (KnockIQ://localhost), which Turnstile won't accept — the widget fails to
+// load and HARD-BLOCKS login on the phone with a challenge the rep can't
+// complete. The native app ships through the App Store (not a public bot-facing
+// form), so we switch the captcha off on native and let the web keep it.
+//
+// IMPORTANT: Supabase Attack Protection also enforces the captcha server-side.
+// For native sign-in to actually succeed, the Supabase "Enable Captcha
+// protection" toggle must be OFF (otherwise Supabase rejects the token-less
+// native login). See THIRD_PARTY_SETUP.md.
+const IS_NATIVE = Capacitor.isNativePlatform()
+
+// On native we report the captcha as disabled so the auth forms don't gate
+// Sign In on a token that can never arrive, and the widget renders nothing.
+export const captchaEnabled = !!SITE_KEY && !IS_NATIVE
 
 let scriptPromise = null
 function loadScript() {
@@ -66,7 +82,7 @@ export default function Turnstile({ onVerify, onExpire, onError }) {
   }, [onError])
 
   useEffect(() => {
-    if (!SITE_KEY) return
+    if (!SITE_KEY || IS_NATIVE) return
     let cancelled = false
     setStatus('loading')
 
@@ -122,7 +138,7 @@ export default function Turnstile({ onVerify, onExpire, onError }) {
     setAttempt((n) => n + 1)
   }
 
-  if (!SITE_KEY) return null
+  if (!SITE_KEY || IS_NATIVE) return null
 
   if (status === 'failed') {
     return (
