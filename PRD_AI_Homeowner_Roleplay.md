@@ -208,10 +208,12 @@ Every paid plan includes the manager layer — this is what makes credits feel l
 - **Target end-to-end latency:** < ~1.2s perceived turn time. Above ~2s it stops feeling like a door conversation. Consider a realtime/speech-to-speech API to collapse the STT→LLM→TTS hops if latency targets aren't met.
 - **Barge-in:** rep can interrupt; homeowner can cut the rep off (realism + a teaching moment).
 
-**App stack (reuse KnockIQ's existing stack to move fast):**
+**Repo & infrastructure isolation (important):** Doorstep is its **own repository on its own domain** — a separate, *public/unauthenticated* product with a different release cadence, dependency footprint (voice pipeline), and security/traffic profile than core KnockIQ. Reuse KnockIQ's **stack and patterns** (and Stripe/PostHog account) but isolate the data store: **production runs on its own Supabase project**, so the public app's data, load, and RLS are fully separated from KnockIQ's sensitive rep/customer tables. (The Phase 0 prototype may piggyback on existing infra to move fast; production is isolated.) Doorstep↔KnockIQ data flows via **API/webhooks** (Phase 3), not a shared codebase. Extract shared bits (branding, UI kit) into a small shared package only if duplication becomes painful.
+
+**App stack (reuse the patterns, isolate the instance):**
 - **Frontend:** React PWA (mic access, push-to-talk + hands-free VAD mode). Mobile-friendly since reps live on phones.
-- **Backend / data:** Supabase (auth-lite for the email gate, Postgres for sessions/scores/personas, edge functions for the voice orchestration + LLM grading). Mirrors the main app so code/ops carry over.
-- **Analytics:** PostHog (shared project) + funnel events above.
+- **Backend / data:** dedicated Supabase project (light auth for the email gate, Postgres for sessions/scores/personas, edge functions for voice orchestration + LLM grading). Same tech as the main app so code/ops carry over, separate instance for isolation.
+- **Analytics:** PostHog (shared account, separate Doorstep project) + funnel events above.
 - **Scoring:** a separate grading LLM call against the rubric, returning structured JSON (scores per dimension + coaching strings).
 
 **Data model (sketch):**
@@ -250,7 +252,7 @@ Per your call: **configurable/generic core + seeded persona packs for pest contr
 
 **Phase 3 — Monetization & KnockIQ integration (dual path)**
 - **Standalone:** ship Doorstep Teams (manager dashboard, credit-based plans, onboarding tracks) as its own paid product (§8.3–8.5) — revenue independent of core KnockIQ.
-- **Embedded:** bundle Doorstep into KnockIQ Pro; org-authored personas, assign practice as onboarding, sync scores into KnockIQ rep profiles, and feed the objection library into the in-field "objection copilot."
+- **Embedded:** bundle Doorstep into KnockIQ Pro; org-authored personas, assign practice as onboarding, sync scores into KnockIQ rep profiles, and feed the objection library into the in-field "objection copilot." Integration is via **API/webhooks between the two separate codebases** (§9), keeping the products decoupled.
 
 ---
 

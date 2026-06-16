@@ -47,6 +47,7 @@ Browser (mic) ──audio stream──► Edge/WS server ──► STT (streamin
       └────────────◄── TTS (streaming) ◄── LLM (persona, streaming tokens)
 ```
 
+- **Repo:** start Doorstep in its **own repository** from day one (separate product, own domain, public/unauthenticated, voice-heavy deps — see PRD §9). Phase 0 may **piggyback on existing KnockIQ infra** (Supabase project, hosting) to move fast, but production will run on a **dedicated, isolated Supabase project**; don't entangle Phase 0 code with the core KnockIQ repo.
 - **Single thin backend** (Supabase Edge Function or a small Node WS service) orchestrating STT → LLM → TTS. Stream at every hop; never wait for a full response before starting the next stage.
 - **Stateless per turn** except an in-memory conversation array (persona system prompt + running dialogue + lightweight state flags).
 - Log timing for each stage per turn (see §6).
@@ -158,4 +159,4 @@ Dump to a simple table (Supabase) — no dashboard needed; a CSV export is fine 
 | Tuning to hit latency target | ~2–4 days (variable) |
 | Realism panel + write-up | ~2–3 days |
 
-Single engineer, ~2–3 weeks to a go/no-go decision. Reuse KnockIQ's Supabase/hosting so there's no new infra to stand up — though see the repo/domain note in the cover message about where this code should live.
+Single engineer, ~2–3 weeks to a go/no-go decision. Phase 0 can piggyback on KnockIQ's Supabase/hosting to avoid standing up new infra — but the code lives in **Doorstep's own repo** from the start, and production will move to a **dedicated Supabase project** (PRD §9).
