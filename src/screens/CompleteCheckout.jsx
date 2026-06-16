@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CreditCard, Check, Loader, RefreshCw, LogOut, AlertTriangle } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { createCheckoutSession, signOut } from '../lib/supabase.js'
 
@@ -73,7 +74,17 @@ export default function CompleteCheckout() {
       return
     }
     try { localStorage.removeItem('kiq_signup_promo') } catch {}
-    window.location.href = url
+    if (Capacitor.isNativePlatform()) {
+      // App Store Guideline 3.1.1: subscription checkout cannot run inside the
+      // app's WebView. Open Stripe Checkout in the system browser; the success
+      // redirect returns the user to getknockiq.com where the same polling
+      // flow (?checkout=success) reconciles the org. They can then re-open the
+      // native app and log back in.
+      window.open(url, '_blank', 'noopener,noreferrer')
+      setBusy(false)
+    } else {
+      window.location.href = url
+    }
   }
 
   // ── Finalizing state (returned from Stripe) ──────────────────────────────

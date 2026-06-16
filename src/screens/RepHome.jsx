@@ -9,11 +9,11 @@ import {
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useSession } from '../contexts/SessionContext.jsx'
 import {
-  startSession, getRepSessions, getActiveSession,
+  startSession, getRepSessions, getActiveSession, endSession,
   updateSessionStats, getMyCommissionConfig, getSessionInteractions,
   getMyOrganization, getRepOutcomesForHour, signOut,
   getLeaderboardData, getLeaderboardRange, getOrgTerritoriesForRep,
-  logInteraction,
+  logInteraction, getRepCommissionItems,
 } from '../lib/supabase.js'
 import { requestGPSPermission } from '../lib/gps.js'
 import { gpsTracker } from '../lib/gps.js'
@@ -24,21 +24,23 @@ import { dnkZones, pointInAnyZone, loadDnkZones } from '../lib/dnk.js'
 import {
   computePeriodStats, computeConversion,
   computeXP, computeLevel, calcCommission, describeCommission,
-  computeBestHour,
+  computeBestHour, commissionFromBookedItems,
 } from '../lib/repStats.js'
-import { isCommissionEnabled } from '../lib/tier.js'
+import { isCommissionEnabled, isLeaderboardShared, isLeaderboardRevenueHidden } from '../lib/tier.js'
 import {
   computeRankMovement, computeDrySpell, computePersonalBestCloseRate,
   computeCloseRateDiagnostic, computeLevelUpProximity, computeTeamPulse,
   computeGoalPace, computeRivalChase, computeMilestone,
 } from '../lib/callouts.js'
 import RepCallouts from '../components/RepCallouts.jsx'
+import CommissionBreakdown from '../components/CommissionBreakdown.jsx'
+import TeamLeaderboardChart from '../components/TeamLeaderboardChart.jsx'
 import ChatLauncher from '../components/ChatLauncher.jsx'
 import ViewModeSwitch from '../components/ViewModeSwitch.jsx'
 import { StoragePhoto } from '../lib/photos.jsx'
 import {
   RichStatCard, MiniSparkArea, MiniSparkBars,
-  formatCompact, computeTrend, groupSessionsByDay,
+  formatCompact, computeTrend, groupSessionsByDay, groupBookedByDay,
 } from '../components/StatSparkCards.jsx'
 import { differenceInCalendarDays, startOfWeek, startOfMonth } from 'date-fns'
 
@@ -111,6 +113,12 @@ export default function RepHome() {
   const [org,           setOrg]           = useState(null)
   const [goalCfg,       setGoalCfg]       = useState(DEFAULT_GOAL)
   const [period,        setPeriod]        = useState('week')  // 'week' | 'month' | 'lifetime'
+  const [showCommission, setShowCommission] = useState(false) // commission breakdown drawer
+  // Payroll-accurate commission inputs: booked jobs (by booked_at) + open
+  // estimates for the selected period. Drives both the card number and the
+  // breakdown drawer from one fetch.
+  const [commissionData, setCommissionData] = useState(null)
+  const [commissionLoading, setCommissionLoading] = useState(false)
   const [loadingData,   setLoadingData]   = useState(true)
   // The rep's best hour-of-day for closes, computed from their history.
   // Null until we've confirmed there's enough data for a credible nudge;
@@ -129,11 +137,35 @@ export default function RepHome() {
   // history query can't delay the Start-Canvassing CTA.
   const [territoryInbox, setTerritoryInbox] = useState([])
   const [loadingInbox,   setLoadingInbox]   = useState(true)
+  // An un-ended session found in the DB (e.g. the app was force-quit mid-shift).
+  // We surface it as an opt-in "Resume" banner instead of silently dropping the
+  // rep back into active canvassing, which felt like the app auto-started a
+  // session on its own. Null when there's nothing to resume.
+  const [resumable,     setResumable]     = useState(null)
+  const [resuming,      setResuming]      = useState(false)
 
   useEffect(() => {
     loadData()
     checkActiveSession()
   }, [])
+
+  // Load booked jobs (by booked_at) + open estimates whenever the period
+  // changes. Powers the Bookings/Revenue cards AND commission on the same
+  // basis, so a deal converted this week shows up this week regardless of when
+  // it was first knocked. Runs regardless of the commission toggle because the
+  // Bookings/Revenue cards always need it; commission just additionally uses it.
+  useEffect(() => {
+    if (!user?.id) { setCommissionData(null); return }
+    const days = period === 'week' ? 7 : period === 'month' ? 30 : null
+    let alive = true
+    setCommissionLoading(true)
+    getRepCommissionItems(user.id, { days })
+      .then((d) => { if (alive) setCommissionData(d) })
+      .catch(() => { if (alive) setCommissionData({ booked: [], pending: [] }) })
+      .finally(() => { if (alive) setCommissionLoading(false) })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, period])
 
   async function loadData() {
     // Pull up to 500 submitted sessions — enough for multi-month lifetime totals.
@@ -188,14 +220,25 @@ export default function RepHome() {
       .finally(() => setLoadingInbox(false))
   }
 
-  // If an active session already exists in Supabase (e.g. rep closed the
-  // tab mid-shift, phone died, browser crashed), re-enter it with all
-  // previously-logged interactions so stats and pins aren't lost. The
-  // SessionContext has likely already primed from localStorage by this
-  // point; we overwrite it with the authoritative DB state.
+  // If an active (un-ended) session exists in Supabase (e.g. the rep
+  // force-quit the app mid-shift, the phone died, or a Stop didn't fully
+  // commit), DON'T silently drop them back into active canvassing — that
+  // reads as the app starting a session on its own. Instead surface an
+  // opt-in "Resume" banner and let the rep choose. If the live SessionContext
+  // is already running this very session, there's nothing to prompt.
   async function checkActiveSession() {
     const existing = await getActiveSession(user.id)
+    if (!existing) { setResumable(null); return }
+    if (state.isRunning && state.session?.id === existing.id) return
+    setResumable(existing)
+  }
+
+  // Rep tapped "Resume" on the banner — re-enter the session with all
+  // previously-logged interactions so stats and pins aren't lost.
+  async function resumeSession() {
+    const existing = resumable
     if (!existing) return
+    setResuming(true)
     try {
       const interactions = await getSessionInteractions(existing.id)
       dispatch({
@@ -212,6 +255,23 @@ export default function RepHome() {
     }
     startGPS(existing)
     navigate('/canvassing')
+  }
+
+  // Rep tapped "End it" — close out the dangling session in the DB so it
+  // stops resurfacing, without entering canvassing. Keeps whatever stats the
+  // row already had; the rep can always start a fresh session afterward.
+  async function endResumable() {
+    const existing = resumable
+    if (!existing) return
+    if (!window.confirm('End this unfinished session? It will be saved and closed.')) return
+    setResuming(true)
+    try {
+      await endSession(existing.id, {})
+    } catch (err) {
+      console.warn('[Session] endResumable failed:', err?.message)
+    }
+    setResumable(null)
+    setResuming(false)
   }
 
   async function handleLogout() {
@@ -409,8 +469,20 @@ export default function RepHome() {
   const repDays  = daysForRepPeriod(period, allSessions)
   const repDaily = groupSessionsByDay(allSessions, repDays)
   const doorsTrend    = computeTrend(repDaily, 'doors')
-  const bookingsTrend = computeTrend(repDaily, 'bookings')
-  const revenueTrend  = computeTrend(repDaily, 'revenue')
+
+  // Bookings + Revenue are realized-outcome metrics: attribute them to the day
+  // each job BOOKED (booked_at), so they stay consistent with commission and
+  // count pipeline conversions. Doors/conversations/estimates remain door
+  // activity (session-based). Falls back to session series only for the brief
+  // moment before booked items load.
+  const bookedItems   = commissionData?.booked || null
+  const bookedDaily   = bookedItems ? groupBookedByDay(bookedItems, repDays) : repDaily
+  const bookingsValue = bookedItems ? bookedItems.length
+                                    : stats.bookings
+  const revenueValue  = bookedItems ? bookedItems.reduce((s, r) => s + (Number(r.estimated_value) || 0), 0)
+                                    : stats.revenue
+  const bookingsTrend = computeTrend(bookedDaily, 'bookings')
+  const revenueTrend  = computeTrend(bookedDaily, 'revenue')
 
   const todayKey   = format(new Date(), 'yyyy-MM-dd')
   const todayStats = allSessions
@@ -422,13 +494,22 @@ export default function RepHome() {
       estimates: acc.estimates + (s.estimates || 0),
     }), { doors: 0, revenue: 0, bookings: 0, estimates: 0 })
 
+  // Today's booked revenue (jobs that BOOKED today) — keeps the revenue daily
+  // goal consistent with the Revenue card. Falls back to session revenue until
+  // booked items load.
+  const todayBookedRevenue = bookedItems
+    ? bookedItems
+        .filter((it) => (it.booked_at || '').slice(0, 10) === todayKey)
+        .reduce((s, r) => s + (Number(r.estimated_value) || 0), 0)
+    : todayStats.revenue
+
   // Pick the right metric for the manager-configured goal. "count" goals
   // measure estimates *or* appointments depending on terminology — the
   // underlying field is the same either way (sessions.estimates).
   const countNoun = goalCfg.count_goal_label === 'appointments' ? 'appointments' : 'estimates'
   const isRevenueGoal = goalCfg.daily_goal_type === 'revenue'
   const goalTarget  = Number(goalCfg.daily_goal_value) || 0
-  const goalCurrent = isRevenueGoal ? todayStats.revenue : todayStats.estimates
+  const goalCurrent = isRevenueGoal ? todayBookedRevenue : todayStats.estimates
   const goalPct = goalTarget > 0
     ? Math.min((goalCurrent / goalTarget) * 100, 100)
     : 0
@@ -440,11 +521,24 @@ export default function RepHome() {
     : `${goalTarget} ${countNoun}`
   const lifetimeXP  = computeXP(periods.lifetime)
   const levelInfo   = computeLevel(lifetimeXP)
-  const commission  = calcCommission(stats, commissionCfg)
+  // Payroll-accurate commission: computed from booked jobs (by booked_at) for
+  // the selected period once loaded; falls back to the session-derived estimate
+  // only for the brief moment before that fetch lands (avoids a flash of $0).
+  const commission  = commissionData
+    ? commissionFromBookedItems(commissionData.booked, commissionCfg)
+    : calcCommission(stats, commissionCfg)
   // Commission tracking is a manager opt-in. Only surface pay to the rep
   // when the org has it enabled.
   const commissionOn = isCommissionEnabled(org)
-  const conversion  = computeConversion(stats)
+  // Window + label for the commission breakdown drawer — mirrors the rolling
+  // 7/30-day windows computePeriodStats uses, so the itemized list matches the
+  // commission number shown on the card. Lifetime → no date filter.
+  const commissionDays  = period === 'week' ? 7 : period === 'month' ? 30 : null
+  const commissionPeriodLabel = period === 'week' ? 'This week' : period === 'month' ? 'This month' : 'All time'
+  // Funnel + conversion use the booked-by-date Bookings/Revenue so the funnel's
+  // bottom row matches the Bookings card (doors/convos/estimates stay activity).
+  const outcomeStats = { ...stats, bookings: bookingsValue, revenue: revenueValue }
+  const conversion  = computeConversion(outcomeStats)
 
   // Callout payloads — each helper returns null when the underlying data
   // can't credibly fill the card, and <RepCallouts> then omits it entirely.
@@ -643,6 +737,40 @@ export default function RepHome() {
       {/* ── Main ───────────────────────────────────────────────────────────── */}
       <div className="flex-1 w-full max-w-xl mx-auto px-4 pt-5 space-y-3">
 
+        {/* Resume banner — only when an un-ended session exists in the DB.
+            Opt-in: the app no longer auto-enters canvassing on its own. */}
+        {resumable && (
+          <div className="bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0 animate-pulse" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-amber-900">Unfinished session found</p>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  You have a canvassing session that was never ended
+                  {resumable.started_at ? ` (started ${format(new Date(resumable.started_at), 'MMM d, h:mm a')})` : ''}.
+                  Resume where you left off, or end it.
+                </p>
+                <div className="flex items-center gap-2 mt-2.5">
+                  <button
+                    onClick={resumeSession}
+                    disabled={resuming}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-600 active:opacity-80 disabled:opacity-60"
+                  >
+                    {resuming ? 'Resuming…' : 'Resume'}
+                  </button>
+                  <button
+                    onClick={endResumable}
+                    disabled={resuming}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-amber-900 bg-white border border-amber-300 active:opacity-80 disabled:opacity-60"
+                  >
+                    End it
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Start Canvassing — hero CTA (blue, breathing room above) */}
         <button
           onClick={handleStartCanvassing}
@@ -752,7 +880,7 @@ export default function RepHome() {
 
                 <RichStatCard
                   label="Bookings"
-                  value={stats.bookings.toLocaleString()}
+                  value={bookingsValue.toLocaleString()}
                   trend={bookingsTrend}
                   trendLabel="bookings"
                   icon={<Trophy className="w-4 h-4" />}
@@ -761,8 +889,8 @@ export default function RepHome() {
                   iconColor="text-teal-700"
                 >
                   <MiniSparkArea
-                    values={repDaily.map((d) => d.bookings)}
-                    dates={repDaily.map((d) => d.date)}
+                    values={bookedDaily.map((d) => d.bookings)}
+                    dates={bookedDaily.map((d) => d.date)}
                     valueFormatter={(v) => `${Math.round(v).toLocaleString()} ${v === 1 ? 'booking' : 'bookings'}`}
                     color="#0d9488" fill="#14b8a673"
                   />
@@ -770,7 +898,7 @@ export default function RepHome() {
 
                 <RichStatCard
                   label="Revenue"
-                  value={`$${formatCompact(stats.revenue)}`}
+                  value={`$${formatCompact(revenueValue)}`}
                   trend={revenueTrend}
                   trendLabel="revenue"
                   icon={<DollarSign className="w-4 h-4" />}
@@ -779,8 +907,8 @@ export default function RepHome() {
                   iconColor="text-lime-700"
                 >
                   <MiniSparkArea
-                    values={repDaily.map((d) => d.revenue)}
-                    dates={repDaily.map((d) => d.date)}
+                    values={bookedDaily.map((d) => d.revenue)}
+                    dates={bookedDaily.map((d) => d.date)}
                     valueFormatter={(v) => `$${formatCompact(v)}`}
                     color="#5ea636" fill="#7ac94373"
                   />
@@ -790,13 +918,14 @@ export default function RepHome() {
                   <CommissionCard
                     amount={commission}
                     config={commissionCfg}
+                    onClick={() => setShowCommission(true)}
                   />
                 )}
               </div>
 
               {/* Funnel / Conversion */}
               <ConversionFunnel
-                stats={stats}
+                stats={outcomeStats}
                 conv={conversion}
                 estimateLabel={countNoun === 'appointments' ? 'Appointments' : 'Estimates'}
               />
@@ -819,6 +948,19 @@ export default function RepHome() {
           </section>
         )}
 
+        {/* Team leaderboard — only when the manager has opted to share standings
+            with reps. Lives under Recent Sessions so the dashboard stays
+            "my numbers first, team context second". */}
+        {isLeaderboardShared(org) && (
+          <section>
+            <TeamLeaderboardChart
+              repId={user?.id}
+              estimateNoun={countNoun === 'appointments' ? 'appointment' : 'estimate'}
+              hideRevenue={isLeaderboardRevenueHidden(org)}
+            />
+          </section>
+        )}
+
         {allSessions.length === 0 && !loadingData && (
           <div className="text-center py-8 text-gray-400">
             <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-40" />
@@ -827,6 +969,19 @@ export default function RepHome() {
           </div>
         )}
       </div>
+
+      {/* Commission breakdown drawer — itemized bookings + pending estimates */}
+      <CommissionBreakdown
+        open={showCommission}
+        onClose={() => setShowCommission(false)}
+        repId={user?.id}
+        days={commissionDays}
+        config={commissionCfg}
+        periodLabel={commissionPeriodLabel}
+        estimateNoun={countNoun === 'appointments' ? 'appointment' : 'estimate'}
+        data={commissionData}
+        dataLoading={commissionLoading}
+      />
 
       {/* ── Footer ────────────────────────────────────────────────────────── */}
       <footer className="mt-6 pt-6 pb-8 flex flex-col items-center gap-1.5 border-t border-gray-100">
@@ -1011,12 +1166,18 @@ export function BigStatCard({ icon, label, value, accent = 'blue' }) {
   )
 }
 
-export function CommissionCard({ amount, config }) {
+export function CommissionCard({ amount, config, onClick, label = 'My Commission' }) {
   const hasConfig = !!config && (config.type !== 'flat_pct' || Number(config.value) > 0)
   const fmt = (n) => `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+  const clickable = typeof onClick === 'function'
   return (
     <div
-      className="rounded-2xl p-4 shadow-sm text-white relative overflow-hidden"
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
+      aria-label={clickable ? `${label} — view breakdown` : undefined}
+      className={`rounded-2xl p-4 shadow-sm text-white relative overflow-hidden ${clickable ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''}`}
       style={{ background: 'linear-gradient(135deg, #059669 0%, #7DC31E 100%)' }}
     >
       <div className="flex items-center gap-2 mb-1.5 relative z-10">
@@ -1024,7 +1185,7 @@ export function CommissionCard({ amount, config }) {
           <DollarSign className="w-4 h-4" />
         </div>
         <p className="text-[11px] uppercase tracking-wide font-semibold text-green-50">
-          My Commission
+          {label}
         </p>
       </div>
       <p className="text-2xl font-extrabold leading-tight relative z-10">
@@ -1033,6 +1194,12 @@ export function CommissionCard({ amount, config }) {
       <p className="text-[10px] text-green-50 mt-0.5 relative z-10 truncate">
         {hasConfig ? describeCommission(config) : 'Manager has not set a rate yet'}
       </p>
+      {clickable && (
+        <p className="text-[10px] font-semibold text-white/90 mt-1.5 relative z-10 flex items-center gap-0.5">
+          View breakdown
+          <ChevronRight className="w-3 h-3" />
+        </p>
+      )}
       <Trophy className="absolute -bottom-3 -right-2 w-16 h-16 text-white/10" />
     </div>
   )

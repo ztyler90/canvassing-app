@@ -75,6 +75,16 @@
   padding-top: calc(env(safe-area-inset-top, 0px) + 3rem) !important;
 }
 
+/* iOS native app only — give the headers a few extra pixels of breathing
+   room under the notch / Dynamic Island, and lift the bottom action bar a bit
+   higher off the home indicator. Gated on the `native-ios` class (added on
+   app boot in App.jsx) so the web build is untouched. The +0.75rem / +1rem
+   are layered on top of the safe-area inset the base rules already apply. */
+.native-ios .bg-brand-header,
+.native-ios .safe-area-top {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 3.75rem) !important;
+}
+
 /* Prevent overscroll bounce on iOS */
 html, body {
   overscroll-behavior: none;
@@ -84,6 +94,12 @@ html, body {
 /* Safe area insets for iPhone notch / home indicator */
 .safe-area-bottom {
   padding-bottom: max(env(safe-area-inset-bottom), 12px);
+}
+
+/* iOS native app only — nudge the bottom bar up so it clears the home
+   indicator with a little extra margin (web keeps the tighter 12px floor). */
+.native-ios .safe-area-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.25rem) !important;
 }
 
 /* Leaflet z-index fix (keeps map below modals) */

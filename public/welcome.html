@@ -1340,6 +1340,15 @@
     }
     .ss-phone .ss-placeholder { padding: 200px 24px; }
 
+    /* Territory: portrait mobile screenshot in a clean rounded card */
+    .terr-card {
+      max-width: 330px; margin: 0 auto;
+      border-radius: 26px; overflow: hidden;
+      box-shadow: var(--sh-xl);
+      border: 1px solid var(--line);
+    }
+    .terr-card .ss-frame { border-radius: 26px; min-height: 420px; }
+
     /* Draft banner across the top of the page */
     .draft-banner {
       background: linear-gradient(135deg, #F59E0B 0%, #DB2777 100%);
@@ -1555,6 +1564,204 @@
     /* Chat card is intentionally lightweight — no graphic, just copy */
     .dark-card.dense p { margin-bottom: 12px; }
 
+    /* ── 5-card balance: commission hero spans full width, 2x2 below ──── */
+    .rep-coach-grid .span-2 { grid-column: 1 / -1; }
+    .commission-hero {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px; align-items: center;
+    }
+    .commission-hero .ch-copy h4 { margin-bottom: 10px; }
+
+    /* ── Commission earnings mock ─────────────────────────────────────── */
+    .comm-mock {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .comm-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+      font-size: 11px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .1em; color: #93C5FD;
+    }
+    .comm-live {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 10px; font-weight: 700; color: #6EE7B7;
+      text-transform: none; letter-spacing: .02em;
+    }
+    .comm-live::before {
+      content: ""; width: 7px; height: 7px; border-radius: 50%;
+      background: #34D399; box-shadow: 0 0 8px #34D399;
+    }
+    .comm-row {
+      display: grid; grid-template-columns: 1fr auto;
+      gap: 12px; align-items: center;
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .comm-deal { font-size: 13px; font-weight: 600; color: #E2E8F0; }
+    .comm-deal span { display: block; font-size: 11px; color: #94A3B8; font-weight: 500; margin-top: 2px; }
+    .comm-amt { font-size: 14px; font-weight: 800; color: #6EE7B7; letter-spacing: -0.01em; }
+    .comm-amt.pending { color: #FBBF24; }
+    .comm-foot {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-top: 14px; padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,.12);
+    }
+    .comm-foot .cf-label { font-size: 11px; color: #94A3B8; font-weight: 600; }
+    .comm-foot .cf-total { font-size: 22px; font-weight: 900; color: white; letter-spacing: -0.02em; }
+
+    /* ── Compact single "Commission earned this week" graphic ─────────── */
+    .comm-earned {
+      margin-top: auto;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 14px; padding: 16px;
+    }
+    .ce-head {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .1em; color: #93C5FD;
+    }
+    .ce-total {
+      font-size: 34px; font-weight: 900; color: #fff;
+      letter-spacing: -0.03em; line-height: 1; margin-top: 8px;
+    }
+    .ce-sub { font-size: 11.5px; color: #94A3B8; font-weight: 600; margin-top: 7px; }
+    .ce-sub b { color: #6EE7B7; font-weight: 800; }
+    .ce-bars { display: flex; align-items: flex-end; gap: 4px; height: 30px; margin-top: 14px; }
+    .ce-bars i { flex: 1; border-radius: 2px; opacity: .9; background: linear-gradient(180deg, #6EE7B7, #10B981); }
+    .comm-foot .cf-pending { font-size: 12px; color: #FBBF24; font-weight: 700; }
+
+    /* ── Personal performance metrics mock ────────────────────────────── */
+    .me-mock {
+      margin-top: auto;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .me-mock-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+      font-size: 11px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .1em; color: #93C5FD;
+    }
+    .me-mock-head .me-mock-tag {
+      font-size: 10px; color: #94A3B8; font-weight: 700;
+      text-transform: none; letter-spacing: .02em;
+    }
+    .me-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .me-stat {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 11px;
+      padding: 11px 10px;
+    }
+    .me-stat .ms-val {
+      font-size: 18px; font-weight: 900; color: white;
+      letter-spacing: -0.02em; line-height: 1.1;
+    }
+    .me-stat .ms-val .ms-up { font-size: 11px; font-weight: 800; color: #6EE7B7; margin-left: 4px; }
+    .me-stat .ms-lab {
+      font-size: 10px; color: #94A3B8; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em; margin-top: 4px;
+    }
+
+    /* ── Generic full-width hero split (used by the Level-up hero card) ── */
+    .card-hero {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 34px; align-items: center;
+    }
+    .card-hero .ch-copy h4 { margin-bottom: 10px; }
+    .card-hero .gm-mock { margin-top: 16px; padding-top: 0; }
+    .card-hero .gm-orbs { justify-content: flex-start; }
+    .card-hero .gm-level-row { justify-content: flex-start; }
+    .card-hero .gm-level-badge { margin: 0; }
+
+    /* ── "Knock detected" / log-interaction popup mock ────────────────── */
+    .knock-pop {
+      margin-top: auto;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 14px; padding: 14px;
+      box-shadow: 0 14px 28px -10px rgba(0,0,0,.55);
+    }
+    .kp-head { display: flex; align-items: center; gap: 10px; }
+    .kp-pin {
+      width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+      background: rgba(52,211,153,.16); color: #6EE7B7;
+      display: grid; place-items: center; font-size: 16px;
+    }
+    .kp-title { font-size: 13px; font-weight: 800; color: #fff; }
+    .kp-addr { font-size: 11px; color: #94A3B8; margin-top: 1px; }
+    .kp-auto {
+      margin-left: auto; font-size: 9px; font-weight: 900; letter-spacing: .08em;
+      color: #04342C; background: #6EE7B7; padding: 3px 7px; border-radius: 6px;
+    }
+    .kp-prompt { font-size: 12px; color: #CBD5E1; font-weight: 600; margin: 12px 0 8px; }
+    .kp-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+    .kp-actions span {
+      font-size: 11.5px; font-weight: 700; text-align: center;
+      color: #E2E8F0; background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.14); border-radius: 9px; padding: 8px 6px;
+    }
+    .kp-actions span.kp-book {
+      color: #04342C; border: none;
+      background: linear-gradient(135deg, #34D399, #10B981);
+    }
+
+    /* ── "My Numbers" scoreboard mock (rep seeing their metrics) ───────── */
+    .nums {
+      margin-top: auto;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 14px; padding: 14px;
+    }
+    .nums-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+      font-size: 11px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .1em; color: #93C5FD;
+    }
+    .nums-tab {
+      font-size: 10px; color: #CBD5E1; font-weight: 700;
+      text-transform: none; letter-spacing: .02em;
+      background: rgba(255,255,255,.08); padding: 3px 9px; border-radius: 999px;
+    }
+    .nums-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .nt {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 11px; padding: 11px;
+    }
+    .nt-l {
+      font-size: 10px; color: #94A3B8; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .05em;
+    }
+    .nt-v {
+      font-size: 19px; font-weight: 900; color: #fff;
+      margin-top: 3px; display: flex; align-items: baseline; gap: 6px;
+    }
+    .nt-v .nt-up { font-size: 10px; color: #6EE7B7; font-weight: 800; }
+    .nt-bars { display: flex; align-items: flex-end; gap: 3px; height: 22px; margin-top: 9px; }
+    .nt-bars i { flex: 1; border-radius: 2px; opacity: .9; background: #60A5FA; }
+    .nt.violet .nt-bars i { background: #A78BFA; }
+    .nt.teal   .nt-bars i { background: #34D399; }
+    .nt.amber  .nt-bars i { background: #FBBF24; }
+    .nums-conv {
+      display: grid; gap: 8px; margin-top: 12px; padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,.10);
+    }
+    .cv-row { display: grid; grid-template-columns: 96px 1fr 34px; gap: 8px; align-items: center; }
+    .cv-lab { font-size: 10px; color: #94A3B8; font-weight: 700; }
+    .cv-bar { height: 7px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+    .cv-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #34D399, #10B981); }
+    .cv-val { font-size: 11px; font-weight: 800; color: #6EE7B7; text-align: right; }
+
     /* ── Leaderboard mock (HTML/CSS, inspired by getknockiq.com) ──────── */
     .lb-mock {
       background: rgba(255,255,255,.04);
@@ -1683,6 +1890,30 @@
       margin-bottom: 4px;
     }
 
+    /* ── Real rep call-out cards (mirrors in-app RepCallouts stack) ────── */
+    .co-stack { display: grid; gap: 10px; }
+    .co-card {
+      position: relative; overflow: hidden;
+      border-radius: 14px; padding: 11px 13px; color: white;
+      box-shadow: 0 12px 24px -10px rgba(0,0,0,.5);
+    }
+    .co-card .co-eyebrow {
+      font-size: 10px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .08em; color: rgba(255,255,255,.85);
+    }
+    .co-card .co-line {
+      font-size: 13.5px; font-weight: 800; line-height: 1.25;
+      margin-top: 3px; padding-right: 22px;
+    }
+    .co-card .co-sub {
+      font-size: 11px; line-height: 1.4; margin-top: 3px;
+      color: rgba(255,255,255,.82);
+    }
+    .co-card .co-ico {
+      position: absolute; top: 10px; right: 11px;
+      font-size: 15px; opacity: .9;
+    }
+
     /* ── Direct-message chat mock (Coach in real time card) ───────────── */
     .chat-mock {
       margin-top: auto;
@@ -1806,8 +2037,22 @@
       .as-split { grid-template-columns: 1fr; gap: 32px; }
       .pipeline-stats { grid-template-columns: 1fr; }
       .rep-coach-grid { grid-template-columns: 1fr; }
+      .commission-hero, .card-hero { grid-template-columns: 1fr; gap: 22px; }
       .territory-grid { grid-template-columns: 1fr; }
       .perf-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Small-phone refinements: keep the "For reps" mocks from overflowing
+       on narrow screens (level orbs, metric tiles, big numbers). */
+    @media (max-width: 600px) {
+      .gm-orbs { padding-left: 0; flex-wrap: wrap; row-gap: 6px; }
+      .gm-orb { width: 44px; height: 44px; font-size: 20px; border-width: 2px; margin-left: -11px; }
+      .gm-level-badge { font-size: 13px; padding: 9px 14px; }
+      .gm-cards-strip { flex-wrap: wrap; }
+      .ce-total { font-size: 30px; }
+      .nt-v { flex-wrap: wrap; gap: 2px 6px; }
+      .nt-v .nt-up { margin-left: 0; }
+      .terr-card { max-width: 300px; }
     }
   </style>
 </head>
@@ -1822,11 +2067,8 @@
       <img src="/logo.png" alt="KnockIQ" width="912" height="307" />
     </a>
     <ul class="nav-links">
-      <li><a href="#live-session">Live View</a></li>
-      <li><a href="#pipeline">Pipeline</a></li>
-      <li><a href="#rep-coach">Coach Reps</a></li>
-      <li><a href="#territory">Territory</a></li>
-      <li><a href="#insights">Insights</a></li>
+      <li><a href="#live-session">For Managers</a></li>
+      <li><a href="#rep-coach">For Sales Reps</a></li>
       <li><a href="#pricing">Pricing</a></li>
       <li><a href="/blog.html">Blog</a></li>
     </ul>
@@ -2005,24 +2247,17 @@
             </div>
           </li>
           <li>
-            <div class="pf-icon">🛡️</div>
-            <div>
-              <strong>Zero dropped leads</strong>
-              <span>Stale-deal alerts, follow-up reminders, and lead-aging surfaced on the board mean nothing rots in a phase.</span>
-            </div>
-          </li>
-          <li>
-            <div class="pf-icon">🔁</div>
-            <div>
-              <strong>Manage the full sales cycle</strong>
-              <span>Custom phases, required fields per phase, and conversion at every step — so you see exactly where leads stall and where dollars come from.</span>
-            </div>
-          </li>
-          <li>
             <div class="pf-icon">⚙️</div>
             <div>
               <strong>Configured for how your team sells</strong>
               <span>Appointment-setting model or book-at-the-door model — both first-class. Switch motions per crew, per region, or per campaign.</span>
+            </div>
+          </li>
+          <li>
+            <div class="pf-icon">🛡️</div>
+            <div>
+              <strong>Zero dropped leads</strong>
+              <span>Stale-deal alerts, follow-up reminders, and lead-aging surfaced on the board mean nothing rots in a phase.</span>
             </div>
           </li>
         </ul>
@@ -2056,71 +2291,173 @@
 <section id="rep-coach" class="dark-section">
   <div class="container">
     <div class="section-head">
-      <span class="eyebrow">Rep tracking + coaching</span>
-      <h2 class="section-h">Know what every rep is doing.<br/><span class="grad">Coach them in the moment.</span></h2>
+      <span class="eyebrow">For reps</span>
+      <h2 class="section-h">Your doors. Your numbers.<br/><span class="grad">Your commission.</span></h2>
       <p class="section-sub">
-        Doors are auto-tracked by GPS, so the count is always honest. Team chat
-        ends "let me text you about that door." Game mechanics keep reps pushing
-        through the no-answers.
+        KnockIQ isn't just for your manager. Every door you knock is auto-tracked
+        by GPS, your commission adds up the moment a deal books, and your personal
+        stats show exactly what's working — so you knock smarter and earn more.
       </p>
     </div>
 
     <div class="rep-coach-grid">
 
-      <!-- Card 1: Verified activity -->
-      <div class="dark-card">
-        <h4><span class="ico">📡</span> Auto-tracked doors, honest counts</h4>
-        <p>
-          Every door is logged by GPS in the background — tied to the rep, the
-          address, and the time. Reps tap to log what actually happened at the
-          door; KnockIQ handles everything else.
-        </p>
-        <ul class="dark-card-meta" style="margin-bottom: 14px;">
-          <li><span class="dot"></span><span>Doors auto-tracked — no end-of-day estimating</span></li>
-          <li><span class="dot"></span><span>One-tap interaction logging at the door</span></li>
-          <li><span class="dot"></span><span>DNK zones suppress activity silently</span></li>
-          <li><span class="dot"></span><span>Session timer + GPS smoothing always on</span></li>
-        </ul>
-        <div class="feed-mock">
-          <div class="feed-row">
-            <div class="feed-time">2:47 pm</div>
-            <div class="feed-ev">Knock · 4812 Maple Ave</div>
-            <div class="feed-tag auto">AUTO</div>
+      <!-- Card: Level up (full-width hero) -->
+      <div class="dark-card span-2">
+        <div class="card-hero">
+          <div class="ch-copy">
+            <h4><span class="ico">🎮</span> Level up every shift</h4>
+            <p>
+              Earn levels, XP, and medals as you knock — paired with personalized
+              cards that surface right in your app: your hot hour, a record to
+              chase, the next level within reach. Keeps you pushing through the
+              no-answers.
+            </p>
+            <div class="gm-mock">
+              <div class="gm-orbs" aria-label="Level progression: Rookie to Knock God">
+                <span class="gm-orb rookie" title="Rookie">🌱</span>
+                <span class="gm-orb bronze" title="Bronze">🥉</span>
+                <span class="gm-orb silver" title="Silver">🥈</span>
+                <span class="gm-orb ninja"  title="Ninja">🥷</span>
+                <span class="gm-orb gold"   title="Gold">🥇</span>
+                <span class="gm-orb god"    title="Knock God">👑</span>
+              </div>
+              <div class="gm-level-row">
+                <div class="gm-level-badge">
+                  Level 53 · Knock God <span class="xp">· 1,306 / 5,250 XP</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="feed-row">
-            <div class="feed-time">2:48 pm</div>
-            <div class="feed-ev">GPS smoothing engaged</div>
-            <div class="feed-tag motion">MOTION</div>
-          </div>
-          <div class="feed-row">
-            <div class="feed-time">2:49 pm</div>
-            <div class="feed-ev">Suppressed · inside DNK zone</div>
-            <div class="feed-tag dnk">DNK</div>
+          <div class="co-stack" aria-label="Personalized in-app call-out cards">
+            <div class="co-card" style="background: linear-gradient(135deg, #6D28D9 0%, #DB2777 100%);">
+              <span class="co-ico">🔥</span>
+              <div class="co-eyebrow">Your hot hour</div>
+              <div class="co-line">4–5pm · 2.4× more bookings than your average</div>
+              <div class="co-sub">Based on your last 60 days of doors.</div>
+            </div>
+            <div class="co-card" style="background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);">
+              <span class="co-ico">🏆</span>
+              <div class="co-eyebrow">Personal best to chase</div>
+              <div class="co-line">Best week ever: 48% close rate</div>
+              <div class="co-sub">You're at 43% this week — a few strong conversations pulls you ahead.</div>
+            </div>
+            <div class="co-card" style="background: linear-gradient(135deg, #F59E0B 0%, #DC2626 100%);">
+              <span class="co-ico">✨</span>
+              <div class="co-eyebrow">Level up within reach</div>
+              <div class="co-line">3,944 XP to Level 54 · 25% there</div>
+              <div class="co-sub">One booking is worth 25 XP — you're one good session away.</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Card 2: Coach in real time (small DM mock) -->
-      <div class="dark-card dense">
-        <h4><span class="ico">💬</span> Coach in real time</h4>
+      <!-- Card: Commission tracking -->
+      <div class="dark-card">
+        <h4><span class="ico">💰</span> Watch your commission add up</h4>
         <p>
-          Drop a message to a rep mid-session — it surfaces on their active
-          canvas screen without breaking their flow.
+          Every deal you close is tied to your commission rate and totals
+          automatically — no spreadsheets, no waiting on payday math. See what
+          you've earned this week, updated the moment a deal books.
         </p>
-        <div class="chat-mock" aria-label="Direct message preview">
-          <div class="chat-meta">Manager → Jake · 2:51 pm</div>
-          <div class="chat-bubble me">Hit the back side of Maple — Maya's crushing it over there 🔥</div>
-          <div class="chat-bubble them">Already on it 👊</div>
-          <div class="chat-meta right">Jake · 2:52 pm</div>
+        <ul class="dark-card-meta" style="margin-bottom: 14px;">
+          <li><span class="dot"></span><span>Per-deal commission the second a deal books</span></li>
+          <li><span class="dot"></span><span>Live weekly &amp; monthly earnings totals</span></li>
+          <li><span class="dot"></span><span>Itemized by service when you sell more than one</span></li>
+        </ul>
+        <div class="comm-earned" aria-label="Commission earned this week">
+          <div class="ce-head">
+            <span>Commission earned · this week</span>
+            <span class="comm-live">Live</span>
+          </div>
+          <div class="ce-total">$1,640</div>
+          <div class="ce-sub"><b>▲ 22%</b> vs last week · $150 avg per booking</div>
+          <div class="ce-bars">
+            <i style="height:34%"></i><i style="height:46%"></i><i style="height:40%"></i>
+            <i style="height:62%"></i><i style="height:54%"></i><i style="height:78%"></i>
+            <i style="height:70%"></i><i style="height:100%"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 1: Verified activity -->
+      <div class="dark-card">
+        <h4><span class="ico">📡</span> Knock more. Tap less.</h4>
+        <p>
+          Your doors track themselves. GPS logs every knock in the background,
+          so you're not stopping to tap at each house — keep your head up, keep
+          moving, and cover more doors per hour with no manual busywork.
+        </p>
+        <ul class="dark-card-meta" style="margin-bottom: 14px;">
+          <li><span class="dot"></span><span>Doors auto-tracked by GPS — nothing to tap at every house</span></li>
+          <li><span class="dot"></span><span>Spend your time knocking, not data-entering</span></li>
+          <li><span class="dot"></span><span>One tap only when there's a result worth logging</span></li>
+          <li><span class="dot"></span><span>Accurate count with zero end-of-day estimating</span></li>
+        </ul>
+        <div class="knock-pop" aria-label="Knock detected popup">
+          <div class="kp-head">
+            <span class="kp-pin">📍</span>
+            <div>
+              <div class="kp-title">Knock detected</div>
+              <div class="kp-addr">4812 Maple Ave · 2:47 pm</div>
+            </div>
+            <span class="kp-auto">AUTO</span>
+          </div>
+          <div class="kp-prompt">Tap a result, or just keep walking →</div>
+          <div class="kp-actions">
+            <span>Not home</span>
+            <span>Book estimate</span>
+            <span>Not interested</span>
+            <span class="kp-book">Booked 🎉</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: Personal performance metrics -->
+      <div class="dark-card">
+        <h4><span class="ico">📊</span> Know your own numbers</h4>
+        <p>
+          Your personal dashboard shows the metrics that move your paycheck — set
+          rate, close rate, dollars closed, and your best hours. Spot what's
+          working and double down on it.
+        </p>
+        <div class="nums" aria-label="Personal performance scoreboard">
+          <div class="nums-head">
+            <span>My Numbers · this week</span>
+            <span class="nums-tab">Week</span>
+          </div>
+          <div class="nums-grid">
+            <div class="nt">
+              <div class="nt-l">Doors knocked</div>
+              <div class="nt-v">312 <span class="nt-up">▲ 18%</span></div>
+              <div class="nt-bars"><i style="height:42%"></i><i style="height:58%"></i><i style="height:50%"></i><i style="height:74%"></i><i style="height:66%"></i><i style="height:100%"></i></div>
+            </div>
+            <div class="nt violet">
+              <div class="nt-l">Conversations</div>
+              <div class="nt-v">86 <span class="nt-up">▲ 11%</span></div>
+              <div class="nt-bars"><i style="height:40%"></i><i style="height:52%"></i><i style="height:48%"></i><i style="height:70%"></i><i style="height:80%"></i><i style="height:96%"></i></div>
+            </div>
+            <div class="nt teal">
+              <div class="nt-l">Bookings</div>
+              <div class="nt-v">19 <span class="nt-up">▲ 4</span></div>
+              <div class="nt-bars"><i style="height:30%"></i><i style="height:46%"></i><i style="height:60%"></i><i style="height:54%"></i><i style="height:82%"></i><i style="height:100%"></i></div>
+            </div>
+            <div class="nt amber">
+              <div class="nt-l">Revenue</div>
+              <div class="nt-v">$18.4k <span class="nt-up">▲ 22%</span></div>
+              <div class="nt-bars"><i style="height:34%"></i><i style="height:44%"></i><i style="height:62%"></i><i style="height:58%"></i><i style="height:78%"></i><i style="height:100%"></i></div>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Card 3: Leaderboards (custom HTML/CSS mock) -->
       <div class="dark-card">
-        <h4><span class="ico">🏆</span> Leaderboards that reward depth</h4>
+        <h4><span class="ico">🏆</span> See where you stack up</h4>
         <p>
-          Ranks on the metrics that actually matter — set rate, close rate,
-          dollars closed. Re-scored this week so volume alone doesn't win.
+          Rank against your team on the metrics that matter — set rate, close
+          rate, dollars closed. Re-scored every week, so working the right doors
+          gets you to the top, not just volume.
         </p>
         <div class="lb-mock">
           <div class="lb-mock-head">
@@ -2174,48 +2511,6 @@
         </div>
       </div>
 
-      <!-- Card 4: Game mechanics + Motivational cards (custom HTML/CSS mock) -->
-      <div class="dark-card">
-        <h4><span class="ico">🎮</span> Game mechanics + motivational cards</h4>
-        <p>
-          Levels, XP, medals — paired with motivational cards that drop into
-          the rep's app when they hit a milestone or stall out. Keeps reps
-          pushing through the no-answers.
-        </p>
-        <div class="gm-mock">
-          <div class="gm-orbs" aria-label="Level progression: Rookie to Knock God">
-            <span class="gm-orb rookie" title="Rookie">🌱</span>
-            <span class="gm-orb bronze" title="Bronze">🥉</span>
-            <span class="gm-orb silver" title="Silver">🥈</span>
-            <span class="gm-orb ninja"  title="Ninja">🥷</span>
-            <span class="gm-orb gold"   title="Gold">🥇</span>
-            <span class="gm-orb god"    title="Knock God">👑</span>
-          </div>
-          <div class="gm-level-row">
-            <div class="gm-level-badge">
-              Level 6 · Ninja <span class="xp">· 1,430 XP</span>
-            </div>
-          </div>
-          <div class="gm-cards-strip">
-            <div class="gm-card tilt-l">
-              <span class="gm-tag">Hot hour</span>
-              <strong>4–5pm</strong>
-              2.4× more bookings
-            </div>
-            <div class="gm-card">
-              <span class="gm-tag">Streak</span>
-              <strong>3 closes</strong>
-              don't stop now
-            </div>
-            <div class="gm-card tilt-r">
-              <span class="gm-tag">Milestone</span>
-              <strong>3 doors</strong>
-              to next level
-            </div>
-          </div>
-        </div>
-      </div>
-
     </div>
   </div>
 </section>
@@ -2227,20 +2522,15 @@
   <div class="container">
     <div class="territory-grid">
       <div class="territory-visual">
-        <div class="ss-browser">
-          <div class="ss-browser-bar">
-            <div class="d r"></div><div class="d a"></div><div class="d g"></div>
-            <div class="ss-browser-url">knockiq.app/manager/territories</div>
-          </div>
-          <div class="ss-frame" data-img="screenshots/territory-map.webp" style="min-height: 360px;">
+        <div class="terr-card">
+          <div class="ss-frame" data-img="screenshots/territory-draw.webp">
             <div class="ss-placeholder">
-              <strong>📸 Territory map</strong>
-              Manager map with 3-4 drawn polygons, each<br/>
-              labeled and color-coded by assigned rep.
-              Optional DNK overlay visible.
-              <code>/screenshots/territory-map.webp</code>
+              <strong>📸 Territory drawing</strong>
+              Rep drawing a territory polygon on the map,<br/>
+              with door-status pins and the legend.
+              <code>/screenshots/territory-draw.webp</code>
             </div>
-            <img src="screenshots/territory-map.webp" width="1200" height="804" alt="KnockIQ territory management" loading="lazy" />
+            <img src="screenshots/territory-draw.webp" width="494" height="689" alt="Drawing a territory on the KnockIQ map, with door-status pins and a legend" loading="lazy" />
           </div>
         </div>
       </div>
@@ -2269,10 +2559,10 @@
             </div>
           </li>
           <li>
-            <div class="tl-icon">🚫</div>
+            <div class="tl-icon">📈</div>
             <div>
-              <strong>DNK zones, baked in</strong>
-              <span>Layer do-not-knock polygons over any territory and the rep app silently suppresses logs inside them.</span>
+              <strong>Performance by territory</strong>
+              <span>See set rate, close rate, and revenue for every territory — and know when enough time has passed that it's worth working again.</span>
             </div>
           </li>
           <li>

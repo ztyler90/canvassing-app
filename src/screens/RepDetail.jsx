@@ -24,11 +24,11 @@ import {
   ChevronLeft, MapPin, DollarSign, Trophy, TrendingUp, Sparkles,
 } from 'lucide-react'
 import {
-  getRepById, getRepSessions, getMyOrganization,
+  getRepById, getRepSessions, getMyOrganization, getRepCommissionItems,
 } from '../lib/supabase.js'
 import {
   computePeriodStats, computeConversion,
-  computeXP, computeLevel, calcCommission,
+  computeXP, computeLevel, calcCommission, commissionFromBookedItems,
 } from '../lib/repStats.js'
 import { isCommissionEnabled } from '../lib/tier.js'
 import {
@@ -36,8 +36,9 @@ import {
 } from './RepHome.jsx'
 import {
   RichStatCard, MiniSparkArea, MiniSparkBars,
-  formatCompact, computeTrend, groupSessionsByDay,
+  formatCompact, computeTrend, groupSessionsByDay, groupBookedByDay,
 } from '../components/StatSparkCards.jsx'
+import CommissionBreakdown from '../components/CommissionBreakdown.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
 const DEFAULT_GOAL = {
@@ -81,6 +82,9 @@ export default function RepDetail() {
   const [period,        setPeriod]        = useState('week') // 'week' | 'month' | 'lifetime'
   const [loading,       setLoading]       = useState(true)
   const [notFound,      setNotFound]      = useState(false)
+  const [showCommission, setShowCommission] = useState(false)
+  const [commissionData, setCommissionData] = useState(null)
+  const [commissionLoading, setCommissionLoading] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -109,6 +113,21 @@ export default function RepDetail() {
     return () => { cancelled = true }
   }, [repId])
 
+  // Payroll-accurate commission inputs for this rep, attributed by booked_at,
+  // reloaded when the period (or org) changes. Shared with the breakdown drawer.
+  useEffect(() => {
+    if (!repId) { setCommissionData(null); return }
+    const days = period === 'week' ? 7 : period === 'month' ? 30 : null
+    let alive = true
+    setCommissionLoading(true)
+    getRepCommissionItems(repId, { days })
+      .then((d) => { if (alive) setCommissionData(d) })
+      .catch(() => { if (alive) setCommissionData({ booked: [], pending: [] }) })
+      .finally(() => { if (alive) setCommissionLoading(false) })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repId, period])
+
   // ── Derived numbers ─────────────────────────────────────────────────────────
   const periods = computePeriodStats(allSessions)
   const stats   = periods[period] || periods.week
@@ -119,8 +138,17 @@ export default function RepDetail() {
   const repDays  = daysForRepPeriod(period, allSessions)
   const repDaily = groupSessionsByDay(allSessions, repDays)
   const doorsTrend    = computeTrend(repDaily, 'doors')
-  const bookingsTrend = computeTrend(repDaily, 'bookings')
-  const revenueTrend  = computeTrend(repDaily, 'revenue')
+
+  // Bookings + Revenue attributed to the day each job booked (booked_at) so
+  // they stay consistent with commission; doors stays door activity.
+  const bookedItems   = commissionData?.booked || null
+  const bookedDaily   = bookedItems ? groupBookedByDay(bookedItems, repDays) : repDaily
+  const bookingsValue = bookedItems ? bookedItems.length
+                                    : stats.bookings
+  const revenueValue  = bookedItems ? bookedItems.reduce((s, r) => s + (Number(r.estimated_value) || 0), 0)
+                                    : stats.revenue
+  const bookingsTrend = computeTrend(bookedDaily, 'bookings')
+  const revenueTrend  = computeTrend(bookedDaily, 'revenue')
 
   const todayKey   = format(new Date(), 'yyyy-MM-dd')
   const todayStats = allSessions
@@ -131,10 +159,16 @@ export default function RepDetail() {
       estimates: acc.estimates + (s.estimates || 0),
     }), { doors: 0, revenue: 0, estimates: 0 })
 
+  const todayBookedRevenue = bookedItems
+    ? bookedItems
+        .filter((it) => (it.booked_at || '').slice(0, 10) === todayKey)
+        .reduce((s, r) => s + (Number(r.estimated_value) || 0), 0)
+    : todayStats.revenue
+
   const countNoun     = goalCfg.count_goal_label === 'appointments' ? 'appointments' : 'estimates'
   const isRevenueGoal = goalCfg.daily_goal_type === 'revenue'
   const goalTarget    = Number(goalCfg.daily_goal_value) || 0
-  const goalCurrent   = isRevenueGoal ? todayStats.revenue : todayStats.estimates
+  const goalCurrent   = isRevenueGoal ? todayBookedRevenue : todayStats.estimates
   const goalPct       = goalTarget > 0 ? Math.min((goalCurrent / goalTarget) * 100, 100) : 0
   const goalCurrentLabel = isRevenueGoal
     ? `$${goalCurrent.toFixed(0)}`
@@ -145,9 +179,18 @@ export default function RepDetail() {
 
   const lifetimeXP = computeXP(periods.lifetime)
   const levelInfo  = computeLevel(lifetimeXP)
-  const commission = calcCommission(stats, rep?.commission_config)
+  // Booked-by-booked_at commission once loaded; session-based estimate as a
+  // brief fallback before the fetch lands.
+  const commission = commissionData
+    ? commissionFromBookedItems(commissionData.booked, rep?.commission_config)
+    : calcCommission(stats, rep?.commission_config)
   const commissionOn = isCommissionEnabled(org)
-  const conversion = computeConversion(stats)
+  const commissionDays = period === 'week' ? 7 : period === 'month' ? 30 : null
+  const commissionPeriodLabel = period === 'week' ? 'This week' : period === 'month' ? 'This month' : 'All time'
+  // Funnel + conversion use booked-by-date Bookings/Revenue so the funnel's
+  // bottom row matches the Bookings card.
+  const outcomeStats = { ...stats, bookings: bookingsValue, revenue: revenueValue }
+  const conversion = computeConversion(outcomeStats)
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -249,39 +292,41 @@ export default function RepDetail() {
 
             <RichStatCard
               label="Bookings"
-              value={stats.bookings.toLocaleString()}
+              value={bookingsValue.toLocaleString()}
               trend={bookingsTrend}
               icon={<Trophy className="w-4 h-4" />}
               gradient="from-teal-100 via-teal-50 to-white"
               border="border-teal-200/60"
               iconColor="text-teal-700"
             >
-              <MiniSparkArea values={repDaily.map((d) => d.bookings)} color="#0d9488" fill="#14b8a673" />
+              <MiniSparkArea values={bookedDaily.map((d) => d.bookings)} color="#0d9488" fill="#14b8a673" />
             </RichStatCard>
 
             <RichStatCard
               label="Revenue"
-              value={`$${formatCompact(stats.revenue)}`}
+              value={`$${formatCompact(revenueValue)}`}
               trend={revenueTrend}
               icon={<DollarSign className="w-4 h-4" />}
               gradient="from-lime-100 via-lime-50 to-white"
               border="border-lime-200/60"
               iconColor="text-lime-700"
             >
-              <MiniSparkArea values={repDaily.map((d) => d.revenue)} color="#5ea636" fill="#7ac94373" />
+              <MiniSparkArea values={bookedDaily.map((d) => d.revenue)} color="#5ea636" fill="#7ac94373" />
             </RichStatCard>
 
             {commissionOn && (
               <CommissionCard
                 amount={commission}
                 config={rep?.commission_config}
+                label={rep?.full_name ? `${rep.full_name.split(' ')[0]}'s Commission` : 'Commission'}
+                onClick={() => setShowCommission(true)}
               />
             )}
           </div>
 
           {/* Funnel / Conversion */}
           <ConversionFunnel
-            stats={stats}
+            stats={outcomeStats}
             conv={conversion}
             estimateLabel={countNoun === 'appointments' ? 'Appointments' : 'Estimates'}
           />
@@ -310,6 +355,19 @@ export default function RepDetail() {
           </div>
         )}
       </div>
+
+      {/* Commission breakdown drawer — this rep's itemized bookings + estimates */}
+      <CommissionBreakdown
+        open={showCommission}
+        onClose={() => setShowCommission(false)}
+        repId={repId}
+        days={commissionDays}
+        config={rep?.commission_config}
+        periodLabel={commissionPeriodLabel}
+        estimateNoun={countNoun === 'appointments' ? 'appointment' : 'estimate'}
+        data={commissionData}
+        dataLoading={commissionLoading}
+      />
     </div>
   )
 }

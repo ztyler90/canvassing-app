@@ -258,12 +258,16 @@ export default function ChatPanel({ open = false, onClose, compact = false, init
   // ── Render ─────────────────────────────────────────────────────────────
   if (!open) return null
 
-  // Surface sizing. Default is a desktop side-panel (right-aligned); compact
-  // is the in-session bubble's expanded state (anchored bottom-right of its
-  // host, capped so it doesn't cover door-knock controls).
+  // Surface sizing. Both variants are now anchored card popovers — the
+  // default surface is a top-right card that sits below the dashboard
+  // header (with a safe-area-aware offset so it clears the iOS status bar
+  // on native), and caps its height so it doesn't fill the whole screen
+  // on iPad. Compact is the in-session bubble's expanded state — anchored
+  // bottom-right of its host and capped so it doesn't cover door-knock
+  // controls.
   const surfaceCls = compact
     ? 'fixed bottom-20 right-4 z-[60] w-[min(360px,calc(100vw-2rem))] max-h-[60vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden'
-    : 'fixed top-0 right-0 bottom-0 z-[60] w-full sm:w-[400px] flex flex-col bg-white shadow-2xl border-l border-gray-200 overflow-hidden'
+    : 'fixed right-3 sm:right-4 z-[60] top-[calc(env(safe-area-inset-top,0px)+3.5rem)] w-[min(400px,calc(100vw-1.5rem))] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-5rem)] flex flex-col rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden'
 
   return (
     <>
@@ -280,7 +284,9 @@ export default function ChatPanel({ open = false, onClose, compact = false, init
       <div className={surfaceCls} role="dialog" aria-label="Team chat">
         {/* Header — context-sensitive: inbox shows "Team Chat", thread shows
            the conversation title, picker shows "New message". The leading
-           control is a back button when not on inbox, a chat icon otherwise. */}
+           control is a back button when not on inbox, a chat icon otherwise.
+           Safe-area padding is handled on the surface itself (top offset),
+           so the header just uses the same py-2.5 as before. */}
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 bg-gradient-to-b from-slate-50 to-white">
           {view !== 'inbox' ? (
             <button

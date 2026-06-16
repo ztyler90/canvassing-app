@@ -344,6 +344,65 @@ export async function getRepRecentInteractions(repId, days = 30) {
 }
 
 /**
+ * Itemized commission inputs for one rep: their booked jobs (which actually
+ * drive commission) plus still-open estimate requests (unbooked) within a
+ * window. Powers the Commission breakdown drawer on the rep dashboard and the
+ * manager's rep-detail screen.
+ *
+ * Source of truth is `interactions` (same as the bookings/pipeline views). We
+ * scope by organization_id as well as rep_id so the planner index-scans
+ * straight to the rep's rows instead of scanning then RLS-filtering. RLS still
+ * applies: a rep reads their own rows; a manager/owner reads same-org reps.
+ *
+ * `days` = number → only rows created in the last N days (matches the
+ * dashboard's rolling Week/Month windows). Pass null for lifetime.
+ */
+export async function getRepCommissionItems(repId, { days = null } = {}) {
+  const empty = { booked: [], pending: [] }
+  if (!repId) return empty
+  const orgId = await getMyOrgId()
+  if (!orgId) return empty
+
+  const cols = 'id, outcome, stage, address, contact_name, estimated_value, service_line_items, created_at, booked_at, appointment_at'
+
+  // Booked jobs — the payroll basis. A job counts in the period it became
+  // booked (booked_at), NOT when the door was first knocked. `stage='booked'`
+  // is the universal "is booked" signal: door bookings set it at the door,
+  // pipeline conversions set it when advanced. booked_at is stamped by the
+  // set_interaction_booked_at trigger either way.
+  let bq = supabase
+    .from('interactions')
+    .select(cols)
+    .eq('organization_id', orgId)
+    .eq('rep_id', repId)
+    .eq('stage', 'booked')
+    .order('booked_at', { ascending: false })
+    .limit(500)
+  if (days != null) {
+    const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString()
+    bq = bq.gte('booked_at', since)
+  }
+
+  // Open estimates — money still on the table RIGHT NOW (not period-bound):
+  // an estimate/appointment was requested and the deal is still in an active,
+  // not-yet-booked pipeline stage. This is the "pending, unbooked" callout.
+  const pq = supabase
+    .from('interactions')
+    .select(cols)
+    .eq('organization_id', orgId)
+    .eq('rep_id', repId)
+    .eq('outcome', 'estimate_requested')
+    .in('stage', ['hot_lead', 'appt_scheduled', 'estimate_sent'])
+    .order('created_at', { ascending: false })
+    .limit(500)
+
+  const [bRes, pRes] = await Promise.all([bq, pq])
+  if (bRes.error) console.warn('[Commission] booked fetch failed', bRes.error.message)
+  if (pRes.error) console.warn('[Commission] pending fetch failed', pRes.error.message)
+  return { booked: bRes.data || [], pending: pRes.data || [] }
+}
+
+/**
  * Org-wide coverage — returns lat/lng/created_at for every interaction
  * logged by ANY rep in the caller's organization in the last `days` days.
  * Powers the team-coverage heatmap so reps can see where their colleagues
@@ -620,6 +679,35 @@ export async function setOrgCommissionEnabled(orgId, enabled) {
   const { data, error } = await supabase
     .from('organizations')
     .update({ commission_enabled: !!enabled })
+    .eq('id', orgId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+/**
+ * Toggle whether individual reps can see the team leaderboard bar-chart on
+ * their dashboard. Manager opt-in, off by default. The leaderboard data is
+ * already same-org readable; this only governs the rep-facing UI.
+ */
+export async function setOrgShareLeaderboard(orgId, enabled) {
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({ share_leaderboard: !!enabled })
+    .eq('id', orgId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+/**
+ * Toggle whether the shared leaderboard hides the Revenue ($) metric from reps.
+ * Only meaningful when share_leaderboard is on. Off by default (revenue shown).
+ */
+export async function setOrgLeaderboardHideRevenue(orgId, hidden) {
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({ leaderboard_hide_revenue: !!hidden })
     .eq('id', orgId)
     .select()
     .single()

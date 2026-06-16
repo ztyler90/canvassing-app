@@ -66,6 +66,26 @@ export function calcCommission(stats, config) {
 }
 
 /**
+ * Commission earned from a concrete list of booked jobs (interactions with
+ * stage='booked'), rather than from session aggregates. This is the
+ * payroll-accurate path: each booked job is attributed to the period it
+ * actually converted in (via booked_at), so a deal that was an estimate last
+ * week and booked this week counts THIS week. Sums each job's estimated_value
+ * for revenue and counts the jobs for per-booking plans, then runs the same
+ * calcCommission rate logic.
+ *
+ * @param {Array} bookedItems  interactions with estimated_value (stage=booked)
+ * @param {object} config      commission_config
+ * @returns {number}           commission in dollars
+ */
+export function commissionFromBookedItems(bookedItems, config) {
+  const items = Array.isArray(bookedItems) ? bookedItems : []
+  const revenue  = items.reduce((s, r) => s + (Number(r.estimated_value) || 0), 0)
+  const bookings = items.length
+  return calcCommission({ revenue, bookings }, config)
+}
+
+/**
  * Short human-readable summary of a commission config, e.g.
  *   "15% of revenue"   /   "$75 per booking"   /   "Tiered: 10% → 15% → 20%"
  */

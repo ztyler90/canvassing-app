@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 're
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { motionClassifier } from '../lib/motion.js'
+import { tapHaptic } from '../lib/haptics.js'
 
 // Active-canvassing follow behavior. Rather than hard-recentering on every GPS
 // fix (which makes the map impossible to explore — it snaps back instantly),
@@ -376,7 +377,7 @@ function elapsedLabel(startedAt) {
  *                                                parent can drive a "current view"
  *                                                summary panel.
  */
-const MapView = forwardRef(function MapView({ trail = [], repTrails = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, onRepClick = null, autoFit = false, regionFallback = null, cluster = false, pinValueScale = false, onContextMenu = null, onPinContextMenu = null, onViewportChange = null, renderPins = true }, ref) {
+const MapView = forwardRef(function MapView({ trail = [], repTrails = [], interactions = [], currentPos = null, className = '', followUser = false, territories = [], doNotKnock = [], dnkZones = [], heatmapCells = [], repLocations = [], onInteractionClick = null, onRepClick = null, autoFit = false, regionFallback = null, cluster = false, pinValueScale = false, onContextMenu = null, onPinContextMenu = null, onViewportChange = null, onMapLongPress = null, renderPins = true }, ref) {
   const containerRef       = useRef(null)
   const mapRef             = useRef(null)
   const trailGlowRef       = useRef(null)   // wide soft halo (uniform)
@@ -600,6 +601,78 @@ const MapView = forwardRef(function MapView({ trail = [], repTrails = [], intera
       if (onViewportChange) { map.off('moveend', fireViewport); map.off('zoomend', fireViewport) }
     }
   }, [onContextMenu, onViewportChange])
+
+  // Long-press to drop a manual "missed door" pin. Works the same on web
+  // (press-and-hold the mouse) and on iOS/Android (hold a finger). We roll our
+  // own detector rather than leaning on Leaflet's `contextmenu` because that
+  // event is unreliable inside the iOS WKWebView (the native long-press
+  // callout often swallows it). The press must stay roughly still for HOLD_MS
+  // and NOT land on an existing pin — any drag (panning the map) cancels it,
+  // so this never fires while the rep is moving the map around.
+  useEffect(() => {
+    const map = mapRef.current
+    const container = containerRef.current
+    if (!map || !container || !onMapLongPress) return
+
+    const HOLD_MS = 550
+    const MOVE_TOL = 12   // px of slop before we treat it as a pan, not a press
+    let timer = null
+    let start = null
+
+    const clear = () => { if (timer) { clearTimeout(timer); timer = null } start = null }
+
+    const pointOf = (ev) => {
+      const t = ev.touches?.[0] || ev.changedTouches?.[0] || ev
+      return { x: t.clientX, y: t.clientY }
+    }
+
+    const onDown = (ev) => {
+      // Ignore multi-touch (pinch-zoom) and presses that start on a pin —
+      // a pin tap opens its own edit modal; long-pressing it shouldn't also
+      // drop a new door on top.
+      if (ev.touches && ev.touches.length > 1) return clear()
+      // Skip presses that land on an existing pin marker — tapping a pin opens
+      // its own edit modal, so long-pressing it shouldn't also drop a new door.
+      // (We intentionally DON'T skip territory/DNK polygons — reps canvass
+      // inside those, so long-press must work there.)
+      if (ev.target?.closest?.('.leaflet-marker-icon')) return
+      const p = pointOf(ev)
+      start = p
+      timer = setTimeout(() => {
+        const rect = container.getBoundingClientRect()
+        const cp = L.point(p.x - rect.left, p.y - rect.top)
+        const ll = map.containerPointToLatLng(cp)
+        clear()
+        tapHaptic()   // real Taptic buzz on iOS; vibrate on Android web
+        onMapLongPress({ lat: ll.lat, lng: ll.lng })
+      }, HOLD_MS)
+    }
+    const onMove = (ev) => {
+      if (!start) return
+      const p = pointOf(ev)
+      if (Math.abs(p.x - start.x) > MOVE_TOL || Math.abs(p.y - start.y) > MOVE_TOL) clear()
+    }
+
+    container.addEventListener('touchstart', onDown, { passive: true })
+    container.addEventListener('touchmove',  onMove, { passive: true })
+    container.addEventListener('touchend',   clear)
+    container.addEventListener('touchcancel', clear)
+    container.addEventListener('mousedown',  onDown)
+    container.addEventListener('mousemove',  onMove)
+    container.addEventListener('mouseup',    clear)
+    container.addEventListener('mouseleave', clear)
+    return () => {
+      clear()
+      container.removeEventListener('touchstart', onDown)
+      container.removeEventListener('touchmove',  onMove)
+      container.removeEventListener('touchend',   clear)
+      container.removeEventListener('touchcancel', clear)
+      container.removeEventListener('mousedown',  onDown)
+      container.removeEventListener('mousemove',  onMove)
+      container.removeEventListener('mouseup',    clear)
+      container.removeEventListener('mouseleave', clear)
+    }
+  }, [onMapLongPress])
 
   // Update GPS trail: feed the glow + flow overlays, then rebuild the fading
   // main line as a handful of chunks whose opacity ramps oldest → newest.

@@ -432,6 +432,34 @@ export function groupSessionsByDay(sessions, days) {
   return order.map((k) => buckets[k])
 }
 
+// Daily series of bookings + revenue bucketed by the date each job actually
+// BOOKED (booked_at), not the session date. Mirrors groupSessionsByDay's output
+// shape ({ date, bookings, revenue }) so computeTrend + the spark charts work
+// unchanged. This keeps the Bookings/Revenue cards consistent with commission:
+// a deal converted this week shows up this week. `bookedItems` are interactions
+// with stage='booked' (estimated_value = job value, booked_at = conversion day).
+export function groupBookedByDay(bookedItems, days) {
+  const end = startOfDay(new Date())
+  const buckets = {}
+  const order   = []
+  for (let i = 0; i < days; i++) {
+    const d   = subDays(end, days - 1 - i)
+    const key = format(d, 'yyyy-MM-dd')
+    buckets[key] = { date: d, revenue: 0, bookings: 0 }
+    order.push(key)
+  }
+  ;(bookedItems || []).forEach((it) => {
+    const ts = it.booked_at || it.created_at
+    if (!ts) return
+    const key = format(startOfDay(new Date(ts)), 'yyyy-MM-dd')
+    const b   = buckets[key]
+    if (!b) return
+    b.revenue  += Number(it.estimated_value) || 0
+    b.bookings += 1
+  })
+  return order.map((k) => buckets[k])
+}
+
 // Compare the last half of a day-series to the first half. Returns
 // { dir: 'up' | 'down' | 'flat', pct }. Honest within-window trend —
 // no extra query to pull the previous period.

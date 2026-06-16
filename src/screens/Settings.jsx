@@ -9,11 +9,12 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2, Workflow, HelpCircle, PauseCircle, AlertTriangle, Calendar, ShieldAlert, Sun } from 'lucide-react'
-import { getOrgWebhookConfig, saveOrgWebhookConfig, DEFAULT_WEBHOOK_EVENTS, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled, setOrgRoofInsightsEnabled, pauseOrganization, cancelOrganization, deleteOrganization, signOut, createPortalSession, changePlan, syncSeats } from '../lib/supabase.js'
+import { Capacitor } from '@capacitor/core'
+import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2, Workflow, HelpCircle, PauseCircle, AlertTriangle, Calendar, ShieldAlert, Sun, BarChart3 } from 'lucide-react'
+import { getOrgWebhookConfig, saveOrgWebhookConfig, DEFAULT_WEBHOOK_EVENTS, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled, setOrgRoofInsightsEnabled, setOrgShareLeaderboard, setOrgLeaderboardHideRevenue, pauseOrganization, cancelOrganization, deleteOrganization, signOut, createPortalSession, changePlan, syncSeats } from '../lib/supabase.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { describeCommission } from '../lib/repStats.js'
-import { isProTier, isCommissionEnabled, isRoofInsightsEnabled } from '../lib/tier.js'
+import { isProTier, isCommissionEnabled, isRoofInsightsEnabled, isLeaderboardShared, isLeaderboardRevenueHidden } from '../lib/tier.js'
 import { ProBadge, ProUpgradeModal } from '../components/ProGate.jsx'
 import CommissionEditor from '../components/CommissionEditor.jsx'
 
@@ -64,6 +65,8 @@ export default function Settings() {
   const [commissionRepId, setCommissionRepId] = useState(null) // rep whose commission is being edited
   const [savingCommissionToggle, setSavingCommissionToggle] = useState(false)
   const [savingRoofToggle, setSavingRoofToggle] = useState(false)
+  const [savingLeaderboardToggle, setSavingLeaderboardToggle] = useState(false)
+  const [savingHideRevenueToggle, setSavingHideRevenueToggle] = useState(false)
   const [showRoofUpsell, setShowRoofUpsell] = useState(false)
   // Credentials panel — shown after a successful temp-password create so
   // the manager can copy the password and/or fire off a pre-filled SMS.
@@ -526,12 +529,33 @@ export default function Settings() {
       showToast(error?.message || 'Could not open the billing portal.', 'error')
       return
     }
-    window.location.href = url
+    if (Capacitor.isNativePlatform()) {
+      // App Store Guideline 3.1.1: payment-related screens must open in the
+      // system browser, not the in-app WebView. Capacitor routes _blank URLs
+      // to Safari on iOS.
+      window.open(url, '_blank', 'noopener,noreferrer')
+      setPortalBusy(false)
+    } else {
+      window.location.href = url
+    }
   }
 
   // Open the plan-switch confirmation. `kind` decides the copy + what the
   // server will do; see the change-plan edge function for the billing rules.
+  //
+  // On native iOS, Apple App Store Guideline 3.1.1 disallows in-app payment
+  // flows that don't use In-App Purchase. Apple's 2024 US-storefront ruling
+  // does permit external-browser link-out for payment. So on native we skip
+  // the in-app modal and open the equivalent screen on the web app in the
+  // user's default browser — the user completes the change there, and the
+  // org row reconciles on next launch / refresh.
   function openPlanModal(target) {
+    if (Capacitor.isNativePlatform()) {
+      // _blank on Capacitor iOS is routed to the system browser (Safari).
+      const url = `https://getknockiq.com/settings?openPlan=${encodeURIComponent(target)}`
+      window.open(url, '_blank', 'noopener,noreferrer')
+      return
+    }
     const inTrialNow = org?.status === 'trial' || org?.status === 'trialing'
     let kind
     if (inTrialNow)            kind = target === 'pro' ? 'trial-pro' : 'trial-standard'
@@ -673,6 +697,33 @@ export default function Settings() {
     showToast(next ? 'Commission tracking enabled' : 'Commission tracking turned off')
   }
 
+  // Share the team leaderboard with reps (manager opt-in, off by default).
+  const leaderboardOn = isLeaderboardShared(org)
+
+  async function handleToggleLeaderboard() {
+    if (!org?.id) return
+    setSavingLeaderboardToggle(true)
+    const next = !org.share_leaderboard
+    const { data, error } = await setOrgShareLeaderboard(org.id, next)
+    setSavingLeaderboardToggle(false)
+    if (error) { showToast('Could not update leaderboard sharing: ' + error.message, 'error'); return }
+    setOrg(data || { ...org, share_leaderboard: next })
+    showToast(next ? 'Team leaderboard shared with reps' : 'Team leaderboard hidden from reps')
+  }
+
+  const hideRevenueOn = isLeaderboardRevenueHidden(org)
+
+  async function handleToggleHideRevenue() {
+    if (!org?.id) return
+    setSavingHideRevenueToggle(true)
+    const next = !org.leaderboard_hide_revenue
+    const { data, error } = await setOrgLeaderboardHideRevenue(org.id, next)
+    setSavingHideRevenueToggle(false)
+    if (error) { showToast('Could not update revenue visibility: ' + error.message, 'error'); return }
+    setOrg(data || { ...org, leaderboard_hide_revenue: next })
+    showToast(next ? 'Revenue hidden from rep leaderboard' : 'Revenue shown on rep leaderboard')
+  }
+
   // Roof Insights (Google Solar) is a Pro-only, opt-in add-on.
   const roofOn = isRoofInsightsEnabled(org, user)
 
@@ -706,6 +757,10 @@ export default function Settings() {
   const hasSubscription  = !!org?.stripe_subscription_id
   const canSwitchPlans   = isOwner
   const pendingDowngrade = isOwner && hasSubscription && !inTrial && isPro && org?.selected_plan === 'standard'
+  // On native iOS, plan changes link out to the browser (Apple Guideline 3.1.1)
+  // instead of running the in-app Stripe flow — labels reflect that so reviewers
+  // see this clearly as external-purchase link-out, not in-app payment.
+  const planSwitchIsExternal = Capacitor.isNativePlatform()
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -1161,6 +1216,65 @@ export default function Settings() {
                 <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${org?.commission_enabled ? 'translate-x-5' : ''}`} />
               </button>
             </div>
+          </div>
+
+          {/* ── Share team leaderboard with reps ──────────────────────── */}
+          <div className="rounded-2xl p-4 shadow-sm border border-gray-100 bg-white mb-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: '#EFF6FF' }}>
+                  <BarChart3 className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-gray-800 text-sm">Share team leaderboard</p>
+                    {leaderboardOn && (
+                      <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: '#EFF6FF', color: BRAND_BLUE }}>On</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                    Lets reps see where they rank on the team — a bar-chart of everyone's
+                    doors, conversations, estimates, bookings, and revenue on their
+                    dashboard. Off keeps standings manager-only.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleToggleLeaderboard}
+                disabled={savingLeaderboardToggle}
+                role="switch"
+                aria-checked={!!org?.share_leaderboard}
+                className="relative shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50"
+                style={{ backgroundColor: org?.share_leaderboard ? BRAND_BLUE : '#D1D5DB' }}>
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${org?.share_leaderboard ? 'translate-x-5' : ''}`} />
+              </button>
+            </div>
+
+            {/* Sub-option: hide revenue from the shared leaderboard. Only
+                relevant once sharing is on. */}
+            {leaderboardOn && (
+              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-3 pl-12">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800">Hide revenue ($) from reps</p>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                    Reps still see doors, conversations, {countLabel || 'estimates'}, and bookings — but not
+                    each other's booked dollars.
+                  </p>
+                </div>
+                <button
+                  onClick={handleToggleHideRevenue}
+                  disabled={savingHideRevenueToggle}
+                  role="switch"
+                  aria-checked={!!org?.leaderboard_hide_revenue}
+                  className="relative shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: org?.leaderboard_hide_revenue ? BRAND_BLUE : '#D1D5DB' }}>
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${org?.leaderboard_hide_revenue ? 'translate-x-5' : ''}`} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Rep list */}
@@ -1809,7 +1923,9 @@ export default function Settings() {
                   <div className="mt-3 pt-3 border-t border-gray-100">
                     <button type="button" onClick={() => openPlanModal('standard')}
                       className="block w-full py-2.5 rounded-xl text-center text-sm font-bold border-2 border-gray-200 text-gray-700 hover:border-gray-300 transition-colors">
-                      {inTrial ? 'Switch to Standard after trial' : 'Switch to Standard'}
+                      {planSwitchIsExternal
+                        ? 'Switch to Standard on web ↗'
+                        : (inTrial ? 'Switch to Standard after trial' : 'Switch to Standard')}
                     </button>
                   </div>
                 )
@@ -1850,7 +1966,7 @@ export default function Settings() {
                   {canSwitchPlans ? (
                     <button type="button" onClick={() => openPlanModal('pro')}
                       className="btn-brand block w-full py-2.5 rounded-xl text-center text-sm font-bold">
-                      Upgrade to Pro →
+                      {planSwitchIsExternal ? 'Upgrade to Pro on web ↗' : 'Upgrade to Pro →'}
                     </button>
                   ) : (
                     <a
@@ -1875,14 +1991,14 @@ export default function Settings() {
                   {pendingDowngrade && (
                     <button type="button" onClick={() => openPlanModal('pro')}
                       className="btn-brand block w-full py-2.5 rounded-xl text-center text-sm font-bold">
-                      Keep Pro instead
+                      {planSwitchIsExternal ? 'Keep Pro on web ↗' : 'Keep Pro instead'}
                     </button>
                   )}
                   {/* On a Pro trial that's set to drop to Standard — let the owner stay on Pro. */}
                   {inTrial && willDowngrade && canSwitchPlans && (
                     <button type="button" onClick={() => openPlanModal('pro')}
                       className="btn-brand block w-full py-2.5 rounded-xl text-center text-sm font-bold">
-                      Keep Pro after trial
+                      {planSwitchIsExternal ? 'Keep Pro on web ↗' : 'Keep Pro after trial'}
                     </button>
                   )}
                 </div>

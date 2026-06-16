@@ -207,6 +207,43 @@ function reducer(state, action) {
       }
     }
 
+    // REMOVE_INTERACTION: fully delete a pin (false-positive capture, or a
+    // mis-logged door) and back out *all* of its stat contributions — doors
+    // plus whatever conversation/estimate/booking/revenue it added. Unlike
+    // UNDO_LAST_KNOCK (which only knows about the door count for a fresh
+    // no_answer), this handles a pin the rep had already upgraded to
+    // estimate/booked before deciding it wasn't real. Matched by id, falling
+    // back to a lat/lng/created_at key for client-only rows that never got
+    // a DB id. No-op if the row is already gone.
+    case 'REMOVE_INTERACTION': {
+      const target = action.interaction
+      if (!target) return state
+      const key = (i) => i.id ?? `${i.lat},${i.lng},${i.created_at ?? ''}`
+      const targetKey = key(target)
+      const idx = state.interactions.findIndex((i) => key(i) === targetKey)
+      if (idx < 0) return state
+
+      const prev      = state.interactions[idx]
+      const wasConv   = ['not_interested', 'estimate_requested', 'booked'].includes(prev.outcome)
+      const wasEst    = prev.outcome === 'estimate_requested' || prev.outcome === 'booked'
+      const wasBooked = prev.outcome === 'booked'
+      const prevRev   = wasBooked ? (Number(prev.estimated_value) || 0) : 0
+
+      return {
+        ...state,
+        interactions: state.interactions.filter((_, i) => i !== idx),
+        pendingKnock: state.pendingKnock && key(state.pendingKnock) === targetKey ? null : state.pendingKnock,
+        stats: {
+          ...state.stats,
+          doors:         Math.max(0, state.stats.doors - 1),
+          conversations: Math.max(0, state.stats.conversations - (wasConv ? 1 : 0)),
+          estimates:     Math.max(0, state.stats.estimates     - (wasEst ? 1 : 0)),
+          bookings:      Math.max(0, state.stats.bookings      - (wasBooked ? 1 : 0)),
+          revenue:       Math.max(0, state.stats.revenue - prevRev),
+        },
+      }
+    }
+
     case 'RESET':
       return initialState
 

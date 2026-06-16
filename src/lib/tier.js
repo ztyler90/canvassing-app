@@ -35,6 +35,24 @@ export function isRoofInsightsEnabled(org, user = null) {
   return isProTier(org, user) && !!org?.roof_insights_enabled
 }
 
+/**
+ * Team leaderboard sharing with reps. Manager opt-in (off by default); when on,
+ * individual reps see the team performance bar-chart on their dashboard.
+ * Available on every tier.
+ */
+export function isLeaderboardShared(org /* , user */) {
+  return !!org?.share_leaderboard
+}
+
+/**
+ * When the leaderboard is shared, whether the Revenue ($) metric should be
+ * hidden from reps (activity metrics still show). Manager sub-option, off by
+ * default so revenue shows unless they choose to hide it.
+ */
+export function isLeaderboardRevenueHidden(org /* , user */) {
+  return !!org?.leaderboard_hide_revenue
+}
+
 /** Whether the org can create another territory given its current count. */
 export function canCreateTerritory(org, currentCount, user = null) {
   if (isProTier(org, user)) return true

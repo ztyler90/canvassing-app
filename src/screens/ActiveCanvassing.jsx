@@ -52,6 +52,18 @@ export default function ActiveCanvassing() {
   const [stopping, setStopping]     = useState(false)
   const [showManualLog, setShowManualLog] = useState(false)
   const [editingInteraction, setEditingInteraction] = useState(null)
+  // Set when the rep long-presses an empty spot on the map to log a door the
+  // detector missed. Holds { lat, lng }; opens the manual log modal there.
+  const [missedDoorPos, setMissedDoorPos] = useState(null)
+  // One-time discoverability hint for the long-press gesture. Shown until the
+  // rep dismisses it or uses the gesture once, then remembered via localStorage.
+  const [showLpHint, setShowLpHint] = useState(() => {
+    try { return localStorage.getItem('knockiq:longPressHintSeen') !== '1' } catch { return false }
+  })
+  const dismissLpHint = () => {
+    setShowLpHint(false)
+    try { localStorage.setItem('knockiq:longPressHintSeen', '1') } catch { /* ignore */ }
+  }
   const [currentPos, setCurrentPos] = useState(null)
   const [territories, setTerritories] = useState([])
   const [doNotKnock, setDoNotKnock]   = useState([])
@@ -479,6 +491,13 @@ export default function ActiveCanvassing() {
     setKnockToast(pendingKnock)
   }, [pendingKnock])
 
+  // Auto-dismiss the long-press hint after 8s if the rep hasn't acted on it.
+  useEffect(() => {
+    if (!showLpHint) return
+    const t = setTimeout(() => setShowLpHint(false), 8000)
+    return () => clearTimeout(t)
+  }, [showLpHint])
+
   // Auto-dismiss the undo toast after UNDO_TOAST_MS.
   useEffect(() => {
     if (!knockToast) return
@@ -583,6 +602,7 @@ export default function ActiveCanvassing() {
           heatmapCells={heatmapCells}
           followUser
           onInteractionClick={(interaction) => setEditingInteraction(interaction)}
+          onMapLongPress={(pos) => { setMissedDoorPos(pos); dismissLpHint() }}
           className="w-full h-full"
         />
 
@@ -642,6 +662,23 @@ export default function ActiveCanvassing() {
               </p>
               <p className="mt-1 font-medium text-amber-600">Tap to dismiss</p>
             </div>
+          </div>
+        )}
+
+        {/* One-time long-press discoverability hint. Floats just above the
+            bottom action bar so it doesn't fight the GPS/coverage chips up top.
+            Auto-hides after 8s, or sticks dismissed once tapped / used. */}
+        {showLpHint && (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={dismissLpHint}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dismissLpHint() } }}
+            aria-label="Dismiss tip"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 max-w-[90%] bg-gray-900/90 backdrop-blur text-white rounded-full px-4 py-2 shadow-lg text-xs font-medium flex items-center gap-2 cursor-pointer active:opacity-80"
+          >
+            <span className="text-sm leading-none">👆</span>
+            <span>Tip: long-press the map to log a door we missed</span>
           </div>
         )}
       </div>
@@ -712,6 +749,24 @@ export default function ActiveCanvassing() {
         />
       )}
 
+      {/* Missed-door modal — opened by long-pressing an empty spot on the map.
+          Same manual-log flow as the "+ Log Interaction" button, but anchored
+          to the pressed location so the rep can record a door the auto-detector
+          missed exactly where they knocked. */}
+      {missedDoorPos && (
+        <InteractionModal
+          knock={{ lat: missedDoorPos.lat, lng: missedDoorPos.lng, address: null }}
+          sessionId={state.session?.id}
+          repId={user?.id}
+          onClose={() => setMissedDoorPos(null)}
+          onSave={(interaction) => {
+            dispatch({ type: 'LOG_INTERACTION', interaction, countDoor: true })
+            setMissedDoorPos(null)
+          }}
+          isAuto={false}
+        />
+      )}
+
       {/* Edit-existing-interaction modal (tap pin on the map) */}
       {editingInteraction && (
         <InteractionModal
@@ -732,6 +787,19 @@ export default function ActiveCanvassing() {
               type: 'REPLACE_INTERACTION',
               interaction: { ...editingInteraction, ...updated },
             })
+            setEditingInteraction(null)
+          }}
+          onDelete={(interaction) => {
+            // False capture / mis-log — drop the pin, back out the stats, and
+            // best-effort delete the DB row (skip client-only offline rows
+            // that were never persisted).
+            const id = interaction?.id
+            dispatch({ type: 'REMOVE_INTERACTION', interaction })
+            if (id && !interaction._localOnly) {
+              deleteInteraction(id).catch(() => {})
+            }
+            // If this was the row the undo toast is tracking, clear it too.
+            setKnockToast((t) => (t && (t.id === id) ? null : t))
             setEditingInteraction(null)
           }}
           isAuto={false}
@@ -1014,7 +1082,13 @@ function UndoKnockToast({ durationMs, onUndo, onDismiss }) {
   // as a no-answer). The "Undo" button is the ONLY way to reverse the knock,
   // so it stops propagation to avoid also firing the body's dismiss.
   return (
-    <div className="absolute bottom-20 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[380px] z-30 pointer-events-none">
+    <div
+      className="absolute left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[380px] z-[60] pointer-events-none"
+      // Sit above the floating chat bubble (bottom-right, ~6rem off the bottom
+      // + 3rem tall), so the "Undo" button on the right is never hidden behind
+      // it. Safe-area-aware so it also clears the iOS home indicator.
+      style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 9.75rem)' }}
+    >
       <div
         onClick={onDismiss}
         role="button"

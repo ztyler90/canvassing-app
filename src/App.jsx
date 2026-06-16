@@ -327,6 +327,12 @@ function LoadingScreen() {
 function useNativeStatusBar() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
+    // Tag the root element so CSS can apply native-only nudges (extra top
+    // padding under the notch/Dynamic Island, raised bottom bar above the
+    // home indicator) without touching the web build. e.g. `native-ios`.
+    try {
+      document.documentElement.classList.add('is-native', `native-${Capacitor.getPlatform()}`)
+    } catch { /* non-DOM env — ignore */ }
     // Dynamic import keeps the @capacitor/status-bar package out of the
     // web bundle entirely. Capacitor's plugin registry resolves it at
     // runtime on native via the registerPlugin call inside the package's

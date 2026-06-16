@@ -84,6 +84,7 @@ export default function InteractionModal({
   repId,
   onClose,
   onSave,
+  onDelete = null,             // remove an existing pin (false capture / mis-log)
   isAuto = false,
   existingInteraction = null,  // pass to open in edit mode
 }) {
@@ -1028,6 +1029,31 @@ export default function InteractionModal({
         {/* ── Step: outcome ─────────────────────────────────────────────── */}
         {step === 'outcome' && (
           <div className="px-5 py-4">
+            {/* False-capture / remove — only when editing an existing pin.
+                Lets the rep undo a knock the detector logged at a spot they
+                never actually worked (a stop at a light, a passenger ride),
+                or delete a mis-logged door. Removes the pin, deletes the DB
+                row, and backs the stats out. */}
+            {isEditing && onDelete && (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => {
+                  const isNoAnswer = existingInteraction?.outcome === 'no_answer'
+                  const msg = isNoAnswer
+                    ? 'Remove this door? This was logged automatically — removing it deletes the pin and drops the door from your count.'
+                    : 'Remove this entry? This deletes the pin and backs out its stats.'
+                  if (!window.confirm(msg)) return
+                  onDelete(existingInteraction)
+                }}
+                className="w-full mb-4 py-2.5 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 active:bg-gray-50 flex items-center justify-center gap-2"
+              >
+                <span className="text-base leading-none">🚫</span>
+                {existingInteraction?.outcome === 'no_answer'
+                  ? 'Not a real knock — remove'
+                  : 'Remove this door'}
+              </button>
+            )}
             {isAuto && (
               <p className="text-xs text-gray-400 text-center mb-4">
                 Stop detected — what happened at this door?
