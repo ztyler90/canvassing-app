@@ -280,7 +280,7 @@ Per your call: **configurable/generic core + seeded persona packs for pest contr
 ## 13. Open questions / risks
 
 - **Latency is existential.** If the voice loop feels laggy, the illusion breaks. Phase 0 must de-risk this before anything else; budget for a realtime speech-to-speech path.
-- **Voice cost at scale.** Quantified in §8.1: ~$0.10–0.40/session depending on voice quality (~$0.25 blended planning number). Mitigations: lean voice stack for free traffic, email gate + session caps as throttles, prompt caching, and converting heavy users to paid.
+- **Voice cost at scale.** Bounded by the **15% margin rule** (§8.1): paid usage is priced so voice ≤15% of the per-session price (≥85% gross margin). Free/anonymous traffic uses the lean voice stack (~$0.12/session) with the email gate + 30-second floor as throttles. Premium voice is offered as a 1.5-credit session so the rule still holds.
 - **Scoring fairness.** Reps will rage if scores feel random. Pin the rubric, use structured grading, calibrate against real manager judgments.
 - **Realism vs. discouragement.** Hostile personas are fun but a brutal first session could scare off a new rep — start easy, ladder up.
 - **Abuse / cost control on an open app** — rate-limit anonymous sessions, Turnstile on the gate, server-side session caps.
