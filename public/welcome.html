@@ -243,21 +243,23 @@
         linear-gradient(180deg, var(--white) 0%, var(--white) 55%, var(--bg) 100%);
       overflow: hidden;
     }
-    /* Effect 1 · slow radar sweep radiating from the top, behind content */
-    .hero::before, .hero::after {
-      content: ""; position: absolute;
-      top: -60px; left: 50%; margin-left: -60px;
-      width: 120px; height: 120px; border-radius: 50%;
-      border: 1.5px solid rgba(46,107,255,.40);
-      pointer-events: none; z-index: 0;
-      animation: heroSweep 8s ease-out infinite;
+    /* Effect 1 · faint street grid with a GPS route tracing a walk, behind content */
+    .hero-map { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .hm-streets line { stroke: #0F172A; stroke-width: 1.4; opacity: .05; }
+    .hm-streets line.main { stroke-width: 3.5; opacity: .07; }
+    .hm-route { fill: none; stroke: rgba(46,107,255,.13); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .hm-pin { fill: rgba(46,107,255,.28); }
+    .hm-trail {
+      fill: none; stroke: rgba(46,107,255,.55); stroke-width: 3.2;
+      stroke-linecap: round; stroke-linejoin: round;
+      stroke-dasharray: 34 1000;
+      filter: drop-shadow(0 0 4px rgba(46,107,255,.5));
+      animation: gpsWalk 12s linear infinite;
     }
-    .hero::after { animation-delay: 4s; }
-    @keyframes heroSweep {
-      0%   { transform: scale(1);  opacity: .5; }
-      100% { transform: scale(13); opacity: 0;  }
-    }
+    @keyframes gpsWalk { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -1000; } }
+
     .hero > * { position: relative; z-index: 1; }
+    .hero-map { z-index: 0; }
 
     /* Effect 2 · gentle "live" halo on the eyebrow status dot */
     .hero .pill .dot { position: relative; }
@@ -273,7 +275,8 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .hero::before, .hero::after, .hero .pill .dot::after { display: none; }
+      .hm-trail { animation: none; opacity: 0; }
+      .hero .pill .dot::after { display: none; }
     }
 
     .hero-head { text-align: center; max-width: 900px; margin: 0 auto; }
@@ -2117,6 +2120,29 @@
      HERO
 ═══════════════════════════════════════════════════════════════════════════ -->
 <section id="top" class="hero">
+  <svg class="hero-map" viewBox="0 0 1440 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g class="hm-streets">
+      <line x1="130" y1="0" x2="130" y2="700"/>
+      <line x1="270" y1="0" x2="270" y2="700"/>
+      <line x1="410" y1="0" x2="410" y2="700"/>
+      <line class="main" x1="560" y1="0" x2="560" y2="700"/>
+      <line x1="710" y1="0" x2="710" y2="700"/>
+      <line x1="860" y1="0" x2="860" y2="700"/>
+      <line x1="1010" y1="0" x2="1010" y2="700"/>
+      <line x1="1160" y1="0" x2="1160" y2="700"/>
+      <line x1="1310" y1="0" x2="1310" y2="700"/>
+      <line x1="0" y1="120" x2="1440" y2="120"/>
+      <line x1="0" y1="250" x2="1440" y2="250"/>
+      <line class="main" x1="0" y1="360" x2="1440" y2="360"/>
+      <line x1="0" y1="490" x2="1440" y2="490"/>
+      <line x1="0" y1="610" x2="1440" y2="610"/>
+    </g>
+    <path class="hm-route" d="M270 640 V490 H410 V360 H560 V250 H860 V360 H1010 V120 H1310"/>
+    <circle class="hm-pin" cx="560" cy="250" r="5"/>
+    <circle class="hm-pin" cx="860" cy="360" r="5"/>
+    <circle class="hm-pin" cx="1010" cy="120" r="5"/>
+    <path class="hm-trail" d="M270 640 V490 H410 V360 H560 V250 H860 V360 H1010 V120 H1310" pathLength="1000"/>
+  </svg>
   <div class="container hero-head">
     <span class="pill">
       <span class="dot"></span>
