@@ -104,7 +104,15 @@ After each session the rep gets a **Pitch Score (0–100)** plus a short debrief
 - Score + one-line verdict ("Strong open, lost it on price").
 - 2–3 specific, quoted coaching points ("When she said 'too expensive,' you dropped the price instead of reframing value").
 - One thing to try next time.
-- Optional: a **shareable score card** (image) — "I scored 82 on Doorstep 🚪" with KnockIQ branding to drive virality.
+
+### 6.1 Shareable score card (required, not optional)
+Every completed session generates a **shareable score card image** — this is a core virality mechanism, not a nice-to-have, so it ships in v1.
+
+- **Auto-generated PNG** rendered server-side (or via canvas) at the end of each session: big score ("82"), one-line verdict ("Strong open, lost it on price"), persona/vertical badge, and prominent **KnockIQ branding + URL/QR** so every share is an ad.
+- **One-tap share** to the native share sheet (iMessage, Instagram/TikTok stories, X), plus copy-link and download. Format variants: square (feed) and 9:16 (stories).
+- **Hook copy** auto-filled: *"I scored 82 on Doorstep 🚪 — can you beat my pitch? [link]"*. The link is a tracked referral URL feeding the funnel (§7).
+- **Personal-best & streak cards** for repeat users ("New PB: 91!") to prompt re-shares.
+- **Instrument** `share_card_generated` and `share_card_shared` + referral attribution so we can measure virality (K-factor) directly.
 
 ---
 
@@ -124,12 +132,56 @@ After each session the rep gets a **Pitch Score (0–100)** plus a short debrief
 
 ---
 
-## 8. Technical architecture
+## 8. Monetization, pricing & unit economics
+
+Doorstep has **two jobs**: (1) be the best lead magnet KnockIQ has, and (2) stand on its own as a paid product for managers who want to train a team — independent of whether they ever buy core KnockIQ.
+
+### 8.1 Unit economics — what a session actually costs
+A practice session is short (≈2–4 min; model at **3 min avg**). The homeowner (TTS) only speaks part of the time; the rep does most of the talking (STT). Researched 2026 rates (see Sources in chat):
+
+| Component | Rate (2026) | Per 3-min session |
+|---|---|---|
+| STT (Deepgram Nova-3 streaming) | ~$0.0077–$0.0125/min, ~2 min of rep speech | ~$0.02 |
+| LLM (persona + grading) | ~$0.01–$0.03/min | ~$0.06 |
+| TTS — **lean** (Cartesia Sonic / Deepgram Aura) | ~$0.03/min, ~1 min homeowner speech | ~$0.03 |
+| TTS — **premium** (ElevenLabs Multilingual v2) | ~$0.27/min, ~1 min homeowner speech | ~$0.27 |
+
+- **Lean stack ≈ $0.10–0.15 / session.** **Premium-voice stack ≈ $0.35–0.40 / session.** Speech-to-speech (OpenAI Realtime) lands in between (~$0.15–0.45/min uncached, much less with caching).
+- **Planning number: ~$0.25/session** blended.
+- **Implication:** even at modest virality this adds up — 10k free sessions/mo × $0.25 ≈ **$2.5k/mo**. Affordable as marketing spend, but it confirms two things: (a) the **email gate doubles as a cost throttle**, and (b) heavy individual use must convert to paid. Your "try twice, then pay" instinct is correct.
+- **Cost strategy:** default to the **lean voice stack** for free/anonymous traffic; reserve premium voices for paid tiers. Use prompt caching and short, capped sessions. Make model choice a server-side config so we can dial quality vs. cost per tier without a redeploy.
+
+### 8.2 Pricing tiers
+
+| Tier | Price (proposed) | What's included | Purpose |
+|---|---|---|---|
+| **Free / Tryout** | $0, no signup | **2 full sessions**, lean voice, starter personas, score card | Top-of-funnel, zero friction |
+| **Free + Email** | $0, email gate | A few more sessions/mo (e.g., up to ~5–8), progress saved | **Lead capture** |
+| **Doorstep Pro (individual rep)** | **~$19–29/mo** (or ~$15/mo annual) | Unlimited fair-use practice, all personas, premium voice, hard mode, full coaching history | Self-serve reps |
+| **Doorstep Teams (manager)** | **~$15–20 / seat / mo**, 3-seat min, volume discounts | Everything in Pro + **manager dashboard**: assign personas/onboarding tracks, see team scores, leaderboard, progress reports | **Standalone team-training revenue** |
+| **KnockIQ Pro bundle** | Included free | Doorstep Teams bundled into KnockIQ Pro | Retention + the upsell destination |
+
+Notes:
+- **Fair-use cap** on unlimited individual plans (e.g., soft cap ~X sessions/day) to protect margin against power users; at $0.25/session, a $19/mo plan stays healthy up to ~60–70 sessions/mo.
+- **Annual discount** (~2 months free) to improve LTV and cash.
+- All prices are **proposals to validate** — keep them as server-side config / feature-flagged so they're tunable.
+
+### 8.3 Doorstep Teams (the standalone team product)
+The manager-facing plan is its own business, not just a funnel for KnockIQ:
+- **Manager dashboard:** invite reps by email/seat, assign required practice (e.g., "pass 3 sessions at difficulty 3 before your first shift"), view per-rep scores, rubric breakdowns, and trend over time.
+- **Onboarding tracks:** sequenced persona ladders a new hire must complete (ties to KnockIQ's onboarding-ramp pain).
+- **Leaderboard** (reuse KnockIQ's existing leaderboard pattern) for friendly competition.
+- **Billing:** per-seat, self-serve via Stripe (reuse KnockIQ's Stripe setup), monthly/annual.
+- **Land-and-expand:** a manager who buys Doorstep Teams is a pre-qualified KnockIQ prospect — the strongest possible upsell path into the core platform.
+
+---
+
+## 9. Technical architecture
 
 **Voice pipeline (the core risk — latency is the product):**
 - **STT:** streaming speech-to-text (e.g., Deepgram / Whisper-streaming). Partial transcripts for responsiveness.
 - **LLM:** persona-grounded chat completion with a system prompt built from the persona JSON + objection library + conversation state. Stream tokens out.
-- **TTS:** low-latency streaming voice (e.g., ElevenLabs / Cartesia / OpenAI voices). Voice chosen per persona.
+- **TTS:** low-latency streaming voice, **tiered by plan to control COGS (§8.1)** — lean voice (Cartesia Sonic / Deepgram Aura, ~$0.03/min) for free/anonymous traffic; premium voice (ElevenLabs, ~$0.27/min) for paid tiers. Voice chosen per persona; model choice is server-side config.
 - **Target end-to-end latency:** < ~1.2s perceived turn time. Above ~2s it stops feeling like a door conversation. Consider a realtime/speech-to-speech API to collapse the STT→LLM→TTS hops if latency targets aren't met.
 - **Barge-in:** rep can interrupt; homeowner can cut the rep off (realism + a teaching moment).
 
@@ -144,21 +196,27 @@ After each session the rep gets a **Pitch Score (0–100)** plus a short debrief
 - `practice_sessions` (id, anon_id/email, persona_id, vertical, transcript jsonb, outcome, started_at, ended_at, duration_s)
 - `session_scores` (session_id, total, open, discovery, objection, value, close, coaching jsonb)
 - `leads` (email, name, company, role, team_size, first_seen, session_count, source)
+- `accounts` (id, type [individual|team], owner_email, plan, stripe_customer_id, seat_count, status)
+- `seats` (account_id, rep_email, assigned_tracks jsonb, status) — for Doorstep Teams
 
 **Privacy/consent:** rep is the only speaker recorded; show a clear mic-consent prompt. Store transcripts, not raw audio, by default. Standard privacy policy + a delete-my-data path (you already run Turnstile/CSP discipline on the main app — carry the same posture here).
 
 ---
 
-## 9. Verticals at launch
+## 10. Verticals at launch
 
 Per your call: **configurable/generic core + seeded persona packs for pest control, solar, and roofing.** Generic is the engine; the three packs prove value to the most common door-to-door trades and map directly to KnockIQ's existing customer base (incl. your Saguaro Pest and Summit Exteriors demo orgs as showcase content).
 
 ---
 
-## 10. Roadmap
+## 11. Roadmap
 
-**Phase 0 — Prototype (validate latency & realism)**
-- One vertical (pest control), one persona, text first → then wire voice. Prove the turn-latency target and that the role-play "feels real." This is the make-or-break.
+**Phase 0 — Prototype (validate latency, realism & cost)**
+- **Goal:** de-risk the three things that can kill the product before investing in the funnel — voice latency, realism, and per-session cost.
+- **Scope:** one vertical (pest control), one persona ("Already-have-a-guy Greg"), text-first to nail the conversation logic → then wire the voice loop.
+- **Build:** STT → persona-grounded LLM → TTS, streaming, with barge-in. Instrument real turn-latency.
+- **Exit criteria:** (1) perceived turn latency consistently < ~1.2s; (2) ≥5 test reps say it "feels like a real door"; (3) measured per-session cost ≤ ~$0.30 on the lean stack. If latency fails, evaluate a speech-to-speech realtime API before proceeding.
+- **Decision gate:** only build Phase 1 if all three exit criteria are met.
 
 **Phase 1 — Lead-magnet MVP**
 - Voice loop, 3 verticals + generic, ~9–12 starter personas, scoring + debrief, free→email gate, share card, PostHog funnel.
@@ -166,12 +224,13 @@ Per your call: **configurable/generic core + seeded persona packs for pest contr
 **Phase 2 — Stickiness & virality**
 - Progress tracking, streaks, difficulty ladder, leaderboard (ties to KnockIQ's existing leaderboard pattern), manager view ("see your team's scores").
 
-**Phase 3 — KnockIQ Pro integration**
-- Org-authored personas, assign practice as onboarding, sync scores into KnockIQ rep profiles, feed the objection library into the in-field "objection copilot."
+**Phase 3 — Monetization & KnockIQ integration (dual path)**
+- **Standalone:** ship Doorstep Teams (manager dashboard, seat billing, onboarding tracks) as its own paid product (§8.3) — revenue independent of core KnockIQ.
+- **Embedded:** bundle Doorstep into KnockIQ Pro; org-authored personas, assign practice as onboarding, sync scores into KnockIQ rep profiles, and feed the objection library into the in-field "objection copilot."
 
 ---
 
-## 11. Success metrics
+## 12. Success metrics
 
 **Lead magnet (primary):**
 - Email-capture rate (% of free users who pass the gate). *Target: 25–40%.*
@@ -185,12 +244,18 @@ Per your call: **configurable/generic core + seeded persona packs for pest contr
 - Repeat-visit rate (came back another day).
 - Median perceived turn latency (quality guardrail).
 
+**Revenue & unit economics:**
+- Free→paid conversion (individual Pro) and free→Teams conversion (manager).
+- Gross margin per session / per paid seat (guardrail: keep blended COGS well under price; see §8.1).
+- Teams seats sold and seat expansion within an org.
+- Doorstep→KnockIQ Pro upsell rate (land-and-expand).
+
 ---
 
-## 12. Open questions / risks
+## 13. Open questions / risks
 
 - **Latency is existential.** If the voice loop feels laggy, the illusion breaks. Phase 0 must de-risk this before anything else; budget for a realtime speech-to-speech path.
-- **Voice cost at scale.** A free, ungated app + paid TTS/STT/LLM per minute = real COGS. Model per-session cost; the email gate also doubles as an abuse/cost throttle.
+- **Voice cost at scale.** Quantified in §8.1: ~$0.10–0.40/session depending on voice quality (~$0.25 blended planning number). Mitigations: lean voice stack for free traffic, email gate + session caps as throttles, prompt caching, and converting heavy users to paid.
 - **Scoring fairness.** Reps will rage if scores feel random. Pin the rubric, use structured grading, calibrate against real manager judgments.
 - **Realism vs. discouragement.** Hostile personas are fun but a brutal first session could scare off a new rep — start easy, ladder up.
 - **Abuse / cost control on an open app** — rate-limit anonymous sessions, Turnstile on the gate, server-side session caps.
@@ -198,7 +263,7 @@ Per your call: **configurable/generic core + seeded persona packs for pest contr
 
 ---
 
-## 13. Appendix — example persona config
+## 14. Appendix — example persona config
 
 ```json
 {

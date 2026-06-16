@@ -237,7 +237,6 @@
       position: relative;
       padding: 72px 0 80px;
       background:
-        repeating-radial-gradient(circle at 50% -6%, transparent 0 39px, rgba(27,79,204,.10) 39px 40px),
         radial-gradient(1200px 540px at 50% -10%, rgba(27,79,204,.11), transparent 60%),
         radial-gradient(900px 420px at 110% 40%, rgba(125,195,30,.10), transparent 60%),
         linear-gradient(180deg, var(--white) 0%, var(--white) 55%, var(--bg) 100%);
@@ -259,7 +258,7 @@
     @keyframes gpsWalk { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -1000; } }
 
     .hero > * { position: relative; z-index: 1; }
-    .hero-map { z-index: 0; }
+    .hero > svg.hero-map { position: absolute; z-index: 0; }
 
     /* Effect 2 · gentle "live" halo on the eyebrow status dot */
     .hero .pill .dot { position: relative; }
