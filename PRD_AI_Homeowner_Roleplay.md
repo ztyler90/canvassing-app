@@ -219,8 +219,9 @@ Every paid plan includes the manager layer — this is what makes credits feel l
 - `practice_sessions` (id, anon_id/email, persona_id, vertical, transcript jsonb, outcome, started_at, ended_at, duration_s)
 - `session_scores` (session_id, total, open, discovery, objection, value, close, coaching jsonb)
 - `leads` (email, name, company, role, team_size, first_seen, session_count, source)
-- `accounts` (id, type [individual|team], owner_email, plan, stripe_customer_id, seat_count, status)
-- `seats` (account_id, rep_email, assigned_tracks jsonb, status) — for Doorstep Teams
+- `accounts` (id, type [team|enterprise], owner_email, plan, stripe_customer_id, status)
+- `credit_ledger` (account_id, period, credits_granted, credits_used, balance) — monthly pool, no rollover
+- `members` (account_id, rep_email, assigned_tracks jsonb, status) — team reps who draw from the pool
 
 **Privacy/consent:** rep is the only speaker recorded; show a clear mic-consent prompt. Store transcripts, not raw audio, by default. Standard privacy policy + a delete-my-data path (you already run Turnstile/CSP discipline on the main app — carry the same posture here).
 
@@ -268,9 +269,10 @@ Per your call: **configurable/generic core + seeded persona packs for pest contr
 - Median perceived turn latency (quality guardrail).
 
 **Revenue & unit economics:**
-- Free→paid conversion (individual Pro) and free→Teams conversion (manager).
-- Gross margin per session / per paid seat (guardrail: keep blended COGS well under price; see §8.1).
-- Teams seats sold and seat expansion within an org.
+- Free→paid conversion and plan upgrades (Starter→Growth→Scale→Enterprise).
+- **Voice as % of session price** (guardrail: keep ≤15%; see §8.1) and gross margin per credit.
+- Credit consumption / utilization per account and overage purchases.
+- Net revenue retention and plan expansion within an org.
 - Doorstep→KnockIQ Pro upsell rate (land-and-expand).
 
 ---
