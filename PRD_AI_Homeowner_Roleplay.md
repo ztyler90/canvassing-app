@@ -136,8 +136,18 @@ Every completed session generates a **shareable score card image** — this is a
 
 Doorstep has **two jobs**: (1) be the best lead magnet KnockIQ has, and (2) stand on its own as a paid product for managers who want to train a team — independent of whether they ever buy core KnockIQ.
 
-### 8.1 Unit economics — what a session actually costs
-A practice session is short (≈2–4 min; model at **3 min avg**). The homeowner (TTS) only speaks part of the time; the rep does most of the talking (STT). Researched 2026 rates (see Sources in chat):
+### 8.1 The credit model & the margin rule
+Doorstep is sold as **fixed monthly plans, each with a shared team pool of session credits. 1 credit = 1 completed practice session.** Credits are pooled across the whole team and consumed as reps practice.
+
+**Margin rule (the design constraint):** voice/API COGS must stay **≤ 15% of the per-session price.** Equivalently, **price per credit ≥ ~6.7× the session's voice cost.** At the lean voice stack (~$0.12/session) this sets a credit floor of **~$0.80**. This guarantees ~85%+ gross margin on usage at every tier, by construction.
+
+**What counts (and what's free):**
+- A credit is consumed **only by a completed session ≥ 30 seconds.** Sessions shorter than 30 seconds are **not counted** (reps shouldn't fear "wasting" a credit on a false start).
+- **No rollover.** Unused credits expire at the end of each billing month; the pool resets. (Keeps revenue predictable and usage honest.)
+- **Free actions never cost credits:** replaying a past session, reading coaching/debrief, score cards, progress views. Only the live voice role-play burns a credit.
+
+### 8.2 Unit economics — what a session actually costs
+A session is short (≈2–4 min; model at **3 min avg**). The homeowner (TTS) speaks only part of the time; the rep does most of the talking (STT). Researched 2026 rates (see Sources in chat):
 
 | Component | Rate (2026) | Per 3-min session |
 |---|---|---|
@@ -146,33 +156,46 @@ A practice session is short (≈2–4 min; model at **3 min avg**). The homeowne
 | TTS — **lean** (Cartesia Sonic / Deepgram Aura) | ~$0.03/min, ~1 min homeowner speech | ~$0.03 |
 | TTS — **premium** (ElevenLabs Multilingual v2) | ~$0.27/min, ~1 min homeowner speech | ~$0.27 |
 
-- **Lean stack ≈ $0.10–0.15 / session.** **Premium-voice stack ≈ $0.35–0.40 / session.** Speech-to-speech (OpenAI Realtime) lands in between (~$0.15–0.45/min uncached, much less with caching).
-- **Planning number: ~$0.25/session** blended.
-- **Implication:** even at modest virality this adds up — 10k free sessions/mo × $0.25 ≈ **$2.5k/mo**. Affordable as marketing spend, but it confirms two things: (a) the **email gate doubles as a cost throttle**, and (b) heavy individual use must convert to paid. Your "try twice, then pay" instinct is correct.
-- **Cost strategy:** default to the **lean voice stack** for free/anonymous traffic; reserve premium voices for paid tiers. Use prompt caching and short, capped sessions. Make model choice a server-side config so we can dial quality vs. cost per tier without a redeploy.
+- **Lean stack ≈ $0.10–0.15 / session** (planning number for paid tiers). Premium-voice stack ≈ $0.35–0.40; offer it as a **1.5-credit** session so the 15% rule still holds.
+- **At enterprise scale, voice volume discounts** (Deepgram/TTS drop ~40–60% at high volume) pull COGS down to **~$0.06–0.08/session** — which is what lets the enterprise per-credit rate fall while margin holds (§8.4).
+- **Cost strategy:** lean voice for free/anonymous traffic; model choice is server-side config so quality vs. cost is tunable per tier without a redeploy. Use prompt caching and the 30-second floor as natural throttles.
 
-### 8.2 Pricing tiers
+### 8.3 Fixed plans
 
-| Tier | Price (proposed) | What's included | Purpose |
-|---|---|---|---|
-| **Free / Tryout** | $0, no signup | **2 full sessions**, lean voice, starter personas, score card | Top-of-funnel, zero friction |
-| **Free + Email** | $0, email gate | A few more sessions/mo (e.g., up to ~5–8), progress saved | **Lead capture** |
-| **Doorstep Pro (individual rep)** | **~$19–29/mo** (or ~$15/mo annual) | Unlimited fair-use practice, all personas, premium voice, hard mode, full coaching history | Self-serve reps |
-| **Doorstep Teams (manager)** | **~$15–20 / seat / mo**, 3-seat min, volume discounts | Everything in Pro + **manager dashboard**: assign personas/onboarding tracks, see team scores, leaderboard, progress reports | **Standalone team-training revenue** |
-| **KnockIQ Pro bundle** | Included free | Doorstep Teams bundled into KnockIQ Pro | Retention + the upsell destination |
+| Plan | Price/mo | Credits | $/credit | Voice % (lean ~$0.12) |
+|---|---|---|---|---|
+| **Free** | $0 | 2 (then email-gate unlocks a few more) | — | — |
+| **Starter** | $49 | 60 | $0.82 | ~15% |
+| **Growth** | $149 | 185 | $0.81 | ~15% |
+| **Scale** | $399 | 500 | $0.80 | ~15% |
+| **Enterprise** | custom (§8.4) | committed annual pool | ~$0.50–0.70 | ≤15% |
 
-Notes:
-- **Fair-use cap** on unlimited individual plans (e.g., soft cap ~X sessions/day) to protect margin against power users; at $0.25/session, a $19/mo plan stays healthy up to ~60–70 sessions/mo.
-- **Annual discount** (~2 months free) to improve LTV and cash.
+- **Value framing on the pricing page:** show "≈ reps you can ramp" next to each tier (a new rep's ramp ≈ 25–30 sessions), so credits read as outcomes, not minutes.
+- **Overage / top-ups:** extra credits available mid-month at the plan's per-credit rate.
 - All prices are **proposals to validate** — keep them as server-side config / feature-flagged so they're tunable.
 
-### 8.3 Doorstep Teams (the standalone team product)
-The manager-facing plan is its own business, not just a funnel for KnockIQ:
-- **Manager dashboard:** invite reps by email/seat, assign required practice (e.g., "pass 3 sessions at difficulty 3 before your first shift"), view per-rep scores, rubric breakdowns, and trend over time.
+### 8.4 Enterprise — scales with them
+Door-to-door turnover makes onboarding demand spiky but recurring, so Enterprise is built around a **committed annual credit pool at a volume-discounted rate, with auto-replenish.**
+
+| Annual committed credits | $/credit |
+|---|---|
+| 10k–50k | ~$0.70 |
+| 50k–150k | ~$0.60 |
+| 150k+ | ~$0.50 (or custom) |
+
+- **Committed pool, pooled org-wide, drawn down monthly** (no rollover — pool is sized to annual need).
+- **Auto-replenish / true-up:** a hiring spike that exhausts the pool tops up automatically at the contracted band rate and trues-up at renewal — their growth seamlessly drives revenue while they keep protected unit pricing.
+- **Platform fee** on top for SSO, admin, role-based dashboards, and KnockIQ/CRM integration — captures org-level value separate from usage.
+- **The margin story for sales:** their scale lowers *your* voice COGS (volume discounts → ~$0.06–0.08/session), so you can offer $0.50/credit and still keep voice ≤15%. Their growth makes the unit economics *better*, not worse.
+
+### 8.5 Doorstep Teams (the manager product)
+Every paid plan includes the manager layer — this is what makes credits feel like buying **readiness**:
+- **Manager dashboard:** invite reps, assign required practice (e.g., "pass 3 sessions at difficulty 3 before your first shift"), view per-rep scores, rubric breakdowns, and trend over time.
+- **"Doorstep Certified" badge + ramp scorecard** — a clear "is this rep ready to knock?" signal that raises perceived value at the same price.
 - **Onboarding tracks:** sequenced persona ladders a new hire must complete (ties to KnockIQ's onboarding-ramp pain).
 - **Leaderboard** (reuse KnockIQ's existing leaderboard pattern) for friendly competition.
-- **Billing:** per-seat, self-serve via Stripe (reuse KnockIQ's Stripe setup), monthly/annual.
-- **Land-and-expand:** a manager who buys Doorstep Teams is a pre-qualified KnockIQ prospect — the strongest possible upsell path into the core platform.
+- **Billing:** self-serve via Stripe (reuse KnockIQ's Stripe setup), monthly; Enterprise annual via contract.
+- **Land-and-expand:** a manager who buys Doorstep is a pre-qualified KnockIQ prospect — the strongest upsell path into the core platform.
 
 ---
 
@@ -225,7 +248,7 @@ Per your call: **configurable/generic core + seeded persona packs for pest contr
 - Progress tracking, streaks, difficulty ladder, leaderboard (ties to KnockIQ's existing leaderboard pattern), manager view ("see your team's scores").
 
 **Phase 3 — Monetization & KnockIQ integration (dual path)**
-- **Standalone:** ship Doorstep Teams (manager dashboard, seat billing, onboarding tracks) as its own paid product (§8.3) — revenue independent of core KnockIQ.
+- **Standalone:** ship Doorstep Teams (manager dashboard, credit-based plans, onboarding tracks) as its own paid product (§8.3–8.5) — revenue independent of core KnockIQ.
 - **Embedded:** bundle Doorstep into KnockIQ Pro; org-authored personas, assign practice as onboarding, sync scores into KnockIQ rep profiles, and feed the objection library into the in-field "objection copilot."
 
 ---

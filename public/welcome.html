@@ -242,20 +242,22 @@
         linear-gradient(180deg, var(--white) 0%, var(--white) 55%, var(--bg) 100%);
       overflow: hidden;
     }
-    /* Effect 1 · faint street grid with a GPS route tracing a walk, behind content */
+    /* Effect 1 · faint street map with a GPS route the rep "walks" (JS-driven) */
     .hero-map { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-    .hm-streets line { stroke: #0F172A; stroke-width: 1.4; opacity: .05; }
-    .hm-streets line.main { stroke-width: 3.5; opacity: .07; }
-    .hm-route { fill: none; stroke: rgba(46,107,255,.13); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
-    .hm-pin { fill: rgba(46,107,255,.28); }
-    .hm-trail {
-      fill: none; stroke: rgba(46,107,255,.55); stroke-width: 3.2;
-      stroke-linecap: round; stroke-linejoin: round;
-      stroke-dasharray: 34 1000;
-      filter: drop-shadow(0 0 4px rgba(46,107,255,.5));
-      animation: gpsWalk 12s linear infinite;
-    }
-    @keyframes gpsWalk { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -1000; } }
+    .hm-block { fill: rgba(15,23,42,.022); }
+    .hm-streets line { stroke: #0F172A; stroke-width: 1.3; opacity: .04; }
+    .hm-road { stroke: #0F172A; stroke-width: 7; opacity: .045; stroke-linecap: round; }
+    .hm-lane { stroke: #1B4FCC; stroke-width: 1.3; opacity: .10; stroke-dasharray: 9 11; }
+    .hm-route { fill: none; stroke: rgba(46,107,255,.10); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .hm-trail { fill: none; stroke: rgba(46,107,255,.45); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 4px rgba(46,107,255,.4)); }
+    .hm-pin { fill: rgba(46,107,255,.22); transition: fill .3s ease; }
+    .hm-pin.knocked { fill: rgba(46,107,255,.65); }
+    .hm-mark { fill: none; stroke: #2E6BFF; stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center; }
+    .hm-mark.ping { animation: knockPing .7s ease-out; }
+    @keyframes knockPing { 0% { opacity: .85; transform: scale(.3); } 100% { opacity: 0; transform: scale(2.6); } }
+    .hm-rep .halo { fill: #2E6BFF; opacity: .4; transform-box: fill-box; transform-origin: center; animation: repPulse 1.6s ease-out infinite; }
+    .hm-rep .core { fill: #2E6BFF; filter: drop-shadow(0 0 5px rgba(46,107,255,.8)); }
+    @keyframes repPulse { 0% { transform: scale(.5); opacity: .5; } 100% { transform: scale(3); opacity: 0; } }
 
     .hero > * { position: relative; z-index: 1; }
     .hero > svg.hero-map { position: absolute; z-index: 0; }
@@ -274,7 +276,8 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .hm-trail { animation: none; opacity: 0; }
+      .hm-rep, .hm-mark { display: none; }
+      .hm-rep .halo { animation: none; }
       .hero .pill .dot::after { display: none; }
     }
 
@@ -2120,11 +2123,19 @@
 ═══════════════════════════════════════════════════════════════════════════ -->
 <section id="top" class="hero">
   <svg class="hero-map" viewBox="0 0 1440 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g class="hm-blocks">
+      <rect class="hm-block" x="278" y="128" width="124" height="114" rx="4"/>
+      <rect class="hm-block" x="418" y="258" width="134" height="94" rx="4"/>
+      <rect class="hm-block" x="568" y="368" width="134" height="114" rx="4"/>
+      <rect class="hm-block" x="718" y="128" width="134" height="114" rx="4"/>
+      <rect class="hm-block" x="868" y="258" width="134" height="94" rx="4"/>
+      <rect class="hm-block" x="1018" y="368" width="134" height="114" rx="4"/>
+      <rect class="hm-block" x="138" y="368" width="124" height="114" rx="4"/>
+    </g>
     <g class="hm-streets">
       <line x1="130" y1="0" x2="130" y2="700"/>
       <line x1="270" y1="0" x2="270" y2="700"/>
       <line x1="410" y1="0" x2="410" y2="700"/>
-      <line class="main" x1="560" y1="0" x2="560" y2="700"/>
       <line x1="710" y1="0" x2="710" y2="700"/>
       <line x1="860" y1="0" x2="860" y2="700"/>
       <line x1="1010" y1="0" x2="1010" y2="700"/>
@@ -2132,15 +2143,26 @@
       <line x1="1310" y1="0" x2="1310" y2="700"/>
       <line x1="0" y1="120" x2="1440" y2="120"/>
       <line x1="0" y1="250" x2="1440" y2="250"/>
-      <line class="main" x1="0" y1="360" x2="1440" y2="360"/>
       <line x1="0" y1="490" x2="1440" y2="490"/>
       <line x1="0" y1="610" x2="1440" y2="610"/>
     </g>
+    <line class="hm-road" x1="560" y1="0" x2="560" y2="700"/>
+    <line class="hm-road" x1="0" y1="360" x2="1440" y2="360"/>
+    <line class="hm-lane" x1="560" y1="0" x2="560" y2="700"/>
+    <line class="hm-lane" x1="0" y1="360" x2="1440" y2="360"/>
+
     <path class="hm-route" d="M270 640 V490 H410 V360 H560 V250 H860 V360 H1010 V120 H1310"/>
-    <circle class="hm-pin" cx="560" cy="250" r="5"/>
-    <circle class="hm-pin" cx="860" cy="360" r="5"/>
-    <circle class="hm-pin" cx="1010" cy="120" r="5"/>
-    <path class="hm-trail" d="M270 640 V490 H410 V360 H560 V250 H860 V360 H1010 V120 H1310" pathLength="1000"/>
+    <path class="hm-trail" d="M270 640 V490 H410 V360 H560 V250 H860 V360 H1010 V120 H1310"/>
+
+    <circle class="hm-pin" cx="130" cy="250" r="4"/>
+    <circle class="hm-pin" cx="710" cy="610" r="4"/>
+    <circle class="hm-pin" cx="1160" cy="490" r="4"/>
+    <circle class="hm-pin route" cx="270" cy="490" r="5"/><circle class="hm-mark" cx="270" cy="490" r="9"/>
+    <circle class="hm-pin route" cx="560" cy="250" r="5"/><circle class="hm-mark" cx="560" cy="250" r="9"/>
+    <circle class="hm-pin route" cx="860" cy="360" r="5"/><circle class="hm-mark" cx="860" cy="360" r="9"/>
+    <circle class="hm-pin route" cx="1010" cy="120" r="5"/><circle class="hm-mark" cx="1010" cy="120" r="9"/>
+
+    <g class="hm-rep"><circle class="halo" cx="0" cy="0" r="8"/><circle class="core" cx="0" cy="0" r="5"/></g>
   </svg>
   <div class="container hero-head">
     <span class="pill">
@@ -3028,6 +3050,51 @@
         img.style.display = 'none';
       });
     });
+  })();
+</script>
+
+<!-- Hero GPS walk: rep dot traces the route, "knocks" pins as it passes -->
+<script>
+  (function () {
+    var svg = document.querySelector('.hero-map');
+    if (!svg) return;
+    var route = svg.querySelector('.hm-route');
+    var trail = svg.querySelector('.hm-trail');
+    var rep   = svg.querySelector('.hm-rep');
+    if (!route || !trail || !rep) return;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var L = route.getTotalLength();
+
+    var marks = [].slice.call(svg.querySelectorAll('.hm-mark')).map(function (m) {
+      var cx = +m.getAttribute('cx'), cy = +m.getAttribute('cy'), best = 0, bd = Infinity;
+      for (var s = 0; s <= L; s += 3) {
+        var p = route.getPointAtLength(s);
+        var dx = p.x - cx, dy = p.y - cy, d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = s; }
+      }
+      return { el: m, len: best, fired: false, pin: m.previousElementSibling };
+    });
+
+    if (reduce) { trail.style.strokeDasharray = L + ' 0'; rep.style.display = 'none'; return; }
+
+    var period = 12000, start = null;
+    function frame(now) {
+      if (start === null) start = now;
+      var t = ((now - start) % period) / period, dist = t * L;
+      trail.style.strokeDasharray = dist + ' ' + (L + 10);
+      var p = route.getPointAtLength(dist);
+      rep.setAttribute('transform', 'translate(' + p.x + ',' + p.y + ')');
+      marks.forEach(function (m) {
+        if (!m.fired && dist >= m.len) {
+          m.fired = true;
+          m.el.classList.remove('ping'); void m.el.getBoundingClientRect(); m.el.classList.add('ping');
+          if (m.pin) m.pin.classList.add('knocked');
+        }
+      });
+      if (t < 0.015) marks.forEach(function (m) { m.fired = false; if (m.pin) m.pin.classList.remove('knocked'); });
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
   })();
 </script>
 
