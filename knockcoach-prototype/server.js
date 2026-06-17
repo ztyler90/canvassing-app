@@ -12,7 +12,13 @@ const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-const API_KEY = process.env.ANTHROPIC_API_KEY;
+// Extract just the clean key, ignoring any stray characters/whitespace/emoji
+// that may have been pasted into .env around it.
+const API_KEY = (() => {
+  const raw = process.env.ANTHROPIC_API_KEY || "";
+  const m = raw.match(/sk-ant-[A-Za-z0-9_\-]+/);
+  return m ? m[0] : raw.replace(/[^\x21-\x7E]/g, "").trim();
+})();
 const BASE_URL = process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com/v1";
 const CHAT_MODEL = process.env.CHAT_MODEL || "claude-sonnet-4-6";
 const SCORE_MODEL = process.env.SCORE_MODEL || "claude-sonnet-4-6";
