@@ -688,49 +688,57 @@ export default function RepHome() {
             <p className="text-blue-100 text-xs">{greeting}</p>
             <h1 className="text-white text-xl font-bold truncate leading-tight">{user?.full_name || 'Rep'}</h1>
           </div>
-          {/* Manager ⇄ Canvassing switch — only renders for platform managers
-              who flipped into rep view; gives them a one-tap way back to the
-              dashboard. Invisible to real reps. */}
-          <ViewModeSwitch />
-          {/* Next Stops — territories inbox. Moved here from the body
-              card so the entry point lives with the other header actions
-              (profile, logout) and is reachable from every scroll
-              position. The assigned-count pip acts as an unread-style
-              indicator — if a manager has flagged a zone for this rep,
-              the dot shows how many are waiting. */}
-          <button
-            onClick={() => navigate('/territories')}
-            className="relative p-2 rounded-full bg-white/20 active:bg-white/30 shrink-0"
-            aria-label="Next Stops"
-          >
-            <Inbox className="w-5 h-5 text-white" />
-            {assignedInboxCount > 0 && (
-              <span
-                className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
-                style={{ backgroundColor: BRAND_LIME, color: '#1E3A10' }}
+          {/* On narrow screens the Manager/Canvass pill stacks ABOVE the icon
+              row so a long name + the pill + four icons don't all fight for
+              one line. Matches the ManagerDashboard header pattern. From sm+
+              everything sits inline again. */}
+          <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center shrink-0">
+            {/* Manager ⇄ Canvassing switch — only renders for platform managers
+                who flipped into rep view; gives them a one-tap way back to the
+                dashboard. Invisible to real reps. */}
+            <ViewModeSwitch />
+            <div className="flex items-center gap-2">
+              {/* Next Stops — territories inbox. Moved here from the body
+                  card so the entry point lives with the other header actions
+                  (profile, logout) and is reachable from every scroll
+                  position. The assigned-count pip acts as an unread-style
+                  indicator — if a manager has flagged a zone for this rep,
+                  the dot shows how many are waiting. */}
+              <button
+                onClick={() => navigate('/territories')}
+                className="relative p-2 rounded-full bg-white/20 active:bg-white/30 shrink-0"
+                aria-label="Next Stops"
               >
-                {assignedInboxCount > 9 ? '9+' : assignedInboxCount}
-              </span>
-            )}
-          </button>
-          {/* Team Chat — placed just before the Settings gear so reps
-              reach for chat in the same spot the manager does. Owns its
-              own panel + unread badge. */}
-          <ChatLauncher />
-          <button
-            onClick={() => navigate('/profile')}
-            className="p-2 rounded-full bg-white/20 active:bg-white/30 shrink-0"
-            aria-label="Settings"
-          >
-            <Settings className="w-5 h-5 text-white" />
-          </button>
-          <button
-            onClick={handleLogout}
-            className="p-2 rounded-full bg-white/20 active:bg-white/30 shrink-0"
-            aria-label="Log out"
-          >
-            <LogOut className="w-5 h-5 text-white" />
-          </button>
+                <Inbox className="w-5 h-5 text-white" />
+                {assignedInboxCount > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+                    style={{ backgroundColor: BRAND_LIME, color: '#1E3A10' }}
+                  >
+                    {assignedInboxCount > 9 ? '9+' : assignedInboxCount}
+                  </span>
+                )}
+              </button>
+              {/* Team Chat — placed just before the Settings gear so reps
+                  reach for chat in the same spot the manager does. Owns its
+                  own panel + unread badge. */}
+              <ChatLauncher />
+              <button
+                onClick={() => navigate('/profile')}
+                className="p-2 rounded-full bg-white/20 active:bg-white/30 shrink-0"
+                aria-label="Settings"
+              >
+                <Settings className="w-5 h-5 text-white" />
+              </button>
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-full bg-white/20 active:bg-white/30 shrink-0"
+                aria-label="Log out"
+              >
+                <LogOut className="w-5 h-5 text-white" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
