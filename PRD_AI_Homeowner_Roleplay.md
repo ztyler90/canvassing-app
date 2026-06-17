@@ -1,4 +1,4 @@
-# PRD — AI Homeowner Role-Play ("Doorstep" — working title)
+# PRD — AI Homeowner Role-Play ("KnockCoach" — working title)
 
 **Owner:** Zach Tyler
 **Status:** Draft v1
@@ -110,7 +110,7 @@ Every completed session generates a **shareable score card image** — this is a
 
 - **Auto-generated PNG** rendered server-side (or via canvas) at the end of each session: big score ("82"), one-line verdict ("Strong open, lost it on price"), persona/vertical badge, and prominent **KnockIQ branding + URL/QR** so every share is an ad.
 - **One-tap share** to the native share sheet (iMessage, Instagram/TikTok stories, X), plus copy-link and download. Format variants: square (feed) and 9:16 (stories).
-- **Hook copy** auto-filled: *"I scored 82 on Doorstep 🚪 — can you beat my pitch? [link]"*. The link is a tracked referral URL feeding the funnel (§7).
+- **Hook copy** auto-filled: *"I scored 82 on KnockCoach 🚪 — can you beat my pitch? [link]"*. The link is a tracked referral URL feeding the funnel (§7).
 - **Personal-best & streak cards** for repeat users ("New PB: 91!") to prompt re-shares.
 - **Instrument** `share_card_generated` and `share_card_shared` + referral attribution so we can measure virality (K-factor) directly.
 
@@ -134,10 +134,10 @@ Every completed session generates a **shareable score card image** — this is a
 
 ## 8. Monetization, pricing & unit economics
 
-Doorstep has **two jobs**: (1) be the best lead magnet KnockIQ has, and (2) stand on its own as a paid product for managers who want to train a team — independent of whether they ever buy core KnockIQ.
+KnockCoach has **two jobs**: (1) be the best lead magnet KnockIQ has, and (2) stand on its own as a paid product for managers who want to train a team — independent of whether they ever buy core KnockIQ.
 
 ### 8.1 The credit model & the margin rule
-Doorstep is sold as **fixed monthly plans, each with a shared team pool of session credits. 1 credit = 1 completed practice session.** Credits are pooled across the whole team and consumed as reps practice.
+KnockCoach is sold as **fixed monthly plans, each with a shared team pool of session credits. 1 credit = 1 completed practice session.** Credits are pooled across the whole team and consumed as reps practice.
 
 **Margin rule (the design constraint):** voice/API COGS must stay **≤ 15% of the per-session price.** Equivalently, **price per credit ≥ ~6.7× the session's voice cost.** At the lean voice stack (~$0.12/session) this sets a credit floor of **~$0.80**. This guarantees ~85%+ gross margin on usage at every tier, by construction.
 
@@ -188,14 +188,14 @@ Door-to-door turnover makes onboarding demand spiky but recurring, so Enterprise
 - **Platform fee** on top for SSO, admin, role-based dashboards, and KnockIQ/CRM integration — captures org-level value separate from usage.
 - **The margin story for sales:** their scale lowers *your* voice COGS (volume discounts → ~$0.06–0.08/session), so you can offer $0.50/credit and still keep voice ≤15%. Their growth makes the unit economics *better*, not worse.
 
-### 8.5 Doorstep Teams (the manager product)
+### 8.5 KnockCoach Teams (the manager product)
 Every paid plan includes the manager layer — this is what makes credits feel like buying **readiness**:
 - **Manager dashboard:** invite reps, assign required practice (e.g., "pass 3 sessions at difficulty 3 before your first shift"), view per-rep scores, rubric breakdowns, and trend over time.
-- **"Doorstep Certified" badge + ramp scorecard** — a clear "is this rep ready to knock?" signal that raises perceived value at the same price.
+- **"KnockCoach Certified" badge + ramp scorecard** — a clear "is this rep ready to knock?" signal that raises perceived value at the same price.
 - **Onboarding tracks:** sequenced persona ladders a new hire must complete (ties to KnockIQ's onboarding-ramp pain).
 - **Leaderboard** (reuse KnockIQ's existing leaderboard pattern) for friendly competition.
 - **Billing:** self-serve via Stripe (reuse KnockIQ's Stripe setup), monthly; Enterprise annual via contract.
-- **Land-and-expand:** a manager who buys Doorstep is a pre-qualified KnockIQ prospect — the strongest upsell path into the core platform.
+- **Land-and-expand:** a manager who buys KnockCoach is a pre-qualified KnockIQ prospect — the strongest upsell path into the core platform.
 
 ---
 
@@ -208,12 +208,12 @@ Every paid plan includes the manager layer — this is what makes credits feel l
 - **Target end-to-end latency:** < ~1.2s perceived turn time. Above ~2s it stops feeling like a door conversation. Consider a realtime/speech-to-speech API to collapse the STT→LLM→TTS hops if latency targets aren't met.
 - **Barge-in:** rep can interrupt; homeowner can cut the rep off (realism + a teaching moment).
 
-**Repo & infrastructure isolation (important):** Doorstep is its **own repository on its own domain** — a separate, *public/unauthenticated* product with a different release cadence, dependency footprint (voice pipeline), and security/traffic profile than core KnockIQ. Reuse KnockIQ's **stack and patterns** (and Stripe/PostHog account) but isolate the data store: **production runs on its own Supabase project**, so the public app's data, load, and RLS are fully separated from KnockIQ's sensitive rep/customer tables. (The Phase 0 prototype may piggyback on existing infra to move fast; production is isolated.) Doorstep↔KnockIQ data flows via **API/webhooks** (Phase 3), not a shared codebase. Extract shared bits (branding, UI kit) into a small shared package only if duplication becomes painful.
+**Repo & infrastructure isolation (important):** KnockCoach is its **own repository on its own domain** — a separate, *public/unauthenticated* product with a different release cadence, dependency footprint (voice pipeline), and security/traffic profile than core KnockIQ. Reuse KnockIQ's **stack and patterns** (and Stripe/PostHog account) but isolate the data store: **production runs on its own Supabase project**, so the public app's data, load, and RLS are fully separated from KnockIQ's sensitive rep/customer tables. (The Phase 0 prototype may piggyback on existing infra to move fast; production is isolated.) KnockCoach↔KnockIQ data flows via **API/webhooks** (Phase 3), not a shared codebase. Extract shared bits (branding, UI kit) into a small shared package only if duplication becomes painful.
 
 **App stack (reuse the patterns, isolate the instance):**
 - **Frontend:** React PWA (mic access, push-to-talk + hands-free VAD mode). Mobile-friendly since reps live on phones.
 - **Backend / data:** dedicated Supabase project (light auth for the email gate, Postgres for sessions/scores/personas, edge functions for voice orchestration + LLM grading). Same tech as the main app so code/ops carry over, separate instance for isolation.
-- **Analytics:** PostHog (shared account, separate Doorstep project) + funnel events above.
+- **Analytics:** PostHog (shared account, separate KnockCoach project) + funnel events above.
 - **Scoring:** a separate grading LLM call against the rubric, returning structured JSON (scores per dimension + coaching strings).
 
 **Data model (sketch):**
@@ -251,8 +251,8 @@ Per your call: **configurable/generic core + seeded persona packs for pest contr
 - Progress tracking, streaks, difficulty ladder, leaderboard (ties to KnockIQ's existing leaderboard pattern), manager view ("see your team's scores").
 
 **Phase 3 — Monetization & KnockIQ integration (dual path)**
-- **Standalone:** ship Doorstep Teams (manager dashboard, credit-based plans, onboarding tracks) as its own paid product (§8.3–8.5) — revenue independent of core KnockIQ.
-- **Embedded:** bundle Doorstep into KnockIQ Pro; org-authored personas, assign practice as onboarding, sync scores into KnockIQ rep profiles, and feed the objection library into the in-field "objection copilot." Integration is via **API/webhooks between the two separate codebases** (§9), keeping the products decoupled.
+- **Standalone:** ship KnockCoach Teams (manager dashboard, credit-based plans, onboarding tracks) as its own paid product (§8.3–8.5) — revenue independent of core KnockIQ.
+- **Embedded:** bundle KnockCoach into KnockIQ Pro; org-authored personas, assign practice as onboarding, sync scores into KnockIQ rep profiles, and feed the objection library into the in-field "objection copilot." Integration is via **API/webhooks between the two separate codebases** (§9), keeping the products decoupled.
 
 ---
 
@@ -275,7 +275,7 @@ Per your call: **configurable/generic core + seeded persona packs for pest contr
 - **Voice as % of session price** (guardrail: keep ≤15%; see §8.1) and gross margin per credit.
 - Credit consumption / utilization per account and overage purchases.
 - Net revenue retention and plan expansion within an org.
-- Doorstep→KnockIQ Pro upsell rate (land-and-expand).
+- KnockCoach→KnockIQ Pro upsell rate (land-and-expand).
 
 ---
 
@@ -286,7 +286,7 @@ Per your call: **configurable/generic core + seeded persona packs for pest contr
 - **Scoring fairness.** Reps will rage if scores feel random. Pin the rubric, use structured grading, calibrate against real manager judgments.
 - **Realism vs. discouragement.** Hostile personas are fun but a brutal first session could scare off a new rep — start easy, ladder up.
 - **Abuse / cost control on an open app** — rate-limit anonymous sessions, Turnstile on the gate, server-side session caps.
-- **Naming / brand** — "Doorstep" is a placeholder; confirm a name + domain.
+- **Naming / brand** — "KnockCoach" is a placeholder; confirm a name + domain.
 
 ---
 

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.2.20",
+    "@capacitor/android": "^6.2.1",
     "@capacitor/core": "^6.1.2",
     "@capacitor/geolocation": "^6.0.2",
     "@capacitor/haptics": "^6.0.3",

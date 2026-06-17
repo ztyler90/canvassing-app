@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KnockCoach — Train before you knock</title>
+<meta name="description" content="The flight simulator for door-to-door sales. Practice your pitch on a realistic AI homeowner, get scored, and walk up to real doors warmed up. Free to try." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#2563EB; --blue-deep:#1D4ED8; --blue-ink:#16307a; --navy:#0b1430;
+    --aqua:#06B6D4; --green:#0b8a55;
+    --ink:#0f1b3d; --muted:#5d6b8c; --line:#dde7f6;
+    --tint:#eff4ff; --tint2:#ecfbfe; --tint3:#eaf7ef;
+    /* dark-blue APP theme (used inside the device/app graphics) */
+    --app-bg:#0d1838; --surface:#16264f; --surface2:#1c3061; --app-line:#2b3f73;
+    --app-text:#ecf1ff; --app-muted:#9aabd6; --accent:#4f8cff; --btn:#2f6bff; --aquad:#34d3ee; --agreen:#3ddc97; --sh:#05102e;
+    --disp:'Sora',system-ui,sans-serif; --body:'Inter',system-ui,sans-serif;
+    --r-md:16px; --r-lg:20px; --r-xl:26px; --max:1080px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--body);color:var(--ink);line-height:1.6;background:#f1f5fc;-webkit-font-smoothing:antialiased;}
+  a{color:inherit;text-decoration:none;}
+  .wrap{max-width:var(--max);margin:0 auto;padding:0 24px;}
+
+  nav{display:flex;align-items:center;justify-content:space-between;padding:22px 0;}
+  .brand{display:flex;align-items:center;gap:11px;}
+  .logomark{width:42px;height:42px;border-radius:13px;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--disp);font-weight:800;font-size:21px;box-shadow:3px 3px 0 var(--blue-ink);}
+  .name{font-family:var(--disp);font-weight:800;font-size:23px;letter-spacing:-.5px;}
+  .name b{color:var(--blue);}
+  .links{display:flex;gap:24px;align-items:center;}
+  .links a{color:var(--muted);font-size:15px;font-weight:500;}
+  .btn{display:inline-block;background:var(--blue);color:#fff;font-family:var(--body);font-weight:700;font-size:15px;padding:12px 20px;border-radius:var(--r-md);border:0;box-shadow:4px 5px 0 var(--blue-ink);cursor:pointer;}
+  .btn.lg{font-size:16px;padding:15px 26px;box-shadow:5px 6px 0 var(--blue-ink);}
+  .btn.ghost{background:#fff;color:var(--blue);border:1.5px solid var(--line);box-shadow:4px 5px 0 #cfdcf4;}
+  .btn.white{background:#fff;color:var(--blue);box-shadow:5px 6px 0 var(--blue-ink);}
+
+  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;padding:46px 0 30px;}
+  .badge{display:inline-block;background:var(--tint2);color:#0a6f86;font-weight:700;font-size:13px;padding:6px 13px;border-radius:999px;box-shadow:2px 2px 0 #d2eef6;margin-bottom:18px;}
+  h1{font-family:var(--disp);font-weight:800;font-size:52px;letter-spacing:-1.5px;line-height:1.03;}
+  h1 em{font-style:normal;color:var(--blue);}
+  .sub{color:var(--muted);font-size:19px;max-width:36ch;margin:18px 0 26px;}
+  .cta-row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  .note{color:var(--muted);font-size:14px;margin-top:13px;}
+  .hero-art{display:flex;justify-content:center;}
+
+  section{padding:56px 0;}
+  .eyebrow{font-family:var(--disp);font-weight:700;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);}
+  h2{font-family:var(--disp);font-weight:800;font-size:34px;letter-spacing:-.6px;margin:8px 0 8px;}
+  .lead{color:var(--muted);font-size:17px;max-width:60ch;margin-bottom:30px;}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  .card{background:#fff;border:1.5px solid var(--line);border-radius:var(--r-lg);padding:22px;box-shadow:4px 5px 0 #e3ecfb;}
+  .card .ic{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:21px;box-shadow:3px 3px 0 rgba(11,20,48,.12);}
+  .ic.blue{background:var(--tint);} .ic.aqua{background:var(--tint2);} .ic.green{background:var(--tint3);}
+  .card h3{font-family:var(--disp);font-weight:700;font-size:18px;margin:14px 0 6px;}
+  .card p{color:var(--muted);font-size:15px;}
+
+  .strip{display:flex;gap:30px;justify-content:center;flex-wrap:wrap;}
+  .shot{text-align:center;}
+  .shot .cap{margin-top:12px;font-size:13px;color:var(--muted);font-weight:600;}
+
+  /* testimonials */
+  .quotes{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  .quote{background:#fff;border:1.5px solid var(--line);border-radius:var(--r-lg);padding:22px;box-shadow:4px 5px 0 #e3ecfb;display:flex;flex-direction:column;}
+  .stars{color:#f5a623;font-size:14px;letter-spacing:2px;margin-bottom:10px;}
+  .quote p{font-size:15px;color:var(--ink);flex:1;}
+  .by{display:flex;align-items:center;gap:11px;margin-top:16px;}
+  .by .av{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:700;color:#fff;font-size:15px;box-shadow:2px 2px 0 rgba(11,20,48,.16);}
+  .by .who2 b{font-family:var(--disp);font-weight:700;font-size:14px;display:block;}
+  .by .who2 span{font-size:12px;color:var(--muted);}
+
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;}
+  .feat-list{list-style:none;margin-top:8px;}
+  .feat-list li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;font-size:16px;}
+  .feat-list .dot{width:22px;height:22px;border-radius:7px;background:var(--tint);color:var(--blue);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex:none;margin-top:2px;box-shadow:2px 2px 0 #dbe6fb;}
+
+  .price{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+  .price .card{display:flex;flex-direction:column;}
+  .price .pname{font-family:var(--disp);font-weight:700;}
+  .price .amt{font-family:var(--disp);font-size:30px;font-weight:800;margin:8px 0 2px;color:var(--blue);}
+  .price .amt small{font-size:14px;color:var(--muted);font-weight:500;}
+  .price ul{list-style:none;margin:14px 0 0;color:var(--muted);font-size:14px;}
+  .price li{padding:6px 0;border-top:1px solid var(--line);}
+  .price .card.feat{border:2px solid var(--blue);box-shadow:5px 6px 0 var(--blue-ink);}
+  .ptag{display:inline-block;font-size:11px;font-weight:800;color:#fff;background:var(--blue);padding:3px 10px;border-radius:999px;margin-bottom:6px;width:max-content;}
+
+  /* final CTA — solid, no gradient */
+  .final{margin:20px 0 0;background:var(--blue);border-radius:var(--r-xl);padding:56px 32px;text-align:center;color:#fff;box-shadow:7px 8px 0 var(--blue-ink);}
+  .final h2{color:#fff;font-size:38px;}
+  .final p{opacity:.94;font-size:18px;margin:10px 0 24px;}
+
+  footer{border-top:1.5px solid var(--line);margin-top:60px;padding:28px 0;color:var(--muted);font-size:14px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+
+  /* ===== device + screens (dark-blue app graphics) ===== */
+  .phone{width:280px;height:580px;background:#060e26;border-radius:44px;padding:10px;box-shadow:10px 12px 0 #c7d4ee;position:relative;}
+  .phone.sm{width:248px;height:516px;}
+  .screen{width:100%;height:100%;background:var(--app-bg);color:var(--app-text);border-radius:34px;overflow:hidden;position:relative;display:flex;flex-direction:column;}
+  .notch{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:110px;height:24px;background:#060e26;border-radius:0 0 15px 15px;z-index:6;}
+  .stat{height:36px;display:flex;align-items:center;justify-content:space-between;padding:13px 18px 0;font-size:11px;font-weight:600;color:var(--app-text);}
+  .scr{flex:1;overflow:hidden;padding:6px 14px 14px;}
+  .rowb{display:flex;align-items:center;gap:9px;} .between{justify-content:space-between;}
+  .pill{font-size:10px;font-weight:700;padding:4px 10px;border-radius:999px;}
+  .pill.solid{background:var(--btn);color:#fff;box-shadow:2px 2px 0 var(--sh);}
+  .amuted{color:var(--app-muted);} .disp{font-family:var(--disp);}
+  .appbtn{display:block;width:100%;text-align:center;background:var(--btn);color:#fff;font-weight:700;font-size:14px;padding:12px;border-radius:14px;box-shadow:3px 4px 0 var(--sh);}
+  .appbtn.ghost{background:transparent;color:var(--accent);border:1.5px solid var(--app-line);box-shadow:3px 4px 0 #0a1740;}
+  .sess{background:#0a1430;}
+  .door-emoji{width:32px;height:32px;border-radius:11px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:2px 2px 0 var(--sh);}
+  .timer{font-size:11px;font-weight:700;color:#fff;background:var(--btn);padding:3px 9px;border-radius:999px;box-shadow:2px 2px 0 var(--sh);}
+  .bubble{max-width:86%;padding:10px 12px;border-radius:16px;font-size:12px;line-height:1.4;margin-bottom:8px;}
+  .home-b{background:var(--surface2);border-bottom-left-radius:5px;box-shadow:2px 2px 0 var(--sh);}
+  .rep-b{background:var(--btn);color:#fff;border-bottom-right-radius:5px;margin-left:auto;box-shadow:3px 3px 0 var(--sh);}
+  .who{font-size:9px;font-weight:700;color:var(--app-muted);margin:0 4px 3px;}
+  .wave{display:flex;align-items:center;justify-content:center;gap:4px;height:30px;margin:6px 0 9px;}
+  .wave i{width:5px;border-radius:3px;background:var(--accent);display:block;}
+  .micbtn{width:56px;height:56px;border-radius:50%;background:var(--btn);margin:0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:4px 5px 0 var(--sh);}
+  .micnote{text-align:center;font-size:10px;color:var(--app-muted);margin-top:7px;font-weight:600;}
+  .num{font-family:var(--disp);font-weight:800;font-size:70px;line-height:1;color:var(--accent);text-align:center;margin-top:6px;}
+  .verdict{font-family:var(--disp);font-weight:700;font-size:14px;text-align:center;}
+  .vsub{font-size:10px;color:var(--app-muted);text-align:center;}
+  .dim{margin:8px 0;}
+  .dim .l{display:flex;justify-content:space-between;font-size:10px;font-weight:600;margin-bottom:3px;} .dim .l .v{color:var(--accent);}
+  .track{height:7px;background:#23366a;border-radius:6px;overflow:hidden;} .track i{display:block;height:100%;background:var(--accent);} .track i.aq{background:var(--aquad);}
+  .mini{background:var(--surface2);border-radius:12px;padding:9px;text-align:center;box-shadow:3px 3px 0 var(--sh);}
+  .mini .mn{font-family:var(--disp);font-weight:800;font-size:18px;color:var(--accent);} .mini .ml{font-size:9px;color:var(--app-muted);font-weight:600;}
+  .doorcard{display:flex;align-items:center;gap:10px;background:var(--surface);border:1.5px solid var(--app-line);border-radius:16px;padding:10px;margin-bottom:9px;box-shadow:3px 3px 0 var(--sh);}
+  .av-app{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:800;color:#fff;font-size:15px;box-shadow:2px 2px 0 var(--sh);}
+
+  /* dashboard graphic (dark app) */
+  .dash{background:var(--app-bg);color:var(--app-text);border:1.5px solid var(--app-line);border-radius:var(--r-xl);padding:22px 24px;box-shadow:8px 9px 0 #c7d4ee;}
+  .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:4px 0 16px;}
+  .kpi{background:var(--surface2);border-radius:16px;padding:14px;box-shadow:3px 3px 0 var(--sh);}
+  .kpi .kn{font-family:var(--disp);font-weight:800;font-size:26px;color:var(--accent);} .kpi.aq .kn{color:var(--aquad);}
+  .kpi .kl{font-size:12px;color:var(--app-muted);font-weight:600;}
+  .trow{display:flex;align-items:center;justify-content:space-between;padding:10px 2px;border-top:1px solid var(--app-line);font-size:14px;}
+  .rep{display:flex;align-items:center;gap:9px;}
+  .ra{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:700;color:#fff;font-size:12px;}
+  .bdg{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;}
+  .ready{background:rgba(61,220,151,.16);color:var(--agreen);} .almost{background:rgba(52,211,238,.16);color:var(--aquad);}
+  .a1{background:#3b6fe0;} .a2{background:#1aa6c4;} .a3{background:var(--btn);}
+
+  /* light-page avatar colors for testimonials */
+  .t1{background:var(--blue-deep);} .t2{background:var(--aqua);} .t3{background:var(--green);}
+
+  @media(max-width:880px){
+    .hero{grid-template-columns:1fr;} .hero-art{margin-top:10px;}
+    .grid3,.price,.quotes{grid-template-columns:1fr 1fr;} .split{grid-template-columns:1fr;}
+    .links{display:none;} h1{font-size:38px;}
+  }
+  @media(max-width:560px){ .grid3,.price,.quotes{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav>
+    <div class="brand">
+      <svg viewBox="0 0 116 96" width="44" height="36" role="img" aria-label="KnockCoach">
+        <path d="M8 12 L38 5 L38 84 L8 91 Z" fill="#16223e"/>
+        <path d="M38 5 L44 8 L44 81 L38 84 Z" fill="#0f1830"/>
+        <circle cx="31" cy="50" r="2.6" fill="#cfe0fb"/>
+        <rect x="70" y="4" width="40" height="26" rx="9" fill="#cfe0fb"/>
+        <path d="M80 28 l-7 10 l13 -6 Z" fill="#cfe0fb"/>
+        <circle cx="82" cy="17" r="2.7" fill="#16223e"/><circle cx="90" cy="17" r="2.7" fill="#16223e"/><circle cx="98" cy="17" r="2.7" fill="#16223e"/>
+        <path d="M62 30 l3 -8 M90 40 l9 -5 M93 55 l10 1 M88 69 l8 6" stroke="#2563EB" stroke-width="3" stroke-linecap="round" fill="none"/>
+        <rect x="50" y="40" width="34" height="30" rx="14" fill="#2563EB"/>
+        <circle cx="55" cy="40" r="9" fill="#2563EB"/>
+        <rect x="44" y="49" width="12" height="14" rx="4" fill="#1d4ed8"/>
+        <path d="M72 48 q5 7 0 14" stroke="#1d4ed8" stroke-width="3" fill="none" stroke-linecap="round"/>
+      </svg>
+      <div class="name">Knock<b>Coach</b></div>
+    </div>
+    <div class="links">
+      <a href="#how">How it works</a>
+      <a href="#teams">For teams</a>
+      <a href="#pricing">Pricing</a>
+      <a class="btn ghost" href="#start">Try free</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header class="hero">
+    <div>
+      <span class="badge">Free to try · no signup</span>
+      <h1>Train before you <em>knock</em>.</h1>
+      <p class="sub">Spar with a realistic AI homeowner, get scored, and walk up to real doors warmed up.</p>
+      <div class="cta-row">
+        <a class="btn lg" href="#start">Knock your first door →</a>
+        <a class="btn ghost lg" href="#how">See how it works</a>
+      </div>
+      <div class="note">2 free practice sessions. No card, no signup.</div>
+    </div>
+    <div class="hero-art">
+      <div class="phone"><div class="notch"></div><div class="screen sess">
+        <div class="stat"><span>9:42</span><span>●●● ◢ 🔋</span></div>
+        <div class="scr">
+          <div class="rowb between" style="padding:4px 0 10px;">
+            <div class="rowb"><div class="door-emoji">🚪</div><div><div class="disp" style="font-weight:700;font-size:13px;">Greg</div><div class="amuted" style="font-size:10px;font-weight:600;">Pest control · Diff 3</div></div></div>
+            <div class="timer">01:12</div>
+          </div>
+          <div class="who">GREG</div>
+          <div class="bubble home-b">Oh — hey. We're actually all set, we've got a guy already.</div>
+          <div class="who" style="text-align:right;margin-right:4px;">YOU</div>
+          <div class="bubble rep-b">Totally get it — is your current guy keeping the scorpions out back this summer?</div>
+          <div class="who">GREG</div>
+          <div class="bubble home-b">…Honestly? We still see 'em by the pool.</div>
+          <div class="wave"><i style="height:9px"></i><i style="height:20px"></i><i style="height:30px"></i><i style="height:16px"></i><i style="height:26px"></i><i style="height:11px"></i><i style="height:22px"></i><i style="height:28px"></i><i style="height:13px"></i></div>
+          <div class="micbtn">🎙️</div>
+          <div class="micnote">Listening… tap to respond</div>
+        </div>
+      </div></div>
+    </div>
+  </header>
+
+  <!-- APP IN ACTION -->
+  <section id="how">
+    <div class="eyebrow">See it in action</div>
+    <h2>Reps get good by reps.</h2>
+    <p class="lead">Unlimited, realistic practice doors — with instant coaching on exactly what to fix. Right in your phone's browser.</p>
+    <div class="strip">
+
+      <div class="shot">
+        <div class="phone sm"><div class="notch"></div><div class="screen">
+          <div class="stat"><span>9:41</span><span>●●● ◢ 🔋</span></div>
+          <div class="scr">
+            <div class="rowb between"><div><div class="amuted" style="font-size:11px;font-weight:600;">Welcome back</div><div class="disp" style="font-weight:800;font-size:19px;">Hey, Marcus 👋</div></div><span class="pill solid">🔥 4-day</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin:12px 0;">
+              <div class="mini"><div class="mn">82</div><div class="ml">BEST</div></div>
+              <div class="mini"><div class="mn">17</div><div class="ml">SESSIONS</div></div>
+              <div class="mini"><div class="mn">Pro</div><div class="ml">RANK</div></div>
+            </div>
+            <div class="disp" style="font-weight:700;font-size:14px;margin:2px 0 8px;">Pick your door</div>
+            <div class="doorcard"><div class="av-app a1">G</div><div style="flex:1"><div class="disp" style="font-weight:700;font-size:13px;">Greg</div><div class="amuted" style="font-size:10px;">Already-have-a-guy</div></div></div>
+            <div class="doorcard"><div class="av-app a2">D</div><div style="flex:1"><div class="disp" style="font-weight:700;font-size:13px;">Dana</div><div class="amuted" style="font-size:10px;">Thrifty DIYer</div></div></div>
+            <button class="appbtn" style="margin-top:4px;">Knock 🚪</button>
+          </div>
+        </div></div>
+        <div class="cap">Pick your door</div>
+      </div>
+
+      <div class="shot">
+        <div class="phone sm"><div class="notch"></div><div class="screen">
+          <div class="stat"><span>9:45</span><span>●●● ◢ 🔋</span></div>
+          <div class="scr">
+            <div class="num">82</div>
+            <div class="verdict">Strong open — lost it on price</div>
+            <div class="vsub">vs Greg · Pest control · Diff 3</div>
+            <div style="margin-top:10px;">
+              <div class="dim"><div class="l"><span>Open</span><span class="v">88</span></div><div class="track"><i style="width:88%"></i></div></div>
+              <div class="dim"><div class="l"><span>Discovery</span><span class="v">79</span></div><div class="track"><i style="width:79%"></i></div></div>
+              <div class="dim"><div class="l"><span>Objection handling</span><span class="v">74</span></div><div class="track"><i class="aq" style="width:74%"></i></div></div>
+              <div class="dim"><div class="l"><span>Value &amp; urgency</span><span class="v">71</span></div><div class="track"><i style="width:71%"></i></div></div>
+              <div class="dim"><div class="l"><span>Close</span><span class="v">85</span></div><div class="track"><i style="width:85%"></i></div></div>
+            </div>
+            <div class="rowb" style="gap:8px;margin-top:12px;"><button class="appbtn ghost" style="flex:1">Run it back</button><button class="appbtn" style="flex:1">Share 🚀</button></div>
+          </div>
+        </div></div>
+        <div class="cap">Get scored + coached</div>
+      </div>
+
+      <div class="shot">
+        <div class="phone sm"><div class="notch"></div><div class="screen sess" style="display:flex;align-items:center;justify-content:center;">
+          <div class="stat" style="position:absolute;top:0;left:0;right:0;"><span>9:45</span><span>●●● ◢ 🔋</span></div>
+          <div style="width:200px;border-radius:22px;background:var(--btn);padding:20px 18px;color:#fff;box-shadow:6px 7px 0 var(--sh);text-align:center;">
+            <div class="disp rowb" style="font-weight:700;font-size:13px;justify-content:center;gap:6px;"><span style="width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:12px;">K</span> KnockCoach</div>
+            <div class="disp" style="font-weight:800;font-size:70px;line-height:1;margin:12px 0 0;">82</div>
+            <div style="opacity:.85;font-size:11px;">out of 100</div>
+            <div class="disp" style="font-weight:700;font-size:13px;margin:10px 0 2px;">"Strong open"</div>
+            <div style="margin-top:13px;font-size:11px;font-weight:600;background:rgba(255,255,255,.16);border-radius:12px;padding:9px;">🚪 Can you beat my pitch?<br>knockcoach.com</div>
+          </div>
+        </div></div>
+        <div class="cap">Share your score</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- WHY -->
+  <section>
+    <div class="eyebrow">Why reps love it</div>
+    <h2>Practice that actually sticks.</h2>
+    <div class="grid3" style="margin-top:8px;">
+      <div class="card"><div class="ic blue">🔥</div><h3>No real doors wasted</h3><p>Burn your mistakes on a fake door, not your best neighborhood.</p></div>
+      <div class="card"><div class="ic aqua">📈</div><h3>See yourself improve</h3><p>Every session is scored. Watch your number climb, session after session.</p></div>
+      <div class="card"><div class="ic green">🏅</div><h3>Earn your rank</h3><p>Ladder from Rookie to All-Star and become KnockCoach Certified.</p></div>
+    </div>
+  </section>
+
+  <!-- TESTIMONIALS -->
+  <section>
+    <div class="eyebrow">Loved by reps & managers</div>
+    <h2>From the doorstep.</h2>
+    <div class="quotes" style="margin-top:8px;">
+      <div class="quote"><div class="stars">★★★★★</div><p>"I did ten reps on the hostile homeowner before my first shift. First real 'no soliciting' guy didn't even rattle me. Closed two that day."</p><div class="by"><div class="av t1">JC</div><div class="who2"><b>Jordan C.</b><span>Solar rep, 2 weeks in</span></div></div></div>
+      <div class="quote"><div class="stars">★★★★★</div><p>"My new hires used to ramp in three weeks. Now they're booking appointments their first week. The readiness dashboard tells me exactly who's ready."</p><div class="by"><div class="av t2">RM</div><div class="who2"><b>Renee M.</b><span>Sales manager, pest control</span></div></div></div>
+      <div class="quote"><div class="stars">★★★★★</div><p>"It's weirdly addicting. I keep trying to beat my score on Storm-skeptic Steve. Genuinely sharper on objections now."</p><div class="by"><div class="av t3">DT</div><div class="who2"><b>Devon T.</b><span>Roofing rep</span></div></div></div>
+    </div>
+  </section>
+
+  <!-- TEAMS -->
+  <section id="teams">
+    <div class="split">
+      <div>
+        <div class="eyebrow">For sales managers</div>
+        <h2>Onboard faster. See who's ready.</h2>
+        <p class="lead" style="margin-bottom:6px;">Stop letting new hires learn on live doors. Assign practice, set a "ready to knock" bar, and see exactly who's there.</p>
+        <ul class="feat-list">
+          <li><span class="dot">✓</span> New reps run 25+ practice doors before day one</li>
+          <li><span class="dot">✓</span> Per-rep scores, weak spots, and certification at a glance</li>
+          <li><span class="dot">✓</span> Pooled credits that scale with your turnover</li>
+        </ul>
+      </div>
+      <div class="dash">
+        <div class="rowb between" style="margin-bottom:10px;"><div class="disp" style="font-weight:800;font-size:18px;">Team readiness</div><span class="pill solid">This week</span></div>
+        <div class="kpis">
+          <div class="kpi"><div class="kn">73</div><div class="kl">Avg team score</div></div>
+          <div class="kpi aq"><div class="kn">4 / 6</div><div class="kl">Ready to knock</div></div>
+        </div>
+        <div class="trow"><div class="rep"><div class="ra a1">MJ</div>Marcus Jones</div><span class="bdg ready">Certified</span></div>
+        <div class="trow"><div class="rep"><div class="ra a2">SP</div>Sara Patel</div><span class="bdg ready">Ready</span></div>
+        <div class="trow"><div class="rep"><div class="ra a3">DL</div>Diego Luna</div><span class="bdg almost">Almost there</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="pricing">
+    <div class="eyebrow">Pricing</div>
+    <h2>Simple, credit-based plans.</h2>
+    <p class="lead">1 credit = 1 practice session. Credits are shared across your team. Start free.</p>
+    <div class="price">
+      <div class="card"><div class="pname">Free</div><div class="amt">$0</div><ul><li>2 sessions free</li><li>Starter personas</li><li>Instant scoring</li><li>Score card</li></ul></div>
+      <div class="card feat"><span class="ptag">MOST POPULAR</span><div class="pname">Starter</div><div class="amt">$49<small>/mo</small></div><ul><li>60 sessions/mo</li><li>All personas</li><li>Hard mode</li><li>Coaching history</li></ul></div>
+      <div class="card"><div class="pname">Growth</div><div class="amt">$149<small>/mo</small></div><ul><li>185 sessions/mo</li><li>Manager dashboard</li><li>Onboarding tracks</li><li>Certification</li></ul></div>
+      <div class="card"><div class="pname">Scale</div><div class="amt">$399<small>/mo</small></div><ul><li>500 sessions/mo</li><li>Leaderboards</li><li>Team reporting</li><li>Priority support</li></ul></div>
+    </div>
+    <p class="note">Hundreds of reps? <a href="#start" style="color:var(--blue);font-weight:600;">Talk to us about Enterprise</a> — committed credits, auto-replenish, SSO.</p>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section id="start" style="padding-top:10px;">
+    <div class="final">
+      <h2>Your next door is free.</h2>
+      <p>Two practice sessions, right now. See your score in two minutes.</p>
+      <a class="btn white lg" href="#">Knock your first door →</a>
+    </div>
+  </section>
+
+  <footer>
+    <div>© 2026 KnockCoach · a KnockIQ product</div>
+    <div>Train before you knock.</div>
+  </footer>
+
+</div>
+</body>
+</html>

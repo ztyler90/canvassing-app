@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KnockCoach — App Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* page chrome (light) */
+    --blue:#2563EB; --blue-ink:#16307a; --ink:#0f1b3d; --muted:#5d6b8c; --line:#dde7f6;
+    /* dark-blue APP theme */
+    --app-bg:#0d1838; --surface:#16264f; --surface2:#1c3061; --app-line:#2b3f73;
+    --app-text:#ecf1ff; --app-muted:#9aabd6; --accent:#4f8cff; --btn:#2f6bff;
+    --aqua:#34d3ee; --green:#3ddc97; --sh:#05102e;
+    --disp:'Sora',system-ui,sans-serif; --body:'Inter',system-ui,sans-serif;
+    --r-sm:12px; --r-md:16px; --r-lg:20px; --r-xl:26px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--body);color:var(--ink);background:#f1f5fc;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 24px 90px;}
+
+  .brand{display:flex;align-items:center;gap:12px;}
+  .logomark{width:44px;height:44px;border-radius:14px;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--disp);font-weight:800;font-size:22px;box-shadow:3px 3px 0 var(--blue-ink);}
+  .brand .name{font-family:var(--disp);font-weight:800;font-size:26px;letter-spacing:-.5px;}
+  .brand .name b{color:var(--blue);}
+  .lede{margin:20px 0 6px;font-family:var(--disp);font-weight:800;font-size:40px;letter-spacing:-1px;line-height:1.05;max-width:18ch;}
+  .lede em{font-style:normal;color:var(--blue);}
+  .sub{color:var(--muted);font-size:17px;max-width:62ch;margin-bottom:12px;}
+  .fontnote{display:inline-flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);background:#fff;border:1.5px solid var(--line);padding:7px 13px;border-radius:999px;box-shadow:3px 3px 0 #e8eef9;}
+  .sechead{font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.13em;text-transform:uppercase;color:var(--blue);margin:46px 0 18px;}
+
+  .phones{display:flex;flex-wrap:wrap;gap:38px;align-items:flex-start;}
+  .phoneblock{width:300px;}
+  .phoneblock .cap{margin-top:16px;text-align:center;}
+  .phoneblock .cap b{font-family:var(--disp);font-weight:700;font-size:16px;display:block;}
+  .phoneblock .cap span{color:var(--muted);font-size:13px;}
+
+  /* device */
+  .phone{width:300px;height:620px;background:#060e26;border-radius:46px;padding:11px;box-shadow:10px 12px 0 #c7d4ee;position:relative;}
+  .screen{width:100%;height:100%;background:var(--app-bg);color:var(--app-text);border-radius:36px;overflow:hidden;position:relative;display:flex;flex-direction:column;}
+  .notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:120px;height:26px;background:#060e26;border-radius:0 0 16px 16px;z-index:6;}
+  .stat{height:40px;display:flex;align-items:center;justify-content:space-between;padding:14px 20px 0;font-size:12px;font-weight:600;color:var(--app-text);}
+  .body{flex:1;overflow:hidden;padding:8px 16px 16px;}
+
+  .row{display:flex;align-items:center;gap:10px;} .between{justify-content:space-between;}
+  .pill{font-size:11px;font-weight:700;padding:5px 11px;border-radius:999px;}
+  .pill.solid{background:var(--btn);color:#fff;box-shadow:2px 2px 0 var(--sh);}
+  .h{font-family:var(--disp);font-weight:700;letter-spacing:-.4px;}
+  .appmuted{color:var(--app-muted);}
+  .btn{display:block;width:100%;text-align:center;background:var(--btn);color:#fff;font-weight:700;font-size:15px;padding:14px;border-radius:var(--r-md);border:0;box-shadow:4px 5px 0 var(--sh);font-family:var(--body);}
+  .btn.ghost{background:transparent;color:var(--accent);border:1.5px solid var(--app-line);box-shadow:4px 5px 0 #0a1740;}
+
+  /* HOME */
+  .greet{font-family:var(--disp);font-weight:800;font-size:23px;letter-spacing:-.5px;margin-top:6px;}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin:14px 0;}
+  .mini{background:var(--surface2);border-radius:var(--r-sm);padding:11px 8px;text-align:center;box-shadow:3px 3px 0 var(--sh);}
+  .mini .n{font-family:var(--disp);font-weight:800;font-size:20px;color:var(--accent);}
+  .mini .l{font-size:10px;color:var(--app-muted);font-weight:600;margin-top:2px;}
+  .doorcard{display:flex;align-items:center;gap:12px;background:var(--surface);border:1.5px solid var(--app-line);border-radius:var(--r-lg);padding:12px;margin-bottom:12px;box-shadow:3px 3px 0 var(--sh);}
+  .avatar{width:44px;height:44px;border-radius:13px;flex:none;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:800;color:#fff;font-size:17px;box-shadow:2px 2px 0 var(--sh);}
+  .a1{background:#3b6fe0;} .a2{background:#1aa6c4;} .a3{background:var(--btn);}
+  .doorcard .t1{font-family:var(--disp);font-weight:700;font-size:14px;}
+  .doorcard .t2{font-size:11px;color:var(--app-muted);}
+  .dots{display:flex;gap:3px;} .dots i{width:7px;height:7px;border-radius:50%;background:#2c3f72;display:block;} .dots i.on{background:var(--accent);}
+
+  /* SESSION */
+  .sess{background:#0a1430;}
+  .sessbar{display:flex;align-items:center;justify-content:space-between;padding:6px 2px 12px;}
+  .door-emoji{width:36px;height:36px;border-radius:12px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:2px 2px 0 var(--sh);}
+  .speaker{font-family:var(--disp);font-weight:700;font-size:14px;}
+  .timer{font-size:12px;font-weight:700;color:#fff;background:var(--btn);padding:4px 10px;border-radius:999px;box-shadow:2px 2px 0 var(--sh);}
+  .bubble{max-width:84%;padding:11px 13px;border-radius:18px;font-size:13px;line-height:1.45;margin-bottom:10px;}
+  .home-b{background:var(--surface2);color:var(--app-text);border-bottom-left-radius:6px;box-shadow:2px 2px 0 var(--sh);}
+  .rep-b{background:var(--btn);color:#fff;border-bottom-right-radius:6px;margin-left:auto;box-shadow:3px 3px 0 var(--sh);}
+  .who{font-size:10px;font-weight:700;color:var(--app-muted);margin:0 4px 3px;}
+  .listening{position:absolute;left:0;right:0;bottom:0;padding:16px 16px 18px;background:#0a1430;border-top:1px solid var(--app-line);}
+  .wave{display:flex;align-items:center;justify-content:center;gap:4px;height:34px;margin-bottom:10px;}
+  .wave i{width:5px;border-radius:3px;background:var(--accent);display:block;}
+  .micbtn{width:64px;height:64px;border-radius:50%;background:var(--btn);margin:0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;box-shadow:4px 5px 0 var(--sh);}
+  .micnote{text-align:center;font-size:11px;color:var(--app-muted);margin-top:9px;font-weight:600;}
+
+  /* DEBRIEF */
+  .scorehero{text-align:center;padding:14px 0 6px;}
+  .scorehero .num{font-family:var(--disp);font-weight:800;font-size:78px;line-height:1;color:var(--accent);}
+  .scorehero .verdict{font-family:var(--disp);font-weight:700;font-size:15px;margin-top:2px;}
+  .scorehero .vsub{font-size:11px;color:var(--app-muted);}
+  .dim{margin:9px 0;}
+  .dim .lab{display:flex;justify-content:space-between;font-size:11px;font-weight:600;margin-bottom:4px;color:var(--app-text);}
+  .dim .lab .v{color:var(--accent);}
+  .track{height:8px;background:#23366a;border-radius:6px;overflow:hidden;}
+  .track i{display:block;height:100%;background:var(--accent);border-radius:6px;}
+  .track i.aq{background:var(--aqua);}
+  .coachcard{background:var(--surface);border:1px solid var(--app-line);border-radius:var(--r-sm);padding:11px 12px;margin-top:10px;box-shadow:3px 3px 0 var(--sh);}
+  .coachcard .q{font-size:11px;color:var(--app-muted);font-style:italic;}
+  .coachcard .fix{font-size:12px;font-weight:600;color:var(--accent);margin-top:3px;}
+
+  /* SHARE CARD (solid, no gradient) */
+  .sharewrap{background:#0a1430;align-items:center;justify-content:center;display:flex;}
+  .sc{margin:auto;width:236px;border-radius:var(--r-xl);background:var(--btn);padding:22px 20px;color:#fff;box-shadow:6px 7px 0 var(--sh);text-align:center;}
+  .sc .brandrow{display:flex;align-items:center;justify-content:center;gap:7px;font-family:var(--disp);font-weight:700;font-size:14px;}
+  .sc .lm{width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:13px;}
+  .sc .big{font-family:var(--disp);font-weight:800;font-size:84px;line-height:1;margin:14px 0 2px;}
+  .sc .of{opacity:.85;font-size:12px;}
+  .sc .vd{font-family:var(--disp);font-weight:700;font-size:15px;margin:12px 0 2px;}
+  .sc .persona{font-size:11px;opacity:.85;}
+  .sc .hook{margin-top:16px;font-size:12px;font-weight:600;background:rgba(255,255,255,.16);border-radius:var(--r-sm);padding:10px;}
+  .sharebtns{position:absolute;left:16px;right:16px;bottom:16px;display:flex;gap:10px;}
+  .sharebtns .btn{padding:12px;font-size:13px;}
+
+  /* MANAGER DASHBOARD (dark app) */
+  .dash{background:var(--app-bg);color:var(--app-text);border:1.5px solid var(--app-line);border-radius:var(--r-xl);padding:22px 24px;box-shadow:8px 9px 0 #c7d4ee;}
+  .dash .top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;}
+  .dash .top .h{font-size:22px;}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+  .kpi{background:var(--surface2);border-radius:var(--r-lg);padding:16px;box-shadow:3px 3px 0 var(--sh);}
+  .kpi .n{font-family:var(--disp);font-weight:800;font-size:30px;color:var(--accent);}
+  .kpi.aq .n{color:var(--aqua);}
+  .kpi .l{font-size:12px;color:var(--app-muted);font-weight:600;margin-top:3px;}
+  table{width:100%;border-collapse:collapse;}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--app-muted);padding:8px 10px;border-bottom:1.5px solid var(--app-line);}
+  td{padding:11px 10px;border-bottom:1px solid var(--app-line);font-size:14px;color:var(--app-text);}
+  .rep{display:flex;align-items:center;gap:10px;}
+  .ra{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:700;color:#fff;font-size:13px;box-shadow:2px 2px 0 var(--sh);}
+  .score-chip{font-family:var(--disp);font-weight:800;font-size:15px;color:var(--accent);}
+  .badge{font-size:11px;font-weight:700;padding:5px 11px;border-radius:999px;}
+  .ready{background:rgba(61,220,151,.16);color:var(--green);}
+  .almost{background:rgba(52,211,238,.16);color:var(--aqua);}
+  .nope{background:rgba(154,171,214,.16);color:var(--app-muted);}
+  .barmini{width:90px;height:8px;background:#23366a;border-radius:5px;overflow:hidden;display:inline-block;vertical-align:middle;}
+  .barmini i{display:block;height:100%;background:var(--accent);}
+  @media(max-width:760px){.kpis{grid-template-columns:1fr 1fr;} .lede{font-size:30px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <svg viewBox="0 0 116 96" width="46" height="38" role="img" aria-label="KnockCoach">
+      <path d="M8 12 L38 5 L38 84 L8 91 Z" fill="#16223e"/>
+      <path d="M38 5 L44 8 L44 81 L38 84 Z" fill="#0f1830"/>
+      <circle cx="31" cy="50" r="2.6" fill="#cfe0fb"/>
+      <rect x="70" y="4" width="40" height="26" rx="9" fill="#cfe0fb"/>
+      <path d="M80 28 l-7 10 l13 -6 Z" fill="#cfe0fb"/>
+      <circle cx="82" cy="17" r="2.7" fill="#16223e"/><circle cx="90" cy="17" r="2.7" fill="#16223e"/><circle cx="98" cy="17" r="2.7" fill="#16223e"/>
+      <path d="M62 30 l3 -8 M90 40 l9 -5 M93 55 l10 1 M88 69 l8 6" stroke="#2563EB" stroke-width="3" stroke-linecap="round" fill="none"/>
+      <rect x="50" y="40" width="34" height="30" rx="14" fill="#2563EB"/>
+      <circle cx="55" cy="40" r="9" fill="#2563EB"/>
+      <rect x="44" y="49" width="12" height="14" rx="4" fill="#1d4ed8"/>
+      <path d="M72 48 q5 7 0 14" stroke="#1d4ed8" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>
+    <div class="name">Knock<b>Coach</b></div>
+  </div>
+  <div class="lede">The app, <em>in action</em>.</div>
+  <p class="sub">The KnockCoach interface — dark-blue theme, mobile-first. Pick a door, practice out loud, get scored, share it.</p>
+  <span class="fontnote">Display: Sora · Body: Inter · Dark-blue app theme · no gradients</span>
+
+  <div class="sechead">Rep flow (mobile-first PWA)</div>
+  <div class="phones">
+
+    <!-- 1. HOME -->
+    <div class="phoneblock">
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="stat"><span>9:41</span><span>●●● ◢ 🔋</span></div>
+        <div class="body">
+          <div class="row between">
+            <div><div class="appmuted" style="font-size:12px;font-weight:600;">Welcome back</div><div class="greet">Hey, Marcus 👋</div></div>
+            <span class="pill solid">🔥 4-day streak</span>
+          </div>
+          <div class="statgrid">
+            <div class="mini"><div class="n">82</div><div class="l">BEST SCORE</div></div>
+            <div class="mini"><div class="n">17</div><div class="l">SESSIONS</div></div>
+            <div class="mini"><div class="n">Pro</div><div class="l">RANK</div></div>
+          </div>
+          <div class="row between" style="margin:6px 2px 10px;"><div class="h" style="font-size:15px;">Pick your door</div><span class="appmuted" style="font-size:12px;">Pest control ▾</span></div>
+          <div class="doorcard"><div class="avatar a1">G</div><div style="flex:1"><div class="t1">Already-have-a-guy Greg</div><div class="t2">Polite but dismissive</div></div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+          <div class="doorcard"><div class="avatar a2">D</div><div style="flex:1"><div class="t1">DIY Dana</div><div class="t2">Thrifty, friendly</div></div><div class="dots"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div></div>
+          <div class="doorcard"><div class="avatar a3">W</div><div style="flex:1"><div class="t1">Contract-wary Will</div><div class="t2">Guarded · hard mode</div></div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div></div>
+          <button class="btn" style="margin-top:6px;">Knock 🚪</button>
+        </div>
+      </div></div>
+      <div class="cap"><b>Home</b><span>Streak, rank & pick-a-door</span></div>
+    </div>
+
+    <!-- 2. LIVE SESSION -->
+    <div class="phoneblock">
+      <div class="phone"><div class="notch"></div><div class="screen sess">
+        <div class="stat"><span>9:42</span><span>●●● ◢ 🔋</span></div>
+        <div class="body" style="position:relative;">
+          <div class="sessbar">
+            <div class="row"><div class="door-emoji">🚪</div><div><div class="speaker">Greg</div><div class="appmuted" style="font-size:10px;font-weight:600;">Pest control · Diff 3</div></div></div>
+            <div class="timer">01:12</div>
+          </div>
+          <div class="who">GREG</div>
+          <div class="bubble home-b">Oh — hey. We're actually all set, we've got a guy already.</div>
+          <div class="who" style="text-align:right;margin-right:4px;">YOU</div>
+          <div class="bubble rep-b">Totally get it. Quick question — is your current guy keeping the scorpions out back this summer?</div>
+          <div class="who">GREG</div>
+          <div class="bubble home-b">…Honestly? We still see 'em by the pool. But switching sounds like a hassle.</div>
+          <div class="listening">
+            <div class="wave"><i style="height:10px"></i><i style="height:22px"></i><i style="height:32px"></i><i style="height:18px"></i><i style="height:28px"></i><i style="height:12px"></i><i style="height:24px"></i><i style="height:30px"></i><i style="height:14px"></i></div>
+            <div class="micbtn">🎙️</div>
+            <div class="micnote">Listening… tap to respond</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap"><b>Live session</b><span>Talk; the homeowner talks back</span></div>
+    </div>
+
+    <!-- 3. DEBRIEF -->
+    <div class="phoneblock">
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="stat"><span>9:45</span><span>●●● ◢ 🔋</span></div>
+        <div class="body">
+          <div class="scorehero">
+            <div class="num">82</div>
+            <div class="verdict">Strong open — lost it on price</div>
+            <div class="vsub">vs Greg · Pest control · Diff 3</div>
+          </div>
+          <div class="dim"><div class="lab"><span>Open</span><span class="v">88</span></div><div class="track"><i style="width:88%"></i></div></div>
+          <div class="dim"><div class="lab"><span>Discovery</span><span class="v">79</span></div><div class="track"><i style="width:79%"></i></div></div>
+          <div class="dim"><div class="lab"><span>Objection handling</span><span class="v">74</span></div><div class="track"><i class="aq" style="width:74%"></i></div></div>
+          <div class="dim"><div class="lab"><span>Value &amp; urgency</span><span class="v">71</span></div><div class="track"><i style="width:71%"></i></div></div>
+          <div class="dim"><div class="lab"><span>Close</span><span class="v">85</span></div><div class="track"><i style="width:85%"></i></div></div>
+          <div class="coachcard"><div class="q">"It's about the same price as what you've got…"</div><div class="fix">→ Reframe on results, don't anchor on price.</div></div>
+          <div class="row" style="gap:10px;margin-top:13px;"><button class="btn ghost" style="flex:1">Run it back</button><button class="btn" style="flex:1">Share 🚀</button></div>
+        </div>
+      </div></div>
+      <div class="cap"><b>Score &amp; coaching</b><span>The hero number + fixes</span></div>
+    </div>
+
+    <!-- 4. SHARE CARD -->
+    <div class="phoneblock">
+      <div class="phone"><div class="notch"></div><div class="screen sharewrap">
+        <div class="stat" style="position:absolute;top:0;left:0;right:0;"><span>9:45</span><span>●●● ◢ 🔋</span></div>
+        <div class="sc">
+          <div class="brandrow"><div class="lm">K</div> KnockCoach</div>
+          <div class="big">82</div>
+          <div class="of">out of 100</div>
+          <div class="vd">"Strong open — lost it on price"</div>
+          <div class="persona">vs Already-have-a-guy Greg</div>
+          <div class="hook">🚪 Can you beat my pitch?<br>knockcoach.com</div>
+        </div>
+        <div class="sharebtns"><button class="btn ghost" style="flex:1">Save</button><button class="btn" style="flex:1.4">Share to story</button></div>
+      </div></div>
+      <div class="cap"><b>Shareable score card</b><span>Every share is an ad</span></div>
+    </div>
+
+  </div>
+
+  <div class="sechead">Manager view</div>
+  <div class="dash">
+    <div class="top">
+      <div><div class="h">Team readiness</div><div class="appmuted" style="font-size:13px;">Phoenix · 6 reps onboarding</div></div>
+      <div class="row" style="gap:8px;"><span class="pill solid">This week</span><span class="pill solid">+ Assign practice</span></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="n">73</div><div class="l">Avg team score</div></div>
+      <div class="kpi aq"><div class="n">4 / 6</div><div class="l">Ready to knock</div></div>
+      <div class="kpi"><div class="n">128</div><div class="l">Sessions this week</div></div>
+      <div class="kpi aq"><div class="n">2.4d</div><div class="l">Avg ramp time</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Rep</th><th>Best score</th><th>Progress</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><div class="rep"><div class="ra a1">MJ</div>Marcus Jones</div></td><td><span class="score-chip">82</span></td><td><span class="barmini"><i style="width:82%"></i></span></td><td><span class="badge ready">KnockCoach Certified</span></td></tr>
+        <tr><td><div class="rep"><div class="ra a2">SP</div>Sara Patel</div></td><td><span class="score-chip">78</span></td><td><span class="barmini"><i style="width:78%"></i></span></td><td><span class="badge ready">Ready</span></td></tr>
+        <tr><td><div class="rep"><div class="ra a3">DL</div>Diego Luna</div></td><td><span class="score-chip">64</span></td><td><span class="barmini"><i style="width:64%"></i></span></td><td><span class="badge almost">Almost there</span></td></tr>
+        <tr><td><div class="rep"><div class="ra a1">TR</div>Tia Reyes</div></td><td><span class="score-chip">51</span></td><td><span class="barmini"><i style="width:51%"></i></span></td><td><span class="badge nope">Needs reps</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>

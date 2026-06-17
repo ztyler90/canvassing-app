@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">KnockIQ</string>
+    <string name="title_activity_main">KnockIQ</string>
+    <string name="package_name">com.getknockiq.knockiq</string>
+    <string name="custom_url_scheme">com.getknockiq.knockiq</string>
+</resources>

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KnockCoach — Phase 0 Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#2563EB; --blue-ink:#16307a;
+    --app-bg:#0d1838; --surface:#16264f; --surface2:#1c3061; --line:#2b3f73;
+    --text:#ecf1ff; --muted:#9aabd6; --accent:#4f8cff; --btn:#2f6bff; --aqua:#34d3ee; --green:#3ddc97; --sh:#05102e;
+    --disp:'Sora',system-ui,sans-serif; --body:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--body);background:var(--app-bg);color:var(--text);-webkit-font-smoothing:antialiased;}
+  .topbar{background:#fff;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 0 #d7e2f6;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .name{font-family:var(--disp);font-weight:800;font-size:20px;color:#16223e;letter-spacing:-.5px;}
+  .name b{color:var(--blue);font-weight:800;}
+  .tag{color:#5d6b8c;font-size:12px;font-weight:600;}
+  .wrap{max-width:680px;margin:0 auto;padding:18px 16px 40px;}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  select{font:inherit;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 11px;}
+  button{font:inherit;cursor:pointer;border:0;}
+  .btn{background:var(--btn);color:#fff;font-weight:700;border-radius:10px;padding:9px 15px;box-shadow:3px 4px 0 var(--sh);}
+  .btn.ghost{background:transparent;color:var(--accent);border:1.5px solid var(--line);box-shadow:3px 4px 0 #0a1740;}
+  .btn:disabled{opacity:.45;cursor:default;box-shadow:none;}
+  .toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-left:auto;}
+  .switch{width:42px;height:24px;border-radius:999px;background:var(--surface2);position:relative;transition:.15s;border:1px solid var(--line);cursor:pointer;}
+  .switch.on{background:var(--btn);}
+  .switch i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.15s;}
+  .switch.on i{left:21px;}
+  #chat{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;min-height:340px;box-shadow:4px 5px 0 var(--sh);}
+  .who{font-size:10px;font-weight:700;color:var(--muted);margin:0 4px 3px;}
+  .msg{display:flex;margin:4px 0 10px;}
+  .bubble{max-width:82%;padding:11px 13px;border-radius:16px;font-size:14px;line-height:1.45;}
+  .msg.rep{justify-content:flex-end;} .msg.rep .bubble{background:var(--btn);color:#fff;border-bottom-right-radius:5px;box-shadow:3px 3px 0 var(--sh);}
+  .msg.home .bubble{background:var(--surface2);border-bottom-left-radius:5px;box-shadow:2px 2px 0 var(--sh);}
+  .meta{font-size:10px;color:var(--muted);margin-top:3px;}
+  .voicebar{display:flex;flex-direction:column;align-items:center;margin-top:14px;}
+  .mic{width:74px;height:74px;border-radius:50%;background:var(--btn);color:#fff;font-size:28px;display:flex;align-items:center;justify-content:center;box-shadow:4px 5px 0 var(--sh);cursor:pointer;}
+  .mic.live{background:var(--accent);animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+  .micnote{font-size:12px;color:var(--muted);margin-top:8px;font-weight:600;}
+  .composer{display:flex;gap:8px;margin-top:12px;}
+  .composer input{flex:1;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:inherit;}
+  .score{margin-top:16px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:4px 5px 0 var(--sh);}
+  .stop{display:flex;align-items:baseline;gap:14px;}
+  .bignum{font-family:var(--disp);font-size:60px;font-weight:800;color:var(--accent);line-height:1;}
+  .verdict{font-family:var(--disp);font-weight:700;}
+  .dim{margin:9px 0;} .dim .l{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);} .dim .l .v{color:var(--accent);}
+  .track{height:8px;background:#23366a;border-radius:6px;overflow:hidden;margin-top:3px;} .track i{display:block;height:100%;background:var(--accent);}
+  .coach{border-top:1px solid var(--line);margin-top:12px;padding-top:12px;font-size:13px;}
+  .coach .q{color:var(--muted);font-style:italic;} .coach .fix{color:var(--green);}
+  .hint{color:var(--muted);font-size:13px;} .err{color:#ff9a8a;font-size:13px;margin-top:8px;}
+  .warn{background:rgba(255,200,80,.12);color:#ffd27a;border:1px solid rgba(255,200,80,.3);border-radius:10px;padding:9px 11px;font-size:12px;margin-bottom:12px;}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 116 96" width="40" height="33" role="img" aria-label="KnockCoach">
+        <path d="M8 12 L38 5 L38 84 L8 91 Z" fill="#16223e"/>
+        <path d="M38 5 L44 8 L44 81 L38 84 Z" fill="#0f1830"/>
+        <circle cx="31" cy="50" r="2.6" fill="#cfe0fb"/>
+        <rect x="70" y="4" width="40" height="26" rx="9" fill="#cfe0fb"/>
+        <path d="M80 28 l-7 10 l13 -6 Z" fill="#cfe0fb"/>
+        <circle cx="82" cy="17" r="2.7" fill="#16223e"/><circle cx="90" cy="17" r="2.7" fill="#16223e"/><circle cx="98" cy="17" r="2.7" fill="#16223e"/>
+        <path d="M62 30 l3 -8 M90 40 l9 -5 M93 55 l10 1 M88 69 l8 6" stroke="#2563EB" stroke-width="3" stroke-linecap="round" fill="none"/>
+        <rect x="50" y="40" width="34" height="30" rx="14" fill="#2563EB"/>
+        <circle cx="55" cy="40" r="9" fill="#2563EB"/>
+        <rect x="44" y="49" width="12" height="14" rx="4" fill="#1d4ed8"/>
+        <path d="M72 48 q5 7 0 14" stroke="#1d4ed8" stroke-width="3" fill="none" stroke-linecap="round"/>
+      </svg>
+      <span class="name">Knock<b>Coach</b></span>
+    </div>
+    <span class="tag">Phase 0 test</span>
+  </div>
+
+  <div class="wrap">
+    <div id="warn" class="warn" style="display:none;"></div>
+    <div class="controls">
+      <select id="persona"></select>
+      <button id="start" class="btn ghost">Knock 🚪</button>
+      <button id="end" class="btn ghost" disabled>End &amp; Score</button>
+      <label class="toggle">Voice <span id="vswitch" class="switch on"><i></i></span></label>
+    </div>
+
+    <div id="chat"><div class="hint">Pick a homeowner and hit <b>Knock</b>. You're the rep — talk (or type) your pitch.</div></div>
+
+    <div id="voicebar" class="voicebar">
+      <div id="mic" class="mic">🎙️</div>
+      <div id="micnote" class="micnote">Tap the mic and speak</div>
+    </div>
+
+    <div class="composer">
+      <input id="input" placeholder="…or type your response" disabled autocomplete="off" />
+      <button id="send" class="btn" disabled>Send</button>
+    </div>
+
+    <div id="scoreBox"></div>
+    <div id="err" class="err"></div>
+  </div>
+
+<script>
+let history=[], personaId=null, started=false, voiceMode=true, personas=[];
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const synth = window.speechSynthesis;
+let rec=null, recognizing=false, voices=[];
+
+const $=(id)=>document.getElementById(id);
+const chat=$("chat");
+
+if(synth){ const load=()=>{voices=synth.getVoices();}; load(); if(synth.onvoiceschanged!==undefined) synth.onvoiceschanged=load; }
+if(!SR){ $("warn").style.display="block"; $("warn").innerHTML="Voice input needs Chrome or Edge. You can still type — or switch browsers for the full voice test."; }
+
+(async()=>{ personas=await (await fetch("/api/personas")).json();
+  $("persona").innerHTML=personas.map(p=>`<option value="${p.id}">${p.name} — ${p.vertical} (d${p.difficulty})</option>`).join(""); })();
+
+function pickVoice(gender){
+  if(!voices.length) return null;
+  const en=voices.filter(v=>/en[-_]/i.test(v.lang)||/english/i.test(v.name));
+  const pool=en.length?en:voices;
+  const fem=/(female|samantha|victoria|karen|moira|tessa|fiona|zira|susan|google us english)/i;
+  const male=/(male|daniel|alex|fred|david|mark|aaron)/i;
+  const want=gender==="female"?fem:male;
+  return pool.find(v=>want.test(v.name)) || pool[0];
+}
+function speak(text,gender){
+  if(!synth||!voiceMode) return;
+  synth.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  const v=pickVoice(gender); if(v) u.voice=v;
+  u.rate=1.04; u.pitch=gender==="female"?1.05:0.95;
+  synth.speak(u);
+}
+function curGender(){ const p=personas.find(x=>x.id===personaId); return p?p.voice:"male"; }
+
+function addMsg(role,text,meta){
+  const d=document.createElement("div"); d.className="msg "+(role==="user"?"rep":"home");
+  d.innerHTML=`<div><div class="who" style="${role==='user'?'text-align:right':''}">${role==='user'?'YOU':'HOMEOWNER'}</div><div class="bubble"></div>${meta?`<div class="meta">${meta}</div>`:""}</div>`;
+  d.querySelector(".bubble").textContent=text; chat.appendChild(d); chat.scrollTop=chat.scrollHeight;
+}
+
+$("vswitch").onclick=()=>{ voiceMode=!voiceMode; $("vswitch").classList.toggle("on",voiceMode); $("voicebar").style.display=voiceMode?"flex":"none"; if(!voiceMode&&synth) synth.cancel(); };
+
+$("start").onclick=async()=>{
+  personaId=$("persona").value; history=[]; started=true;
+  chat.innerHTML=""; $("scoreBox").innerHTML=""; $("err").textContent="";
+  $("input").disabled=false; $("send").disabled=false; $("end").disabled=false;
+  await turn(null);
+};
+
+async function turn(repText){
+  try{
+    if(repText){ history.push({role:"user",content:repText}); addMsg("user",repText); }
+    $("send").disabled=true;
+    const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({personaId,history})});
+    const data=await r.json(); if(data.error) throw new Error(data.error);
+    history.push({role:"assistant",content:data.reply});
+    addMsg("assistant",data.reply, data.latency_ms?`↩ ${data.latency_ms}ms · ~$${data.cost_usd}`:"");
+    speak(data.reply,curGender());
+  }catch(e){ $("err").textContent=e.message; }
+  finally{ $("send").disabled=false; }
+}
+
+$("send").onclick=()=>{ const v=$("input").value.trim(); if(!v||!started) return; $("input").value=""; turn(v); };
+$("input").addEventListener("keydown",e=>{ if(e.key==="Enter") $("send").click(); });
+
+$("mic").onclick=()=>{
+  if(!SR){ $("err").textContent="Speech recognition not supported here — use Chrome, or type."; return; }
+  if(!started){ $("err").textContent="Hit Knock first."; return; }
+  if(synth) synth.cancel();
+  if(recognizing){ rec&&rec.stop(); return; }
+  rec=new SR(); rec.lang="en-US"; rec.interimResults=false; rec.maxAlternatives=1;
+  rec.onstart=()=>{recognizing=true; $("mic").classList.add("live"); $("micnote").textContent="Listening…";};
+  rec.onerror=(e)=>{ $("micnote").textContent="Mic error: "+e.error; };
+  rec.onend=()=>{recognizing=false; $("mic").classList.remove("live"); $("micnote").textContent="Tap the mic and speak";};
+  rec.onresult=(e)=>{ const t=e.results[0][0].transcript; if(t&&t.trim()) turn(t.trim()); };
+  rec.start();
+};
+
+$("end").onclick=async()=>{
+  if(!history.length) return; $("end").disabled=true; $("err").textContent=""; if(synth) synth.cancel();
+  $("scoreBox").innerHTML=`<div class="hint">Scoring your pitch…</div>`;
+  try{
+    const outcome=prompt("Outcome? booked / soft_yes / callback / door_closed","callback")||"callback";
+    const r=await fetch("/api/score",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({personaId,history,outcome})});
+    const s=await r.json(); if(s.error) throw new Error(s.error); renderScore(s);
+  }catch(e){ $("scoreBox").innerHTML=""; $("err").textContent=e.message; }
+  finally{ $("end").disabled=false; }
+};
+
+function dimRow(label,obj){ const sc=obj?.score??0; return `<div class="dim"><div class="l"><span>${label}</span><span class="v">${sc}</span></div><div class="track"><i style="width:${sc}%"></i></div><div class="hint" style="margin-top:3px">${obj?.reason||""}</div></div>`; }
+function renderScore(s){
+  const d=s.dimensions||{};
+  const coach=(s.coaching||[]).map(c=>`<div style="margin:8px 0"><div class="q">"${c.quote}"</div><div>${c.issue}</div><div class="fix">→ ${c.fix}</div></div>`).join("");
+  $("scoreBox").innerHTML=`<div class="score"><div class="stop"><div class="bignum">${s.total}</div><div class="verdict">${s.verdict||""}</div></div>
+    ${dimRow("Open",d.open)}${dimRow("Discovery",d.discovery)}${dimRow("Objection handling",d.objection)}${dimRow("Value &amp; urgency",d.value_urgency)}${dimRow("Close",d.close)}
+    <div class="coach"><b>Coaching</b>${coach}<div style="margin-top:8px"><b>Try next:</b> ${s.try_next||""}</div>
+    <div class="hint" style="margin-top:6px">${s.outcome_note||""} · scored in ${s.latency_ms}ms · ~$${s.cost_usd}</div></div></div>`;
+}
+</script>
+</body>
+</html>
