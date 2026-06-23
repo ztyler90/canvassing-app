@@ -63,8 +63,10 @@ export default function CompleteCheckout() {
   }, [returning])
 
   async function startCheckout() {
+    // Web-only: native iOS bundles short-circuit the entire CompleteCheckout
+    // screen below (Apple Guideline 3.1.1 + 4) before this can run, so the
+    // native open-Stripe-in-Safari branch is gone.
     setBusy(true); setErr(null)
-    // Carry a beta promo (set on the signup link) through to checkout, if present.
     let promo = null
     try { promo = localStorage.getItem('kiq_signup_promo') } catch {}
     const { url, error } = await createCheckoutSession({ plan, interval, promo })
@@ -74,17 +76,53 @@ export default function CompleteCheckout() {
       return
     }
     try { localStorage.removeItem('kiq_signup_promo') } catch {}
-    if (Capacitor.isNativePlatform()) {
-      // App Store Guideline 3.1.1: subscription checkout cannot run inside the
-      // app's WebView. Open Stripe Checkout in the system browser; the success
-      // redirect returns the user to getknockiq.com where the same polling
-      // flow (?checkout=success) reconciles the org. They can then re-open the
-      // native app and log back in.
-      window.open(url, '_blank', 'noopener,noreferrer')
-      setBusy(false)
-    } else {
-      window.location.href = url
-    }
+    window.location.href = url
+  }
+
+  // ── Native iOS gate ──────────────────────────────────────────────────────
+  // The CompleteCheckout screen is the trial-card-gate that new orgs see when
+  // they haven't activated a Stripe subscription yet. Apple Round 4 rejected
+  // any in-app reference to plans, pricing, or external billing — so on
+  // native we replace the entire screen with an explanation that the owner
+  // needs to finish setup on the web. A rep who lands here got into a stuck
+  // state (their org's billing isn't active yet); they can sign out and wait
+  // for the owner to finish. We deliberately surface no plan names, no
+  // dollar amounts, and no "open the browser" CTAs.
+  if (Capacitor.isNativePlatform()) {
+    return (
+      <Shell>
+        <div className="mx-auto w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#E0E7FF' }}>
+          <CreditCard className="w-7 h-7" style={{ color: BRAND_BLUE }} />
+        </div>
+        <h1 className="font-bold text-gray-900 text-lg">
+          Your team's account isn't active yet
+        </h1>
+        <p className="text-gray-600 text-sm mt-2 leading-relaxed">
+          The owner of <span className="font-semibold text-gray-800">{org.name || 'your team'}</span> still
+          needs to finish setting up your account on getknockiq.com. Once that's
+          done, sign back in here and you'll be ready to go.
+        </p>
+        <p className="text-gray-500 text-xs mt-3 leading-relaxed">
+          Need help? Contact your team's administrator, or reach us at hello@knockiq.com.
+        </p>
+        <div className="mt-5 flex flex-col gap-2">
+          {returning && (
+            <button
+              onClick={() => refreshUser()}
+              className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold flex items-center justify-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> Check again
+            </button>
+          )}
+          <button
+            onClick={signOut}
+            className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-medium flex items-center justify-center gap-2"
+          >
+            <LogOut className="w-4 h-4" /> Sign out
+          </button>
+        </div>
+      </Shell>
+    )
   }
 
   // ── Finalizing state (returned from Stripe) ──────────────────────────────

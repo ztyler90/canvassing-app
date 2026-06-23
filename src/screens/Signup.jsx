@@ -1,11 +1,18 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { signUpWithEmail, signInWithEmail, provisionNewOrganization, sendWelcomeEmail, applyGrowthReferral } from '../lib/supabase.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import Turnstile, { captchaEnabled } from '../components/Turnstile.jsx'
 
 const BRAND_BLUE = '#1B4FCC'
 const BRAND_LIME = '#7DC31E'
+
+// App Store Guideline 4 + 3.1.1: on native iOS the bundle behaves as a pure
+// client of an already-purchased B2B service. The signup screen does not link
+// out to a paid web flow; team owners create accounts on getknockiq.com on
+// a separate device, then sign into the app with those credentials. Web build
+// (managers and prospects on desktop) keeps the full in-page signup form.
 
 // ─── Logo ─────────────────────────────────────────────────────────────────────
 // Plain <a href="/"> (not React Router <Link>) — clicking it forces a real
@@ -34,6 +41,47 @@ export default function Signup() {
   const navigate = useNavigate()
   const { refreshUser } = useAuth()
   const [searchParams] = useSearchParams()
+
+  // ── Native-app gate ───────────────────────────────────────────────────────
+  // Apple Guideline 4 (round 3 of the App Store appeal) classified our earlier
+  // "open Safari to sign up" CTA as poor UX. Their preferred treatment for a
+  // B2B SaaS like KnockIQ — where the buyer is a business owner who pays
+  // outside the app and team members just authenticate — is that the iOS
+  // bundle behaves as a pure client of an already-purchased service: no
+  // mention of plans, pricing, billing, or external account creation. So on
+  // native we now show an informational landing instead of any web link-out.
+  // Team owners create their account on getknockiq.com (web) on a different
+  // device; reps receive invites from their manager.
+  if (Capacitor.isNativePlatform()) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 pt-12 pb-6">
+          <KnockIQLogo />
+          <div className="w-full max-w-sm space-y-5 text-center">
+            <h1 className="text-xl font-bold text-gray-900">
+              Welcome to KnockIQ
+            </h1>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              KnockIQ accounts are set up by your team's owner. If you've been
+              invited to your team, sign in below with your invite credentials.
+              If you're a business owner setting up a new account, ask your
+              team administrator for an invitation.
+            </p>
+            <Link
+              to="/login"
+              className="btn-brand inline-block w-full py-4 rounded-xl font-semibold text-base"
+            >
+              Sign in
+            </Link>
+          </div>
+        </div>
+        <p className="text-center text-xs text-gray-400 pb-8 px-4">
+          Need help? Reach us at hello@knockiq.com
+        </p>
+      </div>
+    )
+  }
+
   // Plan the visitor clicked on the pricing page ('standard' | 'pro'). Drives
   // the post-trial plan they'll be billed for; the trial itself is full Pro.
   const selectedPlan = searchParams.get('plan') === 'pro' ? 'pro' : 'standard'

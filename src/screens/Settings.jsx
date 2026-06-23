@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
 import { ChevronLeft, Zap, Check, ExternalLink, Lock, CheckCircle, XCircle, Loader, Users, UserPlus, Trash2, Building2, Shield, DollarSign, Plus, X, Target, Hash, Mail, Send, Phone, Key, Copy, MessageSquare, RefreshCw, Tag, Pencil, Link2, UserCheck, Clock, Share2, Workflow, HelpCircle, PauseCircle, AlertTriangle, Calendar, ShieldAlert, Sun, BarChart3 } from 'lucide-react'
-import { getOrgWebhookConfig, saveOrgWebhookConfig, DEFAULT_WEBHOOK_EVENTS, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled, setOrgRoofInsightsEnabled, setOrgShareLeaderboard, setOrgLeaderboardHideRevenue, pauseOrganization, cancelOrganization, deleteOrganization, signOut, createPortalSession, changePlan, syncSeats } from '../lib/supabase.js'
+import { getOrgWebhookConfig, saveOrgWebhookConfig, DEFAULT_WEBHOOK_EVENTS, fireZapierWebhook, getCurrentUser, getAllReps, createRep, deleteRep, resendRepInvite, getMyOrganization, updateRepCommissionConfig, updateOrganizationGoal, getOrgServices, createOrgService, updateOrgService, deleteOrgService, getMyInviteCode, regenerateInviteCode, setInviteCodeEnabled, getPendingReps, approveRep, rejectRep, buildInviteUrl, setOrgCommissionEnabled, setOrgRoofInsightsEnabled, setOrgShareLeaderboard, setOrgLeaderboardHideRevenue, pauseOrganization, cancelOrganization, deleteOrganization, deleteMyAccount, signOut, createPortalSession, changePlan, syncSeats } from '../lib/supabase.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { describeCommission } from '../lib/repStats.js'
 import { isProTier, isCommissionEnabled, isRoofInsightsEnabled, isLeaderboardShared, isLeaderboardRevenueHidden } from '../lib/tier.js'
@@ -1809,41 +1809,60 @@ export default function Settings() {
               <p className="text-gray-500 text-sm">Business</p>
               <p className="text-gray-800 text-sm font-semibold">{org?.name || '—'}</p>
             </div>
-            <div className="flex items-center justify-between">
-              <p className="text-gray-500 text-sm">Tier</p>
-              <span className="text-sm font-semibold px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: isPro ? BRAND_LIME + '20' : '#EFF6FF', color: isPro ? '#166534' : BRAND_BLUE }}>
-                {isPro ? 'Pro' : 'Standard'}{inTrial ? ' · Trial' : ''}
-              </span>
-            </div>
+            {/* Apple Guideline 3.1.1 + 4 (Round 4): iOS bundle must not
+                display paid tier names, per-seat pricing, monthly cost, or
+                link out to billing management. These rows render on the web
+                build (where managers do their billing) and are hidden on
+                native. The Seats row stays visible on both since it's
+                informational, not pricing. */}
+            {!Capacitor.isNativePlatform() && (
+              <div className="flex items-center justify-between">
+                <p className="text-gray-500 text-sm">Tier</p>
+                <span className="text-sm font-semibold px-2 py-0.5 rounded-full"
+                  style={{ backgroundColor: isPro ? BRAND_LIME + '20' : '#EFF6FF', color: isPro ? '#166534' : BRAND_BLUE }}>
+                  {isPro ? 'Pro' : 'Standard'}{inTrial ? ' · Trial' : ''}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <p className="text-gray-500 text-sm">Seats</p>
               <p className="text-gray-800 text-sm font-medium">
                 {reps.length + 1} <span className="text-gray-400 text-xs font-normal">(1 owner + {reps.length} rep{reps.length !== 1 ? 's' : ''})</span>
               </p>
             </div>
-            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-              <p className="text-gray-500 text-sm">Monthly cost</p>
-              <p className="font-bold text-base" style={{ color: BRAND_BLUE }}>
-                ${monthlyCost.toLocaleString()}<span className="text-xs font-normal text-gray-500">/mo</span>
-              </p>
-            </div>
-            <p className="text-gray-400 text-xs pt-1">
-              ${seatPrice}/seat × {reps.length + 1} seats · {isPro ? 'Pro tier' : 'Standard tier'}
-            </p>
-            {isOwner && org?.stripe_customer_id && (
-              <button
-                onClick={handleManageBilling}
-                disabled={portalBusy}
-                className="mt-2 w-full py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-gray-50 disabled:opacity-50">
-                {portalBusy ? <Loader className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
-                {portalBusy ? 'Opening…' : 'Manage billing & invoices'}
-              </button>
+            {!Capacitor.isNativePlatform() && (
+              <>
+                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                  <p className="text-gray-500 text-sm">Monthly cost</p>
+                  <p className="font-bold text-base" style={{ color: BRAND_BLUE }}>
+                    ${monthlyCost.toLocaleString()}<span className="text-xs font-normal text-gray-500">/mo</span>
+                  </p>
+                </div>
+                <p className="text-gray-400 text-xs pt-1">
+                  ${seatPrice}/seat × {reps.length + 1} seats · {isPro ? 'Pro tier' : 'Standard tier'}
+                </p>
+                {isOwner && org?.stripe_customer_id && (
+                  <button
+                    onClick={handleManageBilling}
+                    disabled={portalBusy}
+                    className="mt-2 w-full py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-gray-50 disabled:opacity-50">
+                    {portalBusy ? <Loader className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
+                    {portalBusy ? 'Opening…' : 'Manage billing & invoices'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </section>
 
         {/* ── Pricing Plans ──────────────────────────────────────────── */}
+        {/* Apple Guideline 3.1.1 + 4 (Round 4): the iOS bundle must not
+            reference paid digital tiers ("Standard"/"Pro"), surface pricing,
+            or link out to subscription management. Hiding the entire Plans
+            section here makes the iOS app a pure client of the org's
+            existing subscription — billing is handled exclusively on
+            getknockiq.com by the team owner. Web build is unchanged. */}
+        {!Capacitor.isNativePlatform() && (
         <section>
           <h2 className="text-gray-700 font-semibold text-base mb-3">Plans</h2>
 
@@ -2006,6 +2025,7 @@ export default function Settings() {
             </div>
           </div>
         </section>
+        )}
 
         {/* ── CRM Integration ────────────────────────────────────────── */}
         <section>
@@ -2221,6 +2241,40 @@ export default function Settings() {
             </div>
           )}
 
+          {/* ── Delete my account ──────────────────────────────────────
+              Apple Guideline 4 + Google Play User Data Deletion: apps that
+              support account creation must offer in-app account deletion.
+              Visible to every signed-in user (reps, closers, managers, AND
+              owners). Owners see an extra warning that this also dissolves
+              their organization since there can only be one owner. The
+              backend (manage-team edge function 'delete_self' action) does
+              the cascade. */}
+          <div className="mt-5 rounded-2xl border border-red-100 bg-red-50/30 overflow-hidden">
+            <div className="px-4 py-2.5 bg-red-50 border-b border-red-100 flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-red-500" />
+              <p className="text-sm font-semibold text-red-700">Delete my account</p>
+            </div>
+            <div className="p-4 space-y-2 bg-white">
+              <p className="text-xs text-gray-600 leading-relaxed">
+                Permanently delete your KnockIQ account and personal data. This cannot be undone.
+                {isOwner && (
+                  <>
+                    {' '}
+                    <span className="font-semibold text-red-600">
+                      Because you're the owner of {org?.name || 'this team'}, deleting your account also
+                      deletes the entire organization and every teammate's account.
+                    </span>
+                  </>
+                )}
+              </p>
+              <button
+                onClick={() => setLifecycleModal('delete_self')}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-red-600 border border-red-300 hover:bg-red-50">
+                <Trash2 className="w-3.5 h-3.5" /> Delete my account…
+              </button>
+            </div>
+          </div>
+
           <p className="text-center text-gray-400 text-xs mt-4">
             Questions?{' '}
             <a href="mailto:hello@knockiq.com" className="text-blue-500 hover:underline">
@@ -2334,8 +2388,17 @@ function defaultResumeDate() {
 }
 
 function AccountLifecycleModal({ mode, org, onClose, onPaused, onCancelled, onDeleted, showToast }) {
-  // step: 'pause' | 'reason' | 'offer' | 'confirm_cancel' | 'delete'
-  const [step, setStep] = useState(mode === 'pause' ? 'pause' : 'reason')
+  // step: 'pause' | 'reason' | 'offer' | 'confirm_cancel' | 'delete' | 'delete_self'
+  // delete_self is the Apple Guideline 4 / Google User Data Deletion in-app
+  // account deletion path. It's visible to ALL signed-in users (not just
+  // owners) — non-owners detach themselves from the org and have their auth
+  // user deleted; owners cascade to a full org delete since there can only
+  // be one owner.
+  const [step, setStep] = useState(
+    mode === 'pause' ? 'pause' :
+    mode === 'delete_self' ? 'delete_self' :
+    'reason'
+  )
   const [reason, setReason] = useState(null)
   const [resumeDate, setResumeDate] = useState(defaultResumeDate())
   const [noResumeDate, setNoResumeDate] = useState(false)
@@ -2371,6 +2434,18 @@ function AccountLifecycleModal({ mode, org, onClose, onPaused, onCancelled, onDe
     setBusy(true)
     const { error } = await deleteOrganization()
     // Don't clear busy on success — the session is about to die.
+    if (error) { setBusy(false); showToast('Could not delete: ' + error.message, 'error'); return }
+    await onDeleted?.()
+  }
+
+  async function doDeleteSelf() {
+    // Apple Guideline 4 / Play User Data Deletion: the caller is requesting
+    // permanent deletion of their own account. The edge function decides
+    // whether to cascade to org-delete (owner) or detach the user
+    // (non-owner); either way the session dies on success, so signOut() runs
+    // via onDeleted.
+    setBusy(true)
+    const { error } = await deleteMyAccount()
     if (error) { setBusy(false); showToast('Could not delete: ' + error.message, 'error'); return }
     await onDeleted?.()
   }
@@ -2575,6 +2650,56 @@ function AccountLifecycleModal({ mode, org, onClose, onPaused, onCancelled, onDe
               onClick={() => setStep('delete')}
               className="w-full text-center text-xs text-gray-400 hover:text-red-500 hover:underline">
               Or delete everything permanently now →
+            </button>
+          </>
+        )}
+
+        {/* ── DELETE_SELF: per-user typed confirm ────────────────────────
+            Apple Guideline 4 / Play User Data Deletion path. Visible to all
+            signed-in users via Settings → Account → Delete my account. The
+            edge function distinguishes owner (org cascade) vs non-owner
+            (detach + auth.users delete) by looking at the caller's row. */}
+        {step === 'delete_self' && (
+          <>
+            <ModalHeader icon={Trash2} iconBg="#FEE2E2" iconColor="#DC2626"
+              title="Delete my account" />
+            <p className="text-sm text-gray-600 leading-relaxed">
+              This <span className="font-semibold text-red-600">permanently deletes</span> your
+              KnockIQ account and personal data. There's no undo.
+            </p>
+            <div className="bg-red-50 border border-red-100 rounded-xl px-3 py-2.5 text-xs text-red-800 leading-relaxed">
+              <span className="font-semibold">What gets deleted:</span> your name, email, phone,
+              avatar, authentication record, and personal stats / commission
+              history. Sessions and interactions you logged are detached from
+              your name but kept on the team's records for the team's own
+              reporting.
+              {org?.owner_user_id && (
+                <span className="block mt-2 font-semibold">
+                  Heads up: if you're the owner of this team, this also deletes
+                  the entire organization and every teammate's account.
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
+              To confirm, type <span className="font-mono font-bold">DELETE</span> below.
+            </p>
+            <input
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder="DELETE"
+              autoComplete="off"
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-red-300"
+            />
+            <button
+              onClick={doDeleteSelf}
+              disabled={busy || deleteConfirm.trim().toUpperCase() !== 'DELETE'}
+              className="w-full py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2"
+              style={{ backgroundColor: '#DC2626' }}>
+              {busy ? <Loader className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Permanently delete my account
+            </button>
+            <button onClick={onClose} className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-medium">
+              Cancel
             </button>
           </>
         )}

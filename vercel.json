@@ -28,6 +28,8 @@
     { "src": "/terms", "dest": "/terms.html" },
     { "src": "/dpa", "dest": "/dpa.html" },
     { "src": "/sub-processors", "dest": "/sub-processors.html" },
+    { "src": "/account-delete", "dest": "/account-delete.html" },
+    { "src": "/account/delete", "dest": "/account-delete.html" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]

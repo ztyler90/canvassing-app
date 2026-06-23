@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { format, subDays, startOfDay, endOfDay, differenceInCalendarDays } from 'date-fns'
 import { Users, DollarSign, Home, TrendingUp, MapPin, BarChart2, LogOut, Map, Plus, Trash2, Edit2, X, Check, Radio, Trophy, Download, Settings, BookOpen, Shield, UserPlus, ChevronRight, AlertTriangle, Search, Crosshair, Sparkles, ArrowRight, Target, Flame, Share2, Copy, Eye, EyeOff, Award, Minus, MessageSquare, Lock } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext.jsx'
@@ -302,8 +303,13 @@ export default function ManagerDashboard() {
         </div>
       </div>
 
-      {/* Trial banner */}
-      {user?.organization?.status === 'trial' && user?.organization?.trial_ends_at && (() => {
+      {/* Trial banner — hidden on native iOS per Apple Guideline 3.1.1 + 4
+          (Round 4): no in-app reference to trials, billing state, or
+          "upgrade" calls-to-action. The expired-trial copy on web tells the
+          owner to add billing on getknockiq.com; on iOS the same owner sees
+          the AccountInactive gate from App.jsx instead, which already
+          explains the situation without mentioning prices. */}
+      {!Capacitor.isNativePlatform() && user?.organization?.status === 'trial' && user?.organization?.trial_ends_at && (() => {
         const msLeft = new Date(user.organization.trial_ends_at).getTime() - Date.now()
         const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)))
         const isExpired = msLeft <= 0

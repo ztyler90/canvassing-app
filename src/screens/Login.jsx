@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { signInWithEmail, sendPasswordReset } from '../lib/supabase.js'
 import Turnstile, { captchaEnabled } from '../components/Turnstile.jsx'
 
@@ -246,10 +247,18 @@ export default function Login() {
               onForgot={(email) => { setForgotEmail(email); setMode('forgot') }}
             />
 
-            <p className="mt-6 text-sm text-gray-500">
-              New to KnockIQ?{' '}
-              <a href="/signup" className="font-semibold text-blue-600 hover:underline">Start your free trial →</a>
-            </p>
+            {/* Apple Guideline 4 (round 3): opening Safari for sign-up was
+                flagged as poor UX. The native iOS app now hides the signup
+                CTA entirely — accounts are administered by the team owner on
+                the web, and reps land here only after they've been invited.
+                The web build keeps the in-page link for prospects on
+                desktop. */}
+            {!Capacitor.isNativePlatform() && (
+              <p className="mt-6 text-sm text-gray-500">
+                New to KnockIQ?{' '}
+                <a href="/signup" className="font-semibold text-blue-600 hover:underline">Start your free trial →</a>
+              </p>
+            )}
           </>
         )}
       </div>

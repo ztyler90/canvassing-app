@@ -2247,6 +2247,37 @@ export async function deleteOrganization() {
   return { error: error || null }
 }
 
+/**
+ * Permanently delete the caller's own account and personal data. Required by
+ * Apple Guideline 4 (apps that support account creation must offer in-app
+ * account deletion) and Google Play's User Data Deletion policy.
+ *
+ * Behaviour:
+ *  - For a non-owner (rep / closer / non-owner manager): deletes their
+ *    public.users row and auth.users row. The org and other teammates are
+ *    untouched. Sessions / interactions they own are kept on the org but
+ *    detached (rep_id nulled) so historical stats survive.
+ *  - For an org OWNER: same as deleteOrganization() — the org is destroyed
+ *    along with the owner's account. There can only be one owner; the owner
+ *    leaving means the business is gone. The UI should explain this clearly
+ *    before calling.
+ *
+ * The caller's session terminates immediately on success — the calling code
+ * should signOut() right after and redirect to /login (or just the welcome
+ * page on web).
+ *
+ * Backed by the manage-team edge function ('delete_self' action). The edge
+ * function does both the public.users / public.organizations cleanup AND the
+ * auth.users delete via the service-role admin API (regular auth users
+ * cannot delete themselves from auth.users — that requires the admin key).
+ *
+ * @returns {Promise<{ error: Error|null }>}
+ */
+export async function deleteMyAccount() {
+  const { error } = await callManageTeam({ action: 'delete_self' })
+  return { error: error || null }
+}
+
 // ── Checkout / billing (hosted Stripe Checkout + Customer Portal) ─────────────
 
 /**

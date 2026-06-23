@@ -106,7 +106,7 @@ async function countBillableSeats(adminClient: ReturnType<typeof createClient>, 
     .select('id', { count: 'exact', head: true })
     .eq('organization_id', orgId)
     .in('role', ['manager', 'rep'])
-    .not('status', 'in', '("pending","rejected")')
+    .not('status', 'in', '("pending","rejected","deleted")')
   return Math.max(1, count || 1)
 }
 
@@ -174,19 +174,39 @@ serve(async (req) => {
     // Check role + org in public.users table
     const { data: callerProfile } = await adminClient
       .from('users')
-      .select('role, organization_id, is_super_admin, full_name')
+      .select('role, organization_id, is_super_admin, full_name, status')
       .eq('id', callerUser.id)
       .single()
 
-    if (!callerProfile || callerProfile.role !== 'manager') {
+    if (!callerProfile) {
+      return new Response(JSON.stringify({ error: 'Forbidden: no profile' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Read the action up front so we can gate the manager-only check on it.
+    // Apple Guideline 5.1.1(v) requires in-app account deletion, so the
+    // 'delete_self' action below has to work for reps + closers too — not
+    // just managers/owners. Every other action remains manager-only.
+    const body = await req.json()
+    const { action } = body
+
+    if (action !== 'delete_self' && callerProfile.role !== 'manager') {
       return new Response(JSON.stringify({ error: 'Forbidden: owner role required' }), {
         status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     if (!callerProfile.organization_id) {
-      return new Response(JSON.stringify({ error: 'Owner is not attached to an organization' }), {
+      return new Response(JSON.stringify({ error: 'User is not attached to an organization' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Already-tombstoned users cannot re-delete themselves.
+    if (action === 'delete_self' && callerProfile.status === 'deleted') {
+      return new Response(JSON.stringify({ error: 'Account is already deleted' }), {
+        status: 410, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
@@ -203,9 +223,6 @@ serve(async (req) => {
     // whole account. Super-admins can act on any org for support.
     const isOrgOwner = !!orgRow && orgRow.owner_user_id === callerUser.id
     const canManageLifecycle = isOrgOwner || !!callerProfile.is_super_admin
-
-    const body = await req.json()
-    const { action } = body
 
     // ── CREATE REP ───────────────────────────────────────────────────────────
     // Two modes, selected by the client via `mode`:
@@ -858,6 +875,139 @@ serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ success: true }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // ── DELETE SELF ────────────────────────────────────────────────────────
+    // Apple Guideline 5.1.1(v): account-creation apps must offer in-app
+    // account deletion. Any authenticated user (rep, closer, manager, owner)
+    // can call this to permanently delete their own KnockIQ account.
+    //
+    // Two branches:
+    //
+    //   isOrgOwner === true
+    //     → cascade to the full delete_org teardown. KnockIQ teams have
+    //       exactly one owner; the owner leaving means the team is gone.
+    //       (The /account/delete public page warns about this; the iOS
+    //       Settings drawer also warns before confirmation.)
+    //
+    //   isOrgOwner === false  (regular rep / closer / non-owner manager)
+    //     → "tombstone" the public.users row. The schema has NO ACTION FKs
+    //       from bookings / canvassing_sessions / gps_points / interactions /
+    //       organization_tier_history (rep_id → users.id), so we cannot
+    //       delete the public.users row outright without orphaning the
+    //       company's historical records — which we explicitly promised to
+    //       keep in the /account/delete copy. Instead we null out every
+    //       column carrying personal data, flip the row to status='deleted',
+    //       stamp deleted_at, and remove the auth.users record so the user
+    //       can never sign in again. From the app's perspective this is
+    //       indistinguishable from a hard delete.
+    if (action === 'delete_self') {
+      // Owner cascade — same teardown as delete_org. We inline rather than
+      // re-dispatch so the request shape stays explicit and we don't reuse
+      // an action that the iOS bundle isn't actually allowed to call.
+      if (isOrgOwner) {
+        console.warn('[manage-team] DELETE SELF (owner cascade) org', callerProfile.organization_id, 'by', callerUser.id)
+
+        const delSubId = orgRow?.stripe_subscription_id || null
+        if (stripe && delSubId) {
+          try {
+            await stripe.subscriptions.cancel(delSubId)
+          } catch (e) {
+            console.error('[manage-team] delete_self stripe cancel error:', (e as Error).message)
+          }
+        }
+
+        const { data: members } = await adminClient
+          .from('users')
+          .select('id')
+          .eq('organization_id', callerProfile.organization_id)
+
+        const memberIds: string[] = (members || []).map((m: { id: string }) => m.id)
+        const others = memberIds.filter((id) => id !== callerUser.id)
+
+        // Tombstone teammates' user rows so the NO ACTION FKs from
+        // sessions/interactions/bookings/gps_points don't block the org
+        // delete (cascade on those tables will remove the rows, but only
+        // *after* the org delete fires — see below). We null out PII first,
+        // then auth-delete each member.
+        await adminClient.from('users').update({
+          email: null, full_name: null, phone: null, avatar_url: null,
+          status: 'deleted', deleted_at: new Date().toISOString(),
+        }).eq('organization_id', callerProfile.organization_id)
+
+        // Delete the org. organization_id FKs cascade through every child
+        // table (sessions, interactions, bookings, gps_points, ...), and the
+        // users.organization_id FK is SET NULL — so the tombstoned user
+        // rows survive with organization_id = null. We then clean those up.
+        const { error: orgDelErr } = await adminClient
+          .from('organizations')
+          .delete()
+          .eq('id', callerProfile.organization_id)
+        if (orgDelErr) {
+          return new Response(JSON.stringify({ error: orgDelErr.message }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+
+        // Now that the cascading child rows are gone, the tombstoned user
+        // rows have no incoming FKs left and can be deleted outright.
+        await adminClient.from('users').delete().in('id', memberIds)
+
+        // auth.users cleanup — teammates first, then the owner last so the
+        // teardown runs under a valid token.
+        for (const id of others) {
+          const { error } = await adminClient.auth.admin.deleteUser(id)
+          if (error) console.warn('[manage-team] delete_self: auth delete failed for', id, error.message)
+        }
+        const { error: ownerDelErr } = await adminClient.auth.admin.deleteUser(callerUser.id)
+        if (ownerDelErr) console.warn('[manage-team] delete_self: auth delete failed for owner', ownerDelErr.message)
+
+        return new Response(JSON.stringify({ success: true, cascade: 'org' }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // Non-owner branch — tombstone the public.users row, delete the auth
+      // record. The historical bookings/sessions/interactions stay on the
+      // org's books with rep_id pointing to a PII-free row. Apple's
+      // requirement is that personal data is removed and the user can no
+      // longer sign in; both are satisfied here.
+      console.warn('[manage-team] DELETE SELF (tombstone)', callerUser.id, 'role', callerProfile.role)
+
+      const { error: tombErr } = await adminClient.from('users').update({
+        email:                 null,
+        full_name:             null,
+        phone:                 null,
+        avatar_url:            null,
+        commission_config:     null,
+        closer_notification_pref: null,
+        force_password_change: false,
+        status:                'deleted',
+        deleted_at:            new Date().toISOString(),
+      }).eq('id', callerUser.id)
+      if (tombErr) {
+        return new Response(JSON.stringify({ error: tombErr.message }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const { error: authDelErr } = await adminClient.auth.admin.deleteUser(callerUser.id)
+      if (authDelErr) {
+        // public.users tombstoned but auth deletion failed — surface a warning
+        // so support can mop up. The user still can't sign in until they're
+        // also rotated out of auth, but their PII is already gone.
+        console.warn('[manage-team] delete_self: auth delete failed for', callerUser.id, authDelErr.message)
+        return new Response(JSON.stringify({ success: true, auth_warning: authDelErr.message }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // Seat count just dropped (if they were a billable seat) — push to Stripe.
+      await syncSeatQuantity(adminClient, callerProfile.organization_id, orgRow?.stripe_subscription_id || null)
+
+      return new Response(JSON.stringify({ success: true, cascade: 'user' }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
