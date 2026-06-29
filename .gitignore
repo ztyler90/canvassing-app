@@ -31,3 +31,12 @@ android/build/
 android/local.properties
 android/.idea/
 android/captures/
+knockcoach-landing.html
+knockcoach-prototype/.env.example
+knockcoach-prototype/package-lock.json
+knockcoach-prototype/package.json
+knockcoach-prototype/personas.js
+knockcoach-prototype/public/index.html
+knockcoach-prototype/README.md
+knockcoach-prototype/server.js
+KnockIQ_GTM_Outreach_Playbook.md

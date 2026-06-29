@@ -242,25 +242,19 @@
         linear-gradient(180deg, var(--white) 0%, var(--white) 55%, var(--bg) 100%);
       overflow: hidden;
     }
-    /* Effect 1 · faint street map with a GPS route the rep "walks" (JS-driven) */
-    .hero-map { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .5; }
-    .hm-block { fill: rgba(15,23,42,.009); }
-    .hm-streets line { stroke: #0F172A; stroke-width: 1.3; opacity: .022; }
-    .hm-road { stroke: #0F172A; stroke-width: 7; opacity: .022; stroke-linecap: round; }
-    .hm-lane { stroke: #1B4FCC; stroke-width: 1.3; opacity: .05; stroke-dasharray: 9 11; }
-    .hm-route { fill: none; stroke: rgba(46,107,255,.055); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
-    .hm-trail { fill: none; stroke: rgba(46,107,255,.3); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 3px rgba(46,107,255,.3)); }
-    .hm-pin { fill: rgba(46,107,255,.16); transition: fill .3s ease; }
-    .hm-pin.knocked { fill: rgba(46,107,255,.5); }
-    .hm-mark { fill: none; stroke: #2E6BFF; stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center; }
-    .hm-mark.ping { animation: knockPing .8s ease-out; }
-    @keyframes knockPing { 0% { opacity: .9; transform: scale(.25); } 100% { opacity: 0; transform: scale(2.8); } }
-    .hm-rep .halo { fill: #2E6BFF; opacity: .26; transform-box: fill-box; transform-origin: center; animation: repPulse 1.6s ease-out infinite; }
-    .hm-rep .core { fill: rgba(46,107,255,.7); filter: drop-shadow(0 0 4px rgba(46,107,255,.45)); }
-    @keyframes repPulse { 0% { transform: scale(.5); opacity: .5; } 100% { transform: scale(3); opacity: 0; } }
+    /* Static hero background photo (replaces the animated street-map/radar) */
+    .hero-bg {
+      position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(180deg, rgba(255,255,255,.55) 0%, rgba(255,255,255,.32) 42%, rgba(255,255,255,.80) 86%, var(--bg) 100%),
+        url('/background%20image.png');
+      background-size: cover, cover;
+      background-position: center, center;
+      background-repeat: no-repeat, no-repeat;
+    }
 
     .hero > * { position: relative; z-index: 1; }
-    .hero > svg.hero-map { position: absolute; z-index: 0; }
+    .hero > .hero-bg { position: absolute; z-index: 0; }
 
     /* Effect 2 · gentle "live" halo on the eyebrow status dot */
     .hero .pill .dot { position: relative; }
@@ -276,8 +270,6 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .hm-rep, .hm-mark { display: none; }
-      .hm-rep .halo { animation: none; }
       .hero .pill .dot::after { display: none; }
     }
 
@@ -2122,97 +2114,7 @@
      HERO
 ═══════════════════════════════════════════════════════════════════════════ -->
 <section id="top" class="hero">
-  <svg class="hero-map" viewBox="0 0 1440 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-    <defs>
-      <g id="h1">
-        <ellipse cx="0" cy="-9" rx="26" ry="10" fill="rgba(15,23,42,.05)"/>
-        <path d="M-20 -10 L0 0 L0 -24 L-20 -34 Z" fill="rgba(46,107,255,.11)" stroke="rgba(46,107,255,.24)" stroke-width="1"/>
-        <path d="M0 0 L20 -10 L20 -34 L0 -24 Z" fill="rgba(46,107,255,.06)" stroke="rgba(46,107,255,.24)" stroke-width="1"/>
-        <path d="M0 -24 L-20 -34 L0 -50 Z" fill="rgba(27,79,204,.27)" stroke="rgba(46,107,255,.32)" stroke-width="1"/>
-        <path d="M0 -24 L20 -34 L0 -50 Z" fill="rgba(46,107,255,.18)" stroke="rgba(46,107,255,.32)" stroke-width="1"/>
-        <path d="M-11 -5.5 L-6.4 -3.2 L-6.4 -16 L-11 -18.3 Z" fill="rgba(20,40,90,.32)"/>
-        <path d="M6 -14 L12.5 -17.2 L12.5 -23 L6 -19.8 Z" fill="rgba(147,197,253,.45)"/>
-      </g>
-      <g id="h2">
-        <ellipse cx="0" cy="-9" rx="26" ry="10" fill="rgba(15,23,42,.05)"/>
-        <path d="M-20 -10 L0 0 L0 -24 L-20 -34 Z" fill="rgba(109,40,217,.10)" stroke="rgba(109,40,217,.24)" stroke-width="1"/>
-        <path d="M0 0 L20 -10 L20 -34 L0 -24 Z" fill="rgba(109,40,217,.06)" stroke="rgba(109,40,217,.24)" stroke-width="1"/>
-        <path d="M0 -24 L-20 -34 L0 -50 Z" fill="rgba(91,33,182,.28)" stroke="rgba(109,40,217,.32)" stroke-width="1"/>
-        <path d="M0 -24 L20 -34 L0 -50 Z" fill="rgba(139,92,246,.18)" stroke="rgba(109,40,217,.32)" stroke-width="1"/>
-        <path d="M-11 -5.5 L-6.4 -3.2 L-6.4 -16 L-11 -18.3 Z" fill="rgba(40,20,80,.30)"/>
-        <path d="M6 -14 L12.5 -17.2 L12.5 -23 L6 -19.8 Z" fill="rgba(196,181,253,.5)"/>
-      </g>
-      <g id="tr">
-        <ellipse cx="0" cy="-1" rx="10" ry="4" fill="rgba(15,23,42,.05)"/>
-        <rect x="-1.6" y="-12" width="3.2" height="12" fill="rgba(70,60,50,.30)"/>
-        <circle cx="0" cy="-18" r="9.5" fill="rgba(99,160,40,.22)" stroke="rgba(70,120,25,.30)" stroke-width="1"/>
-        <circle cx="-5.5" cy="-13" r="6" fill="rgba(99,160,40,.20)"/>
-        <circle cx="5.5" cy="-14" r="6" fill="rgba(99,160,40,.20)"/>
-      </g>
-    </defs>
-    <g class="hm-blocks">
-      <rect class="hm-block" x="278" y="128" width="124" height="114" rx="4"/>
-      <rect class="hm-block" x="418" y="258" width="134" height="94" rx="4"/>
-      <rect class="hm-block" x="568" y="368" width="134" height="114" rx="4"/>
-      <rect class="hm-block" x="718" y="128" width="134" height="114" rx="4"/>
-      <rect class="hm-block" x="868" y="258" width="134" height="94" rx="4"/>
-      <rect class="hm-block" x="1018" y="368" width="134" height="114" rx="4"/>
-      <rect class="hm-block" x="138" y="368" width="124" height="114" rx="4"/>
-    </g>
-    <g class="hm-streets">
-      <line x1="130" y1="0" x2="130" y2="700"/>
-      <line x1="270" y1="0" x2="270" y2="700"/>
-      <line x1="410" y1="0" x2="410" y2="700"/>
-      <line x1="710" y1="0" x2="710" y2="700"/>
-      <line x1="860" y1="0" x2="860" y2="700"/>
-      <line x1="1010" y1="0" x2="1010" y2="700"/>
-      <line x1="1160" y1="0" x2="1160" y2="700"/>
-      <line x1="1310" y1="0" x2="1310" y2="700"/>
-      <line x1="0" y1="120" x2="1440" y2="120"/>
-      <line x1="0" y1="250" x2="1440" y2="250"/>
-      <line x1="0" y1="490" x2="1440" y2="490"/>
-      <line x1="0" y1="610" x2="1440" y2="610"/>
-    </g>
-    <line class="hm-road" x1="560" y1="0" x2="560" y2="700"/>
-    <line class="hm-road" x1="0" y1="360" x2="1440" y2="360"/>
-    <line class="hm-lane" x1="560" y1="0" x2="560" y2="700"/>
-    <line class="hm-lane" x1="0" y1="360" x2="1440" y2="360"/>
-
-    <g class="hm-houses" opacity="0.4">
-      <use href="#h1" transform="translate(1010,120) scale(0.9)"/>
-      <use href="#h2" transform="translate(360,150) scale(0.85)"/>
-      <use href="#h2" transform="translate(1180,150) scale(0.9)"/>
-      <use href="#h1" transform="translate(700,172) scale(0.8)"/>
-      <use href="#h1" transform="translate(150,188) scale(0.9)"/>
-      <use href="#h1" transform="translate(560,250) scale(0.95)"/>
-      <use href="#h1" transform="translate(1330,256) scale(0.85)"/>
-      <use href="#h2" transform="translate(430,300) scale(0.95)"/>
-      <use href="#tr" transform="translate(1050,300) scale(1.0)"/>
-      <use href="#h1" transform="translate(120,330) scale(0.95)"/>
-      <use href="#tr" transform="translate(645,338) scale(1.0)"/>
-      <use href="#h2" transform="translate(860,360) scale(1.05)"/>
-      <use href="#tr" transform="translate(300,432) scale(1.05)"/>
-      <use href="#tr" transform="translate(1235,430) scale(1.0)"/>
-      <use href="#h1" transform="translate(1150,470) scale(1.0)"/>
-      <use href="#h2" transform="translate(700,476) scale(1.05)"/>
-      <use href="#h2" transform="translate(270,490) scale(1.0)"/>
-      <use href="#tr" transform="translate(820,505) scale(1.1)"/>
-      <use href="#h2" transform="translate(1290,520) scale(1.0)"/>
-      <use href="#h1" transform="translate(250,562) scale(1.0)"/>
-      <use href="#h1" transform="translate(905,560) scale(1.05)"/>
-      <use href="#h2" transform="translate(560,585) scale(1.05)"/>
-    </g>
-
-    <path class="hm-route" d="M270 640 V490 H410 V360 H560 V250 H860 V360 H1010 V120 H1310"/>
-    <path class="hm-trail" d="M270 640 V490 H410 V360 H560 V250 H860 V360 H1010 V120 H1310"/>
-
-    <circle class="hm-pin route" cx="270" cy="490" r="5"/><circle class="hm-mark" cx="270" cy="490" r="9"/>
-    <circle class="hm-pin route" cx="560" cy="250" r="5"/><circle class="hm-mark" cx="560" cy="250" r="9"/>
-    <circle class="hm-pin route" cx="860" cy="360" r="5"/><circle class="hm-mark" cx="860" cy="360" r="9"/>
-    <circle class="hm-pin route" cx="1010" cy="120" r="5"/><circle class="hm-mark" cx="1010" cy="120" r="9"/>
-
-    <g class="hm-rep"><circle class="halo" cx="0" cy="0" r="8"/><circle class="core" cx="0" cy="0" r="5"/></g>
-  </svg>
+  <div class="hero-bg" aria-hidden="true"></div>
   <div class="container hero-head">
     <span class="pill">
       <span class="dot"></span>
@@ -3099,51 +3001,6 @@
         img.style.display = 'none';
       });
     });
-  })();
-</script>
-
-<!-- Hero GPS walk: rep dot traces the route, "knocks" pins as it passes -->
-<script>
-  (function () {
-    var svg = document.querySelector('.hero-map');
-    if (!svg) return;
-    var route = svg.querySelector('.hm-route');
-    var trail = svg.querySelector('.hm-trail');
-    var rep   = svg.querySelector('.hm-rep');
-    if (!route || !trail || !rep) return;
-    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    var L = route.getTotalLength();
-
-    var marks = [].slice.call(svg.querySelectorAll('.hm-mark')).map(function (m) {
-      var cx = +m.getAttribute('cx'), cy = +m.getAttribute('cy'), best = 0, bd = Infinity;
-      for (var s = 0; s <= L; s += 3) {
-        var p = route.getPointAtLength(s);
-        var dx = p.x - cx, dy = p.y - cy, d = dx * dx + dy * dy;
-        if (d < bd) { bd = d; best = s; }
-      }
-      return { el: m, len: best, fired: false, pin: m.previousElementSibling };
-    });
-
-    if (reduce) { trail.style.strokeDasharray = L + ' 0'; rep.style.display = 'none'; return; }
-
-    var period = 12000, start = null;
-    function frame(now) {
-      if (start === null) start = now;
-      var t = ((now - start) % period) / period, dist = t * L;
-      trail.style.strokeDasharray = dist + ' ' + (L + 10);
-      var p = route.getPointAtLength(dist);
-      rep.setAttribute('transform', 'translate(' + p.x + ',' + p.y + ')');
-      marks.forEach(function (m) {
-        if (!m.fired && dist >= m.len) {
-          m.fired = true;
-          m.el.classList.remove('ping'); void m.el.getBoundingClientRect(); m.el.classList.add('ping');
-          if (m.pin) m.pin.classList.add('knocked');
-        }
-      });
-      if (t < 0.015) marks.forEach(function (m) { m.fired = false; if (m.pin) m.pin.classList.remove('knocked'); });
-      requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
   })();
 </script>
 
